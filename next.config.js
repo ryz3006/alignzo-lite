@@ -1,13 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable static export for Vercel (use SSR instead)
-  ...(process.env.VERCEL ? {} : { 
-    output: 'export',
-    trailingSlash: true,
-    images: {
-      unoptimized: true,
-    }
-  }),
+  // Use SSR for Vercel deployment
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

@@ -31,6 +31,12 @@ export default function ProjectsPage() {
 
   const loadProjects = async () => {
     try {
+      if (!supabase) {
+        console.error('Supabase not initialized');
+        setLoading(false);
+        return;
+      }
+
       // Get projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
@@ -71,6 +77,11 @@ export default function ProjectsPage() {
     e.preventDefault();
     
     try {
+      if (!supabase) {
+        console.error('Supabase not initialized');
+        return;
+      }
+
       if (editingProject) {
         // Update existing project
         const { error } = await supabase
@@ -116,6 +127,11 @@ export default function ProjectsPage() {
     if (!confirm('Are you sure you want to delete this project?')) return;
 
     try {
+      if (!supabase) {
+        console.error('Supabase not initialized');
+        return;
+      }
+
       const { error } = await supabase
         .from('projects')
         .delete()

@@ -63,7 +63,7 @@ export default function AdminPage() {
       setConfigStatus(prev => ({ ...prev, supabase: supabaseConfigured }));
 
       // Check database tables
-      if (supabaseConfigured && supabase) {
+      if (supabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('users')
