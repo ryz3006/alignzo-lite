@@ -107,6 +107,9 @@ interface FilterState {
   selectedTeams: string[];
   selectedProjects: string[];
   selectedUsers: string[];
+  showTeamDropdown: boolean;
+  showProjectDropdown: boolean;
+  showUserDropdown: boolean;
 }
 
 export default function AnalyticsPage() {
@@ -120,7 +123,10 @@ export default function AnalyticsPage() {
     },
     selectedTeams: [],
     selectedProjects: [],
-    selectedUsers: []
+    selectedUsers: [],
+    showTeamDropdown: false,
+    showProjectDropdown: false,
+    showUserDropdown: false
   });
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(filters);
 
@@ -252,7 +258,12 @@ export default function AnalyticsPage() {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
 
-    return teams.map(team => {
+    // Filter teams based on selection
+    const filteredTeams = appliedFilters.selectedTeams.length > 0 
+      ? teams.filter(team => appliedFilters.selectedTeams.includes(team.name))
+      : teams;
+
+    return filteredTeams.map(team => {
       const teamMembers = team.team_members || [];
       const memberEmails = teamMembers.map((member: any) => {
         const user = users.find(u => u.id === member.user_id);
@@ -289,7 +300,12 @@ export default function AnalyticsPage() {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
 
-    return projects.map(project => {
+    // Filter projects based on selection
+    const filteredProjects = appliedFilters.selectedProjects.length > 0 
+      ? projects.filter(project => appliedFilters.selectedProjects.includes(project.name))
+      : projects;
+
+    return filteredProjects.map(project => {
       const projectLogs = workLogs.filter(log => log.project?.id === project.id);
       const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const uniqueUsers = new Set(projectLogs.map((log: any) => log.user_email));
@@ -332,7 +348,12 @@ export default function AnalyticsPage() {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
 
-    return users.map(user => {
+    // Filter users based on selection
+    const filteredUsers = appliedFilters.selectedUsers.length > 0 
+      ? users.filter(user => appliedFilters.selectedUsers.includes(user.email))
+      : users;
+
+    return filteredUsers.map(user => {
       const userLogs = workLogs.filter(log => log.user_email === user.email);
       const totalWorkedHours = userLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const availableHours = standardWorkHoursPerDay * workingDaysInPeriod;
@@ -430,6 +451,24 @@ export default function AnalyticsPage() {
   const handleApplyFilters = () => {
     setAppliedFilters(filters);
   };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.filter-dropdown')) {
+        setFilters(prev => ({
+          ...prev,
+          showTeamDropdown: false,
+          showProjectDropdown: false,
+          showUserDropdown: false
+        }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleExport = () => {
     let csvContent = '';
@@ -599,72 +638,138 @@ export default function AnalyticsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Teams</label>
-            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
-              {availableTeams.map(team => (
-                <label key={team} className="flex items-center space-x-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={filters.selectedTeams.includes(team)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFilters(prev => ({ ...prev, selectedTeams: [...prev.selectedTeams, team] }));
-                      } else {
-                        setFilters(prev => ({ ...prev, selectedTeams: prev.selectedTeams.filter(t => t !== team) }));
-                      }
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{team}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Projects</label>
-            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
-              {availableProjects.map(project => (
-                <label key={project} className="flex items-center space-x-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={filters.selectedProjects.includes(project)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFilters(prev => ({ ...prev, selectedProjects: [...prev.selectedProjects, project] }));
-                      } else {
-                        setFilters(prev => ({ ...prev, selectedProjects: prev.selectedProjects.filter(p => p !== project) }));
-                      }
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{project}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Users</label>
-            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
-              {availableUsers.map(userEmail => (
-                <label key={userEmail} className="flex items-center space-x-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={filters.selectedUsers.includes(userEmail)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFilters(prev => ({ ...prev, selectedUsers: [...prev.selectedUsers, userEmail] }));
-                      } else {
-                        setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== userEmail) }));
-                      }
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">{userEmail}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+                                 <div className="relative filter-dropdown">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Teams</label>
+              <div className="relative">
+               <button
+                 type="button"
+                 onClick={() => setFilters(prev => ({ ...prev, showTeamDropdown: !prev.showTeamDropdown }))}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+               >
+                 <span className="text-sm text-gray-700">
+                   {filters.selectedTeams.length === 0 
+                     ? 'All Teams' 
+                     : filters.selectedTeams.length === 1 
+                       ? filters.selectedTeams[0] 
+                       : `${filters.selectedTeams.length} teams selected`}
+                 </span>
+                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                 </svg>
+               </button>
+               {filters.showTeamDropdown && (
+                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                   <div className="p-2">
+                     {availableTeams.map(team => (
+                       <label key={team} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                         <input
+                           type="checkbox"
+                           checked={filters.selectedTeams.includes(team)}
+                           onChange={(e) => {
+                             if (e.target.checked) {
+                               setFilters(prev => ({ ...prev, selectedTeams: [...prev.selectedTeams, team] }));
+                             } else {
+                               setFilters(prev => ({ ...prev, selectedTeams: prev.selectedTeams.filter(t => t !== team) }));
+                             }
+                           }}
+                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                         />
+                         <span className="text-sm text-gray-700">{team}</span>
+                       </label>
+                     ))}
+                   </div>
+                 </div>
+               )}
+             </div>
+           </div>
+                       <div className="relative filter-dropdown">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Projects</label>
+              <div className="relative">
+               <button
+                 type="button"
+                 onClick={() => setFilters(prev => ({ ...prev, showProjectDropdown: !prev.showProjectDropdown }))}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+               >
+                 <span className="text-sm text-gray-700">
+                   {filters.selectedProjects.length === 0 
+                     ? 'All Projects' 
+                     : filters.selectedProjects.length === 1 
+                       ? filters.selectedProjects[0] 
+                       : `${filters.selectedProjects.length} projects selected`}
+                 </span>
+                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                 </svg>
+               </button>
+               {filters.showProjectDropdown && (
+                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                   <div className="p-2">
+                     {availableProjects.map(project => (
+                       <label key={project} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                         <input
+                           type="checkbox"
+                           checked={filters.selectedProjects.includes(project)}
+                           onChange={(e) => {
+                             if (e.target.checked) {
+                               setFilters(prev => ({ ...prev, selectedProjects: [...prev.selectedProjects, project] }));
+                             } else {
+                               setFilters(prev => ({ ...prev, selectedProjects: prev.selectedProjects.filter(p => p !== project) }));
+                             }
+                           }}
+                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                         />
+                         <span className="text-sm text-gray-700">{project}</span>
+                       </label>
+                     ))}
+                   </div>
+                 </div>
+               )}
+             </div>
+           </div>
+                       <div className="relative filter-dropdown">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Users</label>
+              <div className="relative">
+               <button
+                 type="button"
+                 onClick={() => setFilters(prev => ({ ...prev, showUserDropdown: !prev.showUserDropdown }))}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+               >
+                 <span className="text-sm text-gray-700">
+                   {filters.selectedUsers.length === 0 
+                     ? 'All Users' 
+                     : filters.selectedUsers.length === 1 
+                       ? filters.selectedUsers[0] 
+                       : `${filters.selectedUsers.length} users selected`}
+                 </span>
+                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                 </svg>
+               </button>
+               {filters.showUserDropdown && (
+                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                   <div className="p-2">
+                     {availableUsers.map(userEmail => (
+                       <label key={userEmail} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                         <input
+                           type="checkbox"
+                           checked={filters.selectedUsers.includes(userEmail)}
+                           onChange={(e) => {
+                             if (e.target.checked) {
+                               setFilters(prev => ({ ...prev, selectedUsers: [...prev.selectedUsers, userEmail] }));
+                             } else {
+                               setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== userEmail) }));
+                             }
+                           }}
+                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                         />
+                         <span className="text-sm text-gray-700">{userEmail}</span>
+                       </label>
+                     ))}
+                   </div>
+                 </div>
+               )}
+             </div>
+           </div>
         </div>
       </div>
 
