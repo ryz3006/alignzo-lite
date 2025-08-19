@@ -46,7 +46,7 @@ import {
 } from 'recharts';
 import toast from 'react-hot-toast';
 
-// Import enhanced components
+// Import tab components
 import TeamMetricsTab from './components/TeamMetricsTab';
 import ProjectMetricsTab from './components/ProjectMetricsTab';
 import IndividualMetricsTab from './components/IndividualMetricsTab';
@@ -55,6 +55,19 @@ import TrendsTab from './components/TrendsTab';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
+
+// Info Tooltip Component
+function InfoTooltip({ children, content }: { children: React.ReactNode, content: string }) {
+  return (
+    <div className="group relative inline-block">
+      {children}
+      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 max-w-xs">
+        {content}
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+      </div>
+    </div>
+  );
+}
 
 // Enhanced Types for analytics data
 interface TeamMetrics {
@@ -128,7 +141,7 @@ interface FilterState {
   showTaskDropdown: boolean;
 }
 
-export default function AnalyticsPage() {
+export default function EnhancedAnalyticsPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('team');
@@ -199,7 +212,7 @@ export default function AnalyticsPage() {
       setAvailableTeams(teams.map(t => t.name));
       setAvailableProjects(projects.map(p => p.name));
       setAvailableUsers(users.map(u => u.email));
-      setAvailableTasks([...new Set(workLogs.map(log => log.ticket_id))]);
+      setAvailableTasks(Array.from(new Set(workLogs.map(log => log.ticket_id))));
 
     } catch (error) {
       console.error('Error loading analytics:', error);
