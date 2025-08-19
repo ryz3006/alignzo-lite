@@ -365,6 +365,11 @@ export default function UserWorkReportsPage() {
     log.task_detail.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
