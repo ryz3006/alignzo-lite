@@ -88,15 +88,15 @@ export default function AdminDashboardLayout({
     <div className="bg-gray-100">
       <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg flex flex-col">
+        <div className="w-64 bg-white shadow-lg flex flex-col h-full">
           <div className="flex items-center justify-center h-16 border-b border-gray-200 px-4">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-              <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
+              <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
             </div>
           </div>
           
-          <nav className="flex-1 mt-8">
+          <nav className="flex-1 mt-8 overflow-y-auto">
             <div className="px-4 space-y-2">
               {navigation.map((item) => {
                 const isActive = pathname === item.href;
@@ -118,27 +118,29 @@ export default function AdminDashboardLayout({
             </div>
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary-700">
-                    {(adminSession?.email || user?.email)?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">Admin</p>
-                  <p className="text-xs text-gray-500 truncate">{adminSession?.email || user?.email}</p>
-                </div>
+          <div className="p-4 border-t border-gray-200 flex-shrink-0">
+            {/* User info section */}
+            <div className="flex items-center mb-3">
+              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-medium text-primary-700">
+                  {(adminSession?.email || user?.email)?.charAt(0).toUpperCase()}
+                </span>
               </div>
-              <button
-                onClick={handleSignOut}
-                className="p-2 text-gray-400 hover:text-gray-600"
-                title="Sign out"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
+              <div className="ml-3 min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-700">Admin</p>
+                <p className="text-xs text-gray-500 truncate">{adminSession?.email || user?.email}</p>
+              </div>
             </div>
+            
+            {/* Logout button */}
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </button>
           </div>
         </div>
 

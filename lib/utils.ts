@@ -15,17 +15,17 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatDateTime(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, 'MMM dd, yyyy HH:mm');
 }
 
 export function formatDate(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, 'MMM dd, yyyy');
 }
 
 export function formatTimeAgo(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   return formatDistanceToNow(dateObj, { addSuffix: true });
 }
 

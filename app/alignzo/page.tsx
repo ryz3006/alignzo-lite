@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { supabase, WorkLog, Project } from '@/lib/supabase';
 import { Clock, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
-import { formatDuration, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
+import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardStats {
@@ -19,6 +19,10 @@ interface ProjectHours {
   hours: number;
 }
 
+interface WorkLogWithProject extends WorkLog {
+  project: Project;
+}
+
 export default function UserDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -28,6 +32,7 @@ export default function UserDashboardPage() {
     totalHours: 0,
   });
   const [projectHours, setProjectHours] = useState<ProjectHours[]>([]);
+  const [recentWorkLogs, setRecentWorkLogs] = useState<WorkLogWithProject[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -109,6 +114,9 @@ export default function UserDashboardPage() {
         .slice(0, 10); // Top 10 projects
 
       setProjectHours(projectData);
+
+      // Set recent work logs (latest 5)
+      setRecentWorkLogs(logs.slice(0, 5));
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -211,10 +219,38 @@ export default function UserDashboardPage() {
       <div className="mt-8 bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
         <div className="space-y-4">
-          <div className="text-center py-8 text-gray-500">
-            <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <p>No recent activity. Start a timer to begin tracking your work.</p>
-          </div>
+          {recentWorkLogs.length > 0 ? (
+            recentWorkLogs.map((log) => (
+              <div key={log.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-primary-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-medium text-gray-900 truncate">
+                      {log.project?.name || 'Unknown Project'}
+                    </h4>
+                    <p className="text-sm text-gray-600 truncate">
+                      {log.ticket_id} - {log.task_detail}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatDateTime(log.start_time)} • {formatDuration(log.logged_duration_seconds)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">
+                    {formatTimeAgo(log.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p>No recent activity. Start a timer to begin tracking your work.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
