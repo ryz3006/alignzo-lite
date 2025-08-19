@@ -11,6 +11,9 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // Check if admin credentials are configured
+  const adminConfigured = process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -41,6 +44,13 @@ export default function AdminLoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to access the admin panel
           </p>
+          {!adminConfigured && (
+            <div className="mt-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
+              <p className="text-sm text-yellow-700">
+                ⚠️ Admin credentials not configured in environment variables
+              </p>
+            </div>
+          )}
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
