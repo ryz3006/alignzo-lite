@@ -47,7 +47,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         .from('timers')
         .select('*')
         .eq('user_email', currentUser.email)
-        .eq('is_running', true)
+        .or('is_running.eq.true,is_paused.eq.true')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

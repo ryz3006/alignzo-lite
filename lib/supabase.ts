@@ -28,6 +28,13 @@ export interface TeamMember {
   created_at: string;
 }
 
+export interface TeamProjectAssignment {
+  id: string;
+  team_id: string;
+  project_id: string;
+  created_at: string;
+}
+
 export interface Project {
   id: string;
   name: string;

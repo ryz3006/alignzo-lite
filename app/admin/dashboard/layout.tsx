@@ -78,22 +78,25 @@ export default function AdminDashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-full">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="flex">
+    <div className="bg-gray-100">
+      <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg">
-          <div className="flex items-center justify-center h-16 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
+        <div className="w-64 bg-white shadow-lg flex flex-col">
+          <div className="flex items-center justify-center h-16 border-b border-gray-200 px-4">
+            <div className="flex items-center space-x-3">
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+              <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
+            </div>
           </div>
           
-          <nav className="mt-8">
+          <nav className="flex-1 mt-8">
             <div className="px-4 space-y-2">
               {navigation.map((item) => {
                 const isActive = pathname === item.href;
@@ -115,7 +118,7 @@ export default function AdminDashboardLayout({
             </div>
           </nav>
 
-          <div className="absolute bottom-0 w-64 p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
@@ -140,7 +143,7 @@ export default function AdminDashboardLayout({
         </div>
 
         {/* Main content */}
-        <div className="flex-1">
+        <div className="flex-1 overflow-auto">
           <main className="p-8">
             {children}
           </main>

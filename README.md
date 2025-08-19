@@ -2,6 +2,9 @@
 
 A professional work log tracking and reporting web application built with Next.js, Firebase Authentication, and Supabase. Designed for deployment on platforms like Vercel or Netlify.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Made with ❤️ by @ryz3006](https://img.shields.io/badge/Made%20with-❤️-red.svg)](https://github.com/ryz3006)
+
 ## Features
 
 ### Admin Portal (`/admin`)
@@ -169,8 +172,22 @@ The application uses Supabase's auto-generated REST API:
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
+
+**ryz3006** - [GitHub Profile](https://github.com/ryz3006)
+
+Made with ❤️ for the developer community.
 
 ## Support
 
-For support and questions, please open an issue in the GitHub repository.
+For support and questions, please open an issue in the [GitHub repository](https://github.com/ryz3006/alignzo-lite).
+
+## Acknowledgments
+
+- [Next.js](https://nextjs.org/) - The React framework used
+- [Firebase](https://firebase.google.com/) - Authentication and hosting
+- [Supabase](https://supabase.com/) - Database and backend services
+- [Tailwind CSS](https://tailwindcss.com/) - CSS framework
+- [Lucide React](https://lucide.dev/) - Beautiful icons

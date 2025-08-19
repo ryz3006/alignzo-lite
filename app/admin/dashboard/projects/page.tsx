@@ -1,21 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Project, ProjectCategory } from '@/lib/supabase';
-import { Plus, Edit, Trash2, Search, Settings, X } from 'lucide-react';
+import { supabase, Project, ProjectCategory, Team, TeamProjectAssignment } from '@/lib/supabase';
+import { Plus, Edit, Trash2, Search, Settings, X, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProjectWithCategories extends Project {
   categories: ProjectCategory[];
   categoryCount: number;
+  assignedTeams: Team[];
+  teamCount: number;
 }
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectWithCategories[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showTeamsModal, setShowTeamsModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectWithCategories | null>(null);
   const [formData, setFormData] = useState({
@@ -24,9 +28,11 @@ export default function ProjectsPage() {
     country: '',
   });
   const [categories, setCategories] = useState<{ name: string; options: string[] }[]>([]);
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
 
   useEffect(() => {
     loadProjects();
+    loadTeams();
   }, []);
 
   const loadProjects = async () => {
@@ -53,14 +59,28 @@ export default function ProjectsPage() {
 
       if (categoriesError) throw categoriesError;
 
-      // Combine projects with their categories
+      // Get team-project assignments
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('team_project_assignments')
+        .select(`
+          *,
+          teams (*)
+        `);
+
+      if (assignmentsError) throw assignmentsError;
+
+      // Combine projects with their categories and teams
       const projectsWithCategories = projectsData?.map(project => {
         const projectCategories = categoriesData?.filter(cat => cat.project_id === project.id) || [];
+        const projectAssignments = assignmentsData?.filter(assignment => assignment.project_id === project.id) || [];
+        const assignedTeams = projectAssignments.map(assignment => assignment.teams).filter(Boolean) as Team[];
         
         return {
           ...project,
           categories: projectCategories,
           categoryCount: projectCategories.length,
+          assignedTeams: assignedTeams,
+          teamCount: assignedTeams.length,
         };
       }) || [];
 
@@ -70,6 +90,20 @@ export default function ProjectsPage() {
       toast.error('Failed to load projects');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTeams = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setTeams(data || []);
+    } catch (error) {
+      console.error('Error loading teams:', error);
     }
   };
 
@@ -155,6 +189,12 @@ export default function ProjectsPage() {
     setShowCategoriesModal(true);
   };
 
+  const handleManageTeams = (project: ProjectWithCategories) => {
+    setSelectedProject(project);
+    setSelectedTeams(project.assignedTeams.map(team => team.id));
+    setShowTeamsModal(true);
+  };
+
   const handleUpdateCategories = async () => {
     if (!selectedProject) return;
 
@@ -190,6 +230,43 @@ export default function ProjectsPage() {
     } catch (error: any) {
       console.error('Error updating project categories:', error);
       toast.error(error.message || 'Failed to update project categories');
+    }
+  };
+
+  const handleUpdateTeams = async () => {
+    if (!selectedProject) return;
+
+    try {
+      // Remove all current team assignments
+      const { error: deleteError } = await supabase
+        .from('team_project_assignments')
+        .delete()
+        .eq('project_id', selectedProject.id);
+
+      if (deleteError) throw deleteError;
+
+      // Add new team assignments
+      if (selectedTeams.length > 0) {
+        const newAssignments = selectedTeams.map(teamId => ({
+          project_id: selectedProject.id,
+          team_id: teamId,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('team_project_assignments')
+          .insert(newAssignments);
+
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Project teams updated successfully');
+      setShowTeamsModal(false);
+      setSelectedProject(null);
+      setSelectedTeams([]);
+      loadProjects();
+    } catch (error: any) {
+      console.error('Error updating project teams:', error);
+      toast.error(error.message || 'Failed to update project teams');
     }
   };
 
@@ -287,12 +364,15 @@ export default function ProjectsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Country
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Categories
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created
-              </th>
+                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                 Categories
+               </th>
+               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                 Teams
+               </th>
+               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                 Created
+               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -312,38 +392,51 @@ export default function ProjectsPage() {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">{project.country}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <Settings className="h-4 w-4 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-900">{project.categoryCount} categories</span>
-                  </div>
-                </td>
+                                 <td className="px-6 py-4 whitespace-nowrap">
+                   <div className="flex items-center">
+                     <Settings className="h-4 w-4 text-gray-400 mr-2" />
+                     <span className="text-sm text-gray-900">{project.categoryCount} categories</span>
+                   </div>
+                 </td>
+                 <td className="px-6 py-4 whitespace-nowrap">
+                   <div className="flex items-center">
+                     <Users className="h-4 w-4 text-gray-400 mr-2" />
+                     <span className="text-sm text-gray-900">{project.teamCount} teams</span>
+                   </div>
+                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-500">
                     {new Date(project.created_at).toLocaleDateString()}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => handleManageCategories(project)}
-                    className="text-primary-600 hover:text-primary-900 mr-4"
-                    title="Manage Categories"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleEdit(project)}
-                    className="text-primary-600 hover:text-primary-900 mr-4"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(project.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                   <button
+                     onClick={() => handleManageTeams(project)}
+                     className="text-primary-600 hover:text-primary-900 mr-4"
+                     title="Manage Teams"
+                   >
+                     <Users className="h-4 w-4" />
+                   </button>
+                   <button
+                     onClick={() => handleManageCategories(project)}
+                     className="text-primary-600 hover:text-primary-900 mr-4"
+                     title="Manage Categories"
+                   >
+                     <Settings className="h-4 w-4" />
+                   </button>
+                   <button
+                     onClick={() => handleEdit(project)}
+                     className="text-primary-600 hover:text-primary-900 mr-4"
+                   >
+                     <Edit className="h-4 w-4" />
+                   </button>
+                   <button
+                     onClick={() => handleDelete(project.id)}
+                     className="text-red-600 hover:text-red-900"
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </button>
+                 </td>
               </tr>
             ))}
           </tbody>
@@ -511,8 +604,63 @@ export default function ProjectsPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                 </div>
+       )}
+
+       {/* Teams Modal */}
+       {showTeamsModal && selectedProject && (
+         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+           <div className="relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+             <div className="mt-3">
+               <h3 className="text-lg font-medium text-gray-900 mb-4">
+                 Manage Teams - {selectedProject.name}
+               </h3>
+               
+               <div className="space-y-3 max-h-64 overflow-y-auto">
+                 {teams.map((team) => (
+                   <div key={team.id} className="flex items-center">
+                     <input
+                       type="checkbox"
+                       id={`team-${team.id}`}
+                       checked={selectedTeams.includes(team.id)}
+                       onChange={(e) => {
+                         if (e.target.checked) {
+                           setSelectedTeams([...selectedTeams, team.id]);
+                         } else {
+                           setSelectedTeams(selectedTeams.filter(id => id !== team.id));
+                         }
+                       }}
+                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                     />
+                     <label htmlFor={`team-${team.id}`} className="ml-2 text-sm text-gray-900">
+                       {team.name}
+                     </label>
+                   </div>
+                 ))}
+               </div>
+
+               <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                 <button
+                   onClick={() => {
+                     setShowTeamsModal(false);
+                     setSelectedProject(null);
+                     setSelectedTeams([]);
+                   }}
+                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                 >
+                   Cancel
+                 </button>
+                 <button
+                   onClick={handleUpdateTeams}
+                   className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                 >
+                   Update Teams
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ }

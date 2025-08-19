@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, Project, ProjectCategory } from '@/lib/supabase';
 import { useTimer } from './TimerContext';
+import { getCurrentUser } from '@/lib/auth';
 import { X, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,13 +40,55 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
 
   const loadProjects = async () => {
     try {
-      const { data, error } = await supabase
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+
+      // Get user's team memberships
+      const { data: teamMemberships, error: teamError } = await supabase
+        .from('team_members')
+        .select(`
+          team_id,
+          users!inner(*)
+        `)
+        .eq('users.email', currentUser.email);
+
+      if (teamError) throw teamError;
+
+      // Get projects assigned to user's teams
+      const userTeamIds = teamMemberships?.map(membership => membership.team_id) || [];
+      
+      let projectsQuery = supabase
         .from('projects')
         .select('*')
         .order('name');
 
-      if (error) throw error;
-      setProjects(data || []);
+      if (userTeamIds.length > 0) {
+        // Get projects assigned to user's teams
+        const { data: assignedProjects, error: assignedError } = await supabase
+          .from('team_project_assignments')
+          .select(`
+            project_id,
+            projects (*)
+          `)
+          .in('team_id', userTeamIds);
+
+        if (assignedError) throw assignedError;
+
+        const projectIds = assignedProjects?.map(assignment => assignment.project_id) || [];
+        
+        if (projectIds.length > 0) {
+          const { data, error } = await projectsQuery.in('id', projectIds);
+          if (error) throw error;
+          setProjects(data || []);
+        } else {
+          setProjects([]);
+        }
+      } else {
+        // If user is not in any teams, show all projects (fallback)
+        const { data, error } = await projectsQuery;
+        if (error) throw error;
+        setProjects(data || []);
+      }
     } catch (error) {
       console.error('Error loading projects:', error);
       toast.error('Failed to load projects');

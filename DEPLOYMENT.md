@@ -113,9 +113,10 @@ The GitHub workflow (`.github/workflows/deploy.yml`) is already configured to:
 
 Before using the application, make sure to:
 
-1. Run the SQL migration in your Supabase SQL Editor:
-   - Copy the content from `database/schema.sql`
-   - Paste it in the Supabase SQL Editor
+1. Run the SQL migrations in your Supabase SQL Editor:
+   - Copy the content from `database/schema.sql` and paste it in the Supabase SQL Editor
+   - Execute the script
+   - Copy the content from `database/team_project_assignment.sql` and paste it in the Supabase SQL Editor
    - Execute the script
 
 2. Set up Firebase Authentication:
