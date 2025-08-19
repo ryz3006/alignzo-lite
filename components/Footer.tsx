@@ -119,130 +119,216 @@ export default function Footer({ className = '' }: FooterProps) {
                   </ul>
                 </div>
 
-                {/* Step 1: Clone Repository */}
+                                 {/* Step 1: Create Your Own GitHub Repository */}
+                 <div>
+                   <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 1: Create Your Own GitHub Repository</h4>
+                   <p className="text-sm text-gray-700 mb-3">
+                     First, you'll create your own copy of this project on GitHub. This is like creating your own folder in the cloud where you can store and manage your code.
+                   </p>
+                   
+                   <div className="space-y-4">
+                     <div>
+                       <h5 className="text-md font-semibold text-gray-800 mb-2">Step 1A: Sign Up for GitHub (If you don't have an account)</h5>
+                       <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                         <li>
+                           Go to{' '}
+                           <a
+                             href="https://github.com"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="text-blue-600 hover:text-blue-800 underline"
+                           >
+                             GitHub.com
+                           </a>
+                         </li>
+                         <li>Click "Sign up" in the top right corner</li>
+                         <li>Enter your email address, create a password, and choose a username</li>
+                         <li>Complete the verification process (check your email for a verification link)</li>
+                         <li>Log in to your new GitHub account</li>
+                       </ol>
+                     </div>
+
+                     <div>
+                       <h5 className="text-md font-semibold text-gray-800 mb-2">Step 1B: Fork the Repository (Create Your Copy)</h5>
+                       <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                         <li>
+                           Go to{' '}
+                           <a
+                             href="https://github.com/ryz3006/alignzo-lite"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="text-blue-600 hover:text-blue-800 underline"
+                           >
+                             the original project on GitHub
+                           </a>
+                         </li>
+                         <li>Click the "Fork" button in the top right corner (it looks like a fork icon)</li>
+                         <li>GitHub will ask where to fork it - select your username</li>
+                         <li>Wait for the forking process to complete (you'll see a progress bar)</li>
+                         <li>You'll be redirected to your own copy of the repository</li>
+                         <li>Notice the URL now shows your username instead of "ryz3006"</li>
+                       </ol>
+                       <p className="text-xs text-gray-500 mt-2">
+                         <strong>What is forking?</strong> Forking creates your own copy of someone else's project. You can modify it, add features, and make it your own while keeping a link to the original.
+                       </p>
+                     </div>
+
+                     <div>
+                       <h5 className="text-md font-semibold text-gray-800 mb-2">Step 1C: Clone Your Repository to Your Computer</h5>
+                       <p className="text-sm text-gray-600 mb-2">
+                         Now you'll download your copy of the project to your computer. Choose one of these methods:
+                       </p>
+                       
+                       <div className="space-y-3">
+                         <div>
+                           <h6 className="text-sm font-semibold text-gray-700 mb-1">Method 1: Using Command Line (Recommended)</h6>
+                           <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                             <li>Open your terminal/command prompt</li>
+                             <li>Navigate to where you want to save the project (e.g., Desktop or Documents)</li>
+                             <li>Run this command (replace YOUR_USERNAME with your actual GitHub username):</li>
+                           </ol>
+                           <div className="bg-gray-100 p-3 rounded-md mt-2">
+                             <code className="text-sm">
+                               git clone https://github.com/YOUR_USERNAME/alignzo-lite.git
+                             </code>
+                           </div>
+                           <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700 mt-2">
+                             <li>Navigate into the project folder: <code className="bg-gray-200 px-1 rounded">cd alignzo-lite</code></li>
+                             <li>Install dependencies: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                           </ol>
+                         </div>
+
+                         <div>
+                           <h6 className="text-sm font-semibold text-gray-700 mb-1">Method 2: Using GitHub Desktop</h6>
+                           <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                             <li>
+                               Download and install{' '}
+                               <a
+                                 href="https://desktop.github.com"
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-blue-600 hover:text-blue-800 underline"
+                               >
+                                 GitHub Desktop
+                               </a>
+                             </li>
+                             <li>Sign in with your GitHub account</li>
+                             <li>Click "Clone a repository from the Internet"</li>
+                             <li>Find your forked repository in the list (it will show your username)</li>
+                             <li>Choose where to save it on your computer</li>
+                             <li>Click "Clone"</li>
+                             <li>Open the project folder in your code editor</li>
+                             <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                           </ol>
+                         </div>
+
+                         <div>
+                           <h6 className="text-sm font-semibold text-gray-700 mb-1">Method 3: Direct Download</h6>
+                           <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                             <li>Go to your forked repository on GitHub (the URL with your username)</li>
+                             <li>Click the green "Code" button</li>
+                             <li>Select "Download ZIP"</li>
+                             <li>Extract the ZIP file to a folder on your computer</li>
+                             <li>Open the extracted folder in your code editor</li>
+                             <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                           </ol>
+                         </div>
+                       </div>
+                     </div>
+
+                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+                       <h6 className="text-sm font-semibold text-blue-800 mb-2">💡 Important Notes:</h6>
+                       <ul className="text-xs text-blue-700 space-y-1">
+                         <li>• <strong>Always fork first</strong> - This creates your own copy that you can modify</li>
+                         <li>• <strong>Use your forked URL</strong> - The clone URL should have your username, not "ryz3006"</li>
+                         <li>• <strong>Keep your fork updated</strong> - You can sync changes from the original project later</li>
+                         <li>• <strong>Make sure you have Node.js installed</strong> (download from nodejs.org)</li>
+                         <li>• <strong>Use VS Code</strong> - It's the best code editor for beginners</li>
+                       </ul>
+                     </div>
+                   </div>
+                 </div>
+
+                {/* Step 2: Firebase Authentication Setup */}
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 1: Clone the Repository from GitHub</h4>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 2: Firebase Authentication Setup</h4>
                   <p className="text-sm text-gray-700 mb-3">
-                    This step will download the complete source code to your computer. Here's how to do it step by step:
+                    Firebase is Google's platform that handles user authentication (login/signup) for your app. This step will set up user login functionality.
                   </p>
                   
                   <div className="space-y-4">
                     <div>
-                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option A: Using Command Line (Recommended)</h5>
-                      <p className="text-sm text-gray-600 mb-2">
-                        If you have Git installed on your computer, open your terminal/command prompt and run these commands:
-                      </p>
-                      <div className="bg-gray-100 p-4 rounded-md">
-                        <code className="text-sm">
-                          # Download the project from GitHub<br />
-                          git clone https://github.com/ryz3006/alignzo-lite.git<br />
-                          <br />
-                          # Navigate into the project folder<br />
-                          cd alignzo-lite<br />
-                          <br />
-                          # Install all required dependencies<br />
-                          npm install
-                        </code>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        <strong>What these commands do:</strong><br />
-                        • <code>git clone</code> downloads the entire project from GitHub<br />
-                        • <code>cd alignzo-lite</code> moves you into the project folder<br />
-                        • <code>npm install</code> installs all the software packages the project needs
-                      </p>
-                    </div>
-
-                    <div>
-                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option B: Using GitHub Desktop (For Beginners)</h5>
-                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-                        <li>
-                          Download and install{' '}
-                          <a
-                            href="https://desktop.github.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 underline"
-                          >
-                            GitHub Desktop
-                          </a>
-                        </li>
-                        <li>Sign in with your GitHub account</li>
-                        <li>Click "Clone a repository from the Internet"</li>
-                        <li>Enter: <code className="bg-gray-200 px-1 rounded">https://github.com/ryz3006/alignzo-lite</code></li>
-                        <li>Choose where to save the project on your computer</li>
-                        <li>Click "Clone"</li>
-                        <li>Open the project folder in your code editor (like VS Code)</li>
-                        <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
-                      </ol>
-                    </div>
-
-                    <div>
-                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option C: Direct Download (Simplest)</h5>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Step 2A: Create a Firebase Project</h5>
                       <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
                         <li>
                           Go to{' '}
                           <a
-                            href="https://github.com/ryz3006/alignzo-lite"
+                            href="https://console.firebase.google.com"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 underline"
                           >
-                            the project on GitHub
+                            Firebase Console
                           </a>
+                          {' '}and sign in with your Google account
                         </li>
-                        <li>Click the green "Code" button</li>
-                        <li>Select "Download ZIP"</li>
-                        <li>Extract the ZIP file to a folder on your computer</li>
-                        <li>Open the extracted folder in your code editor</li>
-                        <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                        <li>Click "Create a project" or "Add project"</li>
+                        <li>Enter a project name (e.g., "My Alignzo App")</li>
+                        <li>Choose whether to enable Google Analytics (recommended: Yes)</li>
+                        <li>Click "Create project" and wait for it to be set up</li>
+                        <li>Click "Continue" when the setup is complete</li>
                       </ol>
                     </div>
 
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
-                      <h6 className="text-sm font-semibold text-blue-800 mb-2">💡 Pro Tips:</h6>
-                      <ul className="text-xs text-blue-700 space-y-1">
-                        <li>• Make sure you have Node.js installed (download from nodejs.org)</li>
-                        <li>• Use a code editor like VS Code for the best experience</li>
-                        <li>• If you get any errors, make sure you're in the correct folder</li>
-                        <li>• The <code className="bg-blue-200 px-1 rounded">npm install</code> step might take a few minutes</li>
-                      </ul>
+                    <div>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Step 2B: Enable Authentication</h5>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                        <li>In the Firebase console, click "Authentication" in the left sidebar</li>
+                        <li>Click "Get started" or "Set up sign-in method"</li>
+                        <li>Click on the "Sign-in method" tab</li>
+                        <li>Find "Google" in the list and click on it</li>
+                        <li>Click the toggle switch to "Enable" Google sign-in</li>
+                        <li>Enter a project support email (your email address)</li>
+                        <li>Click "Save"</li>
+                      </ol>
+                    </div>
+
+                    <div>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Step 2C: Create a Web App</h5>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                        <li>In the Firebase console, click the gear icon (⚙️) next to "Project Overview"</li>
+                        <li>Select "Project settings" from the dropdown</li>
+                        <li>Scroll down to the "Your apps" section</li>
+                        <li>Click the web icon (&lt;/&gt;) to add a web app</li>
+                        <li>Enter a nickname for your app (e.g., "Alignzo Web App")</li>
+                        <li>Check "Also set up Firebase Hosting" (optional but recommended)</li>
+                        <li>Click "Register app"</li>
+                        <li>Copy the configuration object that appears - it looks like this:</li>
+                      </ol>
+                      <div className="bg-gray-100 p-3 rounded-md mt-2 text-xs">
+                        <code>
+                          const firebaseConfig = {'{'}<br />
+                          &nbsp;&nbsp;apiKey: "your-api-key",<br />
+                          &nbsp;&nbsp;authDomain: "your-project.firebaseapp.com",<br />
+                          &nbsp;&nbsp;projectId: "your-project-id",<br />
+                          &nbsp;&nbsp;storageBucket: "your-project.appspot.com",<br />
+                          &nbsp;&nbsp;messagingSenderId: "123456789",<br />
+                          &nbsp;&nbsp;appId: "your-app-id"<br />
+                          {'}'};
+                        </code>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        <strong>Important:</strong> Save this configuration - you'll need it in Step 4!
+                      </p>
+                    </div>
+
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                      <h6 className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Security Note:</h6>
+                      <p className="text-xs text-yellow-700">
+                        The Firebase configuration contains public keys that are safe to include in your code. These keys are designed to be public and are not a security risk.
+                      </p>
                     </div>
                   </div>
-                </div>
-
-                {/* Step 2: Firebase Setup */}
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 2: Firebase Authentication Setup</h4>
-                  <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-                    <li>
-                      Go to{' '}
-                      <a
-                        href="https://console.firebase.google.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        Firebase Console
-                      </a>
-                    </li>
-                    <li>Create a new project or select an existing one</li>
-                    <li>Enable Authentication in the left sidebar</li>
-                    <li>Add Google Sign-in provider:
-                      <ul className="list-disc list-inside ml-4 mt-1">
-                        <li>Click on "Sign-in method" tab</li>
-                        <li>Enable Google provider</li>
-                        <li>Add your domain to authorized domains</li>
-                      </ul>
-                    </li>
-                    <li>Create a web app:
-                      <ul className="list-disc list-inside ml-4 mt-1">
-                        <li>Click on the gear icon → Project settings</li>
-                        <li>Scroll down to "Your apps" section</li>
-                        <li>Click "Add app" → Web app</li>
-                        <li>Copy the configuration object</li>
-                      </ul>
-                    </li>
-                  </ol>
                 </div>
 
                 {/* Step 3: Supabase Setup */}

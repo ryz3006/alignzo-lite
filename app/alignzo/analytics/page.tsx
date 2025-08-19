@@ -16,7 +16,8 @@ import {
   FolderOpen,
   Activity,
   Check,
-  Image
+  Image,
+  HelpCircle
 } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 import { 
@@ -41,6 +42,19 @@ import toast from 'react-hot-toast';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
+
+// Info Tooltip Component
+function InfoTooltip({ children, content }: { children: React.ReactNode, content: string }) {
+  return (
+    <div className="group relative inline-block">
+      {children}
+      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 max-w-xs">
+        {content}
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+      </div>
+    </div>
+  );
+}
 
 // Types for analytics data
 interface TeamMetrics {
@@ -90,9 +104,9 @@ interface FilterState {
     start: string;
     end: string;
   };
-  teamName: string;
-  projectName: string;
-  userEmail: string;
+  selectedTeams: string[];
+  selectedProjects: string[];
+  selectedUsers: string[];
 }
 
 export default function AnalyticsPage() {
@@ -104,9 +118,9 @@ export default function AnalyticsPage() {
       start: new Date().toISOString().split('T')[0],
       end: new Date().toISOString().split('T')[0]
     },
-    teamName: '',
-    projectName: '',
-    userEmail: ''
+    selectedTeams: [],
+    selectedProjects: [],
+    selectedUsers: []
   });
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(filters);
 
@@ -167,19 +181,19 @@ export default function AnalyticsPage() {
     }
   };
 
-  const loadWorkLogs = async () => {
+    const loadWorkLogs = async () => {
     let query = supabase
-      .from('work_logs')
-      .select(`
-        *,
-        project:projects(*)
-      `)
+        .from('work_logs')
+        .select(`
+          *,
+          project:projects(*)
+        `)
       .gte('start_time', appliedFilters.dateRange.start)
       .lte('start_time', appliedFilters.dateRange.end);
 
     // Apply user email filter if specified
-    if (appliedFilters.userEmail) {
-      query = query.eq('user_email', appliedFilters.userEmail);
+    if (appliedFilters.selectedUsers.length > 0) {
+      query = query.in('user_email', appliedFilters.selectedUsers);
     }
 
     const { data, error } = await query.order('start_time', { ascending: false });
@@ -188,17 +202,17 @@ export default function AnalyticsPage() {
     return data || [];
   };
 
-  const loadTeams = async () => {
+    const loadTeams = async () => {
     let query = supabase
-      .from('teams')
-      .select(`
-        *,
-        team_members(*)
-      `);
+        .from('teams')
+        .select(`
+          *,
+          team_members(*)
+        `);
 
     // Apply team name filter if specified
-    if (appliedFilters.teamName) {
-      query = query.eq('name', appliedFilters.teamName);
+    if (appliedFilters.selectedTeams.length > 0) {
+      query = query.in('name', appliedFilters.selectedTeams);
     }
 
     const { data, error } = await query;
@@ -213,8 +227,8 @@ export default function AnalyticsPage() {
       .select('*');
 
     // Apply project name filter if specified
-    if (appliedFilters.projectName) {
-      query = query.eq('name', appliedFilters.projectName);
+    if (appliedFilters.selectedProjects.length > 0) {
+      query = query.in('name', appliedFilters.selectedProjects);
     }
 
     const { data, error } = await query;
@@ -586,43 +600,70 @@ export default function AnalyticsPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
-            <select
-              value={filters.teamName}
-              onChange={(e) => setFilters(prev => ({ ...prev, teamName: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Teams</option>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Teams</label>
+            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
               {availableTeams.map(team => (
-                <option key={team} value={team}>{team}</option>
+                <label key={team} className="flex items-center space-x-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={filters.selectedTeams.includes(team)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFilters(prev => ({ ...prev, selectedTeams: [...prev.selectedTeams, team] }));
+                      } else {
+                        setFilters(prev => ({ ...prev, selectedTeams: prev.selectedTeams.filter(t => t !== team) }));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{team}</span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-            <select
-              value={filters.projectName}
-              onChange={(e) => setFilters(prev => ({ ...prev, projectName: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Projects</option>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Projects</label>
+            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
               {availableProjects.map(project => (
-                <option key={project} value={project}>{project}</option>
+                <label key={project} className="flex items-center space-x-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={filters.selectedProjects.includes(project)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFilters(prev => ({ ...prev, selectedProjects: [...prev.selectedProjects, project] }));
+                      } else {
+                        setFilters(prev => ({ ...prev, selectedProjects: prev.selectedProjects.filter(p => p !== project) }));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{project}</span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User Email</label>
-            <select
-              value={filters.userEmail}
-              onChange={(e) => setFilters(prev => ({ ...prev, userEmail: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Users</option>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Users</label>
+            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
               {availableUsers.map(userEmail => (
-                <option key={userEmail} value={userEmail}>{userEmail}</option>
+                <label key={userEmail} className="flex items-center space-x-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={filters.selectedUsers.includes(userEmail)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFilters(prev => ({ ...prev, selectedUsers: [...prev.selectedUsers, userEmail] }));
+                      } else {
+                        setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== userEmail) }));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">{userEmail}</span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
         </div>
       </div>
@@ -679,39 +720,59 @@ function TeamMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: TeamM
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Teams</p>
-              <p className="text-2xl font-bold">{data.length}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Teams</p>
+                <p className="text-2xl font-bold">{data.length}</p>
+              </div>
             </div>
+            <InfoTooltip content="Number of teams in the system. Each team can have multiple members working on different projects.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Hours</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.totalWorkedHours, 0).toFixed(1)}h</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Hours</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.totalWorkedHours, 0).toFixed(1)}h</p>
+              </div>
             </div>
+            <InfoTooltip content="Sum of all hours logged by team members across all projects within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Target className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Avg Occupancy</p>
-              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, team) => sum + team.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Target className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Avg Occupancy</p>
+                <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, team) => sum + team.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+              </div>
             </div>
+            <InfoTooltip content="Average team occupancy rate across all teams. Calculated as: (Total Worked Hours / Total Available Hours) × 100. Available hours = 8 hours/day × working days × team members.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <UserCheck className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Members</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.memberCount, 0)}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <UserCheck className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Members</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.memberCount, 0)}</p>
+              </div>
             </div>
+            <InfoTooltip content="Total number of team members across all teams. This includes all users who are assigned to any team.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
       </div>
@@ -720,7 +781,12 @@ function TeamMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: TeamM
         {/* Team Occupancy Rate */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Rate</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Rate</h3>
+              <InfoTooltip content="Shows the percentage of time each team was actively working compared to their available time. Higher percentages indicate better team utilization.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('team-occupancy', 'team-occupancy-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -745,7 +811,12 @@ function TeamMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: TeamM
         {/* Team Hours Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Team Hours Distribution</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Team Hours Distribution</h3>
+              <InfoTooltip content="Pie chart showing how total hours are distributed across different teams. Larger slices indicate teams with more logged hours.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('team-hours', 'team-hours-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -827,39 +898,59 @@ function ProjectMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: Pr
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <FolderOpen className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Projects</p>
-              <p className="text-2xl font-bold">{data.length}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <FolderOpen className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Projects</p>
+                <p className="text-2xl font-bold">{data.length}</p>
+              </div>
             </div>
+            <InfoTooltip content="Number of active projects in the system. Each project can have multiple users and tasks assigned to it.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Hours</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.totalHours, 0).toFixed(1)}h</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Hours</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.totalHours, 0).toFixed(1)}h</p>
+              </div>
             </div>
+            <InfoTooltip content="Sum of all hours logged across all projects within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Users</p>
-              <p className="text-2xl font-bold">{new Set(data.flatMap(p => Array.from({ length: p.userCount }, (_, i) => `${p.projectName}-${i}`))).size}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Users</p>
+                <p className="text-2xl font-bold">{new Set(data.flatMap(p => Array.from({ length: p.userCount }, (_, i) => `${p.projectName}-${i}`))).size}</p>
+              </div>
             </div>
+            <InfoTooltip content="Total number of unique users who have logged time on any project within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Target className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total FTE</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.fte, 0).toFixed(1)}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Target className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total FTE</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.fte, 0).toFixed(1)}</p>
+              </div>
             </div>
+            <InfoTooltip content="Full-Time Equivalent across all projects. FTE = Total Hours / Standard Hours (8 hours/day × working days). Shows how many full-time employees the work represents.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
       </div>
@@ -868,7 +959,12 @@ function ProjectMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: Pr
         {/* Total Hours by Project */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Total Hours by Project</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Total Hours by Project</h3>
+              <InfoTooltip content="Bar chart showing total hours logged for each project. Taller bars indicate projects with more time investment.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('project-hours', 'project-hours-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -893,7 +989,12 @@ function ProjectMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: Pr
         {/* FTE by Project */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">FTE by Project</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">FTE by Project</h3>
+              <InfoTooltip content="Full-Time Equivalent for each project. Shows how many full-time employees each project would require based on the hours logged.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('project-fte', 'project-fte-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -1011,39 +1112,59 @@ function IndividualMetricsTab({ data, chartRefs, downloadChartAsImage }: { data:
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <UserCheck className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Users</p>
-              <p className="text-2xl font-bold">{data.length}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <UserCheck className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Users</p>
+                <p className="text-2xl font-bold">{data.length}</p>
+              </div>
             </div>
+            <InfoTooltip content="Total number of users in the system who have logged time within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Hours</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, individual) => sum + individual.totalWorkedHours, 0).toFixed(1)}h</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Hours</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, individual) => sum + individual.totalWorkedHours, 0).toFixed(1)}h</p>
+              </div>
             </div>
+            <InfoTooltip content="Sum of all hours logged by all users across all projects within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Target className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Avg Occupancy</p>
-              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, individual) => sum + individual.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Target className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Avg Occupancy</p>
+                <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, individual) => sum + individual.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+              </div>
             </div>
+            <InfoTooltip content="Average individual occupancy rate across all users. Calculated as: (Total Worked Hours / Available Hours) × 100. Available hours = 8 hours/day × working days.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Activity className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Active Users</p>
-              <p className="text-2xl font-bold">{data.filter(individual => individual.totalWorkedHours > 0).length}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Activity className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Active Users</p>
+                <p className="text-2xl font-bold">{data.filter(individual => individual.totalWorkedHours > 0).length}</p>
+              </div>
             </div>
+            <InfoTooltip content="Number of users who have logged at least some time within the selected date range.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
       </div>
@@ -1052,7 +1173,12 @@ function IndividualMetricsTab({ data, chartRefs, downloadChartAsImage }: { data:
         {/* Individual Occupancy Rate */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Individual Occupancy Rate</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Individual Occupancy Rate</h3>
+              <InfoTooltip content="Shows the percentage of time each individual was actively working compared to their available time. Higher percentages indicate better individual utilization.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('individual-occupancy', 'individual-occupancy-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -1151,30 +1277,45 @@ function TrendsTab({ data, chartRefs, downloadChartAsImage }: { data: TrendData[
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <TrendingUp className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Data Points</p>
-              <p className="text-2xl font-bold">{data.length}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <TrendingUp className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Data Points</p>
+                <p className="text-2xl font-bold">{data.length}</p>
+              </div>
             </div>
+            <InfoTooltip content="Number of time periods (weeks) included in the trend analysis. Each data point represents one week of data.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Total Hours</p>
-              <p className="text-2xl font-bold">{data.reduce((sum, trend) => sum + trend.projectHours, 0).toFixed(1)}h</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Total Hours</p>
+                <p className="text-2xl font-bold">{data.reduce((sum, trend) => sum + trend.projectHours, 0).toFixed(1)}h</p>
+              </div>
             </div>
+            <InfoTooltip content="Sum of all project hours across all time periods in the trend analysis.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-          <div className="flex items-center">
-            <Target className="h-8 w-8 mr-3" />
-            <div>
-              <p className="text-sm opacity-90">Avg Team Occupancy</p>
-              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, trend) => sum + trend.teamOccupancy, 0) / data.length).toFixed(1) : 0}%</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Target className="h-8 w-8 mr-3" />
+              <div>
+                <p className="text-sm opacity-90">Avg Team Occupancy</p>
+                <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, trend) => sum + trend.teamOccupancy, 0) / data.length).toFixed(1) : 0}%</p>
+              </div>
             </div>
+            <InfoTooltip content="Average team occupancy rate across all time periods. Shows the overall team utilization trend.">
+              <HelpCircle className="h-4 w-4 opacity-70 hover:opacity-100 cursor-help" />
+            </InfoTooltip>
           </div>
         </div>
       </div>
@@ -1183,7 +1324,12 @@ function TrendsTab({ data, chartRefs, downloadChartAsImage }: { data: TrendData[
         {/* Team Occupancy Trend */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Trend</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Trend</h3>
+              <InfoTooltip content="Line chart showing how team occupancy rates change over time. Helps identify patterns and trends in team utilization.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('team-trend', 'team-occupancy-trend-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
@@ -1208,7 +1354,12 @@ function TrendsTab({ data, chartRefs, downloadChartAsImage }: { data: TrendData[
         {/* Project Hours Trend */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Project Hours Trend</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Project Hours Trend</h3>
+              <InfoTooltip content="Area chart showing how total project hours change over time. Helps identify busy periods and workload patterns.">
+                <HelpCircle className="h-4 w-4 ml-2 text-gray-500 hover:text-gray-700 cursor-help" />
+              </InfoTooltip>
+            </div>
             <button
               onClick={() => downloadChartAsImage('project-trend', 'project-hours-trend-chart')}
               className="text-blue-600 hover:text-blue-800 flex items-center"
