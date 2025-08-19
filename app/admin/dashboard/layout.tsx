@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { getCurrentUser, isAdminUser, signOutUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentAdmin, isAdminUser, signOutUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
 import Link from 'next/link';
 import { 
@@ -20,6 +20,7 @@ export default function AdminDashboardLayout({
   children: React.ReactNode;
 }) {
   const [user, setUser] = useState<User | null>(null);
+  const [adminSession, setAdminSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -30,6 +31,15 @@ export default function AdminDashboardLayout({
 
   const checkAuth = async () => {
     try {
+      // Check admin session first
+      const currentAdmin = getCurrentAdmin();
+      if (currentAdmin) {
+        setAdminSession(currentAdmin);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback to Firebase user check
       const currentUser = await getCurrentUser();
       setUser(currentUser);
 
@@ -110,12 +120,12 @@ export default function AdminDashboardLayout({
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
                   <span className="text-sm font-medium text-primary-700">
-                    {user?.email?.charAt(0).toUpperCase()}
+                    {(adminSession?.email || user?.email)?.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-700">Admin</p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{adminSession?.email || user?.email}</p>
                 </div>
               </div>
               <button

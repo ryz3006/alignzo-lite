@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, isAdminUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentAdmin, isAdminUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
@@ -31,6 +31,15 @@ export default function AdminPage() {
 
   const checkConfiguration = async () => {
     try {
+      // Check admin session first
+      const currentAdmin = getCurrentAdmin();
+      if (currentAdmin) {
+        setConfigStatus(prev => ({ ...prev, admin: true }));
+        // Skip further checks and redirect to dashboard
+        router.push('/admin/dashboard');
+        return;
+      }
+
       const currentUser = await getCurrentUser();
       setUser(currentUser);
 

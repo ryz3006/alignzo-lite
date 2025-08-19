@@ -8,8 +8,8 @@ Create a `.env.local` file in your project root with the following content:
 
 ```env
 # Admin Credentials
-ADMIN_EMAIL=your-admin-email@example.com
-ADMIN_PASSWORD=your-admin-password
+NEXT_PUBLIC_ADMIN_EMAIL=your-admin-email@example.com
+NEXT_PUBLIC_ADMIN_PASSWORD=your-admin-password
 
 # Firebase Configuration
 NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyAchetEFS86mLMIWI9z4G1BYud3ZZDQsSs
@@ -35,8 +35,8 @@ To deploy to GitHub Pages, you need to add the following secrets to your GitHub 
 4. Click **New repository secret** and add each of the following:
 
 #### Admin Credentials:
-- `ADMIN_EMAIL` = your-admin-email@example.com
-- `ADMIN_PASSWORD` = your-admin-password
+- `NEXT_PUBLIC_ADMIN_EMAIL` = your-admin-email@example.com
+- `NEXT_PUBLIC_ADMIN_PASSWORD` = your-admin-password
 
 #### Firebase Configuration:
 - `NEXT_PUBLIC_FIREBASE_API_KEY` = AIzaSyAchetEFS86mLMIWI9z4G1BYud3ZZDQsSs

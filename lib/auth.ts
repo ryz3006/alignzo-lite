@@ -17,11 +17,28 @@ export async function signInWithGoogle() {
 
 export async function signInAsAdmin(email: string, password: string) {
   try {
-    if (!auth) {
-      throw new Error('Firebase not initialized');
+    // Check against environment variables instead of Firebase
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
+    
+    if (!adminEmail || !adminPassword) {
+      throw new Error('Admin credentials not configured in environment variables');
     }
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    return result.user;
+    
+    if (email !== adminEmail || password !== adminPassword) {
+      throw new Error('Invalid admin credentials');
+    }
+    
+    // Store admin session in localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('admin_session', JSON.stringify({
+        email: adminEmail,
+        loginTime: Date.now(),
+        isAdmin: true
+      }));
+    }
+    
+    return { email: adminEmail, isAdmin: true };
   } catch (error) {
     console.error('Error signing in as admin:', error);
     throw error;
@@ -30,10 +47,15 @@ export async function signInAsAdmin(email: string, password: string) {
 
 export async function signOutUser() {
   try {
-    if (!auth) {
-      throw new Error('Firebase not initialized');
+    // Clear admin session
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_session');
     }
-    await signOut(auth);
+    
+    // Also sign out from Firebase if available
+    if (auth) {
+      await signOut(auth);
+    }
   } catch (error) {
     console.error('Error signing out:', error);
     throw error;
@@ -60,10 +82,25 @@ export async function checkUserAccess(userEmail: string): Promise<boolean> {
   }
 }
 
-export function isAdminUser(user: FirebaseUser | null): boolean {
-  if (!user) return false;
+export function isAdminUser(user?: FirebaseUser | null): boolean {
+  // Check admin session first
+  if (typeof window !== 'undefined') {
+    const adminSession = localStorage.getItem('admin_session');
+    if (adminSession) {
+      try {
+        const session = JSON.parse(adminSession);
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+        return session.isAdmin && session.email === adminEmail;
+      } catch (error) {
+        console.error('Error parsing admin session:', error);
+        localStorage.removeItem('admin_session');
+      }
+    }
+  }
   
-  const adminEmail = process.env.ADMIN_EMAIL;
+  // Fallback to Firebase user check
+  if (!user) return false;
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
   return user.email === adminEmail;
 }
 
@@ -77,4 +114,26 @@ export async function getCurrentUser() {
       resolve(user);
     });
   });
+}
+
+export function getCurrentAdmin() {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const adminSession = localStorage.getItem('admin_session');
+    if (!adminSession) return null;
+    
+    const session = JSON.parse(adminSession);
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+    
+    if (session.isAdmin && session.email === adminEmail) {
+      return session;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting current admin:', error);
+    localStorage.removeItem('admin_session');
+    return null;
+  }
 }
