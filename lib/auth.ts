@@ -42,6 +42,11 @@ export async function signOutUser() {
 
 export async function checkUserAccess(userEmail: string): Promise<boolean> {
   try {
+    if (!supabase) {
+      console.error('Supabase not initialized');
+      return false;
+    }
+    
     const { data, error } = await supabase
       .from('users')
       .select('email')

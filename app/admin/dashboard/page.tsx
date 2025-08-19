@@ -26,6 +26,12 @@ export default function AdminDashboardPage() {
 
   const loadDashboardStats = async () => {
     try {
+      if (!supabase) {
+        console.error('Supabase not initialized');
+        setLoading(false);
+        return;
+      }
+
       // Get total users
       const { count: usersCount } = await supabase
         .from('users')
