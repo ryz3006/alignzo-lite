@@ -16,6 +16,7 @@ interface ConfigStatus {
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [adminSession, setAdminSession] = useState<any>(null);
   const [configStatus, setConfigStatus] = useState<ConfigStatus>({
     admin: false,
     firebase: false,
@@ -34,6 +35,7 @@ export default function AdminPage() {
       // Check admin session first
       const currentAdmin = getCurrentAdmin();
       if (currentAdmin) {
+        setAdminSession(currentAdmin);
         setConfigStatus(prev => ({ ...prev, admin: true }));
         // Skip further checks and redirect to dashboard
         router.push('/admin/dashboard');
@@ -106,7 +108,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!user) {
+  if (!user && !adminSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full space-y-8">
@@ -131,7 +133,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!configStatus.admin) {
+  if (!configStatus.admin && !adminSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full space-y-8">

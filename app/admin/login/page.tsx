@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
     try {
       await signInAsAdmin(email, password);
       toast.success('Login successful!');
-      router.push('/admin');
+      router.push('/admin/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
       toast.error(error.message || 'Login failed');
