@@ -140,6 +140,12 @@ Before using the application, make sure to:
    - Run `npm install` locally to generate `package-lock.json`
    - Commit the `package-lock.json` file to the repository
 
+6. **Vercel build errors**:
+   - Ensure all environment variables are set in Vercel dashboard
+   - Check that Firebase configuration is correct
+   - Verify that the `vercel.json` file is present in the repository
+   - The application automatically adapts between static export (GitHub Pages) and SSR (Vercel)
+
 ### Support:
 
 - Check the GitHub Actions logs for build errors
