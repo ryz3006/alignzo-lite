@@ -7,33 +7,35 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "vercel-build": "next build"
+    "vercel-build": "next build",
+    "setup-db": "node scripts/create-team-project-table.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.38.5",
+    "date-fns": "^2.30.0",
+    "dotenv": "^17.2.1",
+    "firebase": "^9.22.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.1",
+    "lucide-react": "^0.294.0",
     "next": "14.0.4",
     "react": "^18",
     "react-dom": "^18",
-    "@supabase/supabase-js": "^2.38.5",
-    "firebase": "^9.22.0",
     "react-firebase-hooks": "^5.1.1",
-    "lucide-react": "^0.294.0",
-    "recharts": "^2.8.0",
     "react-hot-toast": "^2.4.1",
-    "date-fns": "^2.30.0",
-    "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.1",
-    "xlsx": "^0.18.5",
-    "html2canvas": "^1.4.1"
+    "recharts": "^2.8.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
-    "eslint": "^8",
-    "eslint-config-next": "14.0.4"
+    "typescript": "^5"
   }
 }

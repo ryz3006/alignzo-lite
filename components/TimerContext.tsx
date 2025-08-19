@@ -191,7 +191,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const getTimerDuration = (timer: Timer): string => {
     const now = new Date();
     const startTime = new Date(timer.start_time);
-    const totalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    let totalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    
+    // If timer is currently paused, calculate duration up to pause time
+    if (timer.is_paused && timer.pause_start_time) {
+      const pauseTime = new Date(timer.pause_start_time);
+      totalDuration = Math.floor((pauseTime.getTime() - startTime.getTime()) / 1000);
+    }
+    
     const loggedDuration = totalDuration - (timer.total_pause_duration_seconds || 0);
     return formatDuration(Math.max(0, loggedDuration));
   };

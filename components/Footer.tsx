@@ -188,13 +188,12 @@ export default function Footer({ className = '' }: FooterProps) {
                         <li>Copy the Project URL and anon public key</li>
                       </ul>
                     </li>
-                    <li>Set up the database schema:
-                      <ul className="list-disc list-inside ml-4 mt-1">
-                        <li>Go to SQL Editor</li>
-                        <li>Run the schema from <code className="bg-gray-200 px-1 rounded">database/schema.sql</code></li>
-                        <li>Run the team assignment schema from <code className="bg-gray-200 px-1 rounded">database/team_project_assignment.sql</code></li>
-                      </ul>
-                    </li>
+                                         <li>Set up the database schema:
+                       <ul className="list-disc list-inside ml-4 mt-1">
+                         <li>Go to SQL Editor</li>
+                         <li>Run the complete schema from <code className="bg-gray-200 px-1 rounded">database/schema.sql</code> (includes team-project assignments)</li>
+                       </ul>
+                     </li>
                   </ol>
                 </div>
 

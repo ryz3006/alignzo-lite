@@ -115,9 +115,7 @@ Before using the application, make sure to:
 
 1. Run the SQL migrations in your Supabase SQL Editor:
    - Copy the content from `database/schema.sql` and paste it in the Supabase SQL Editor
-   - Execute the script
-   - Copy the content from `database/team_project_assignment.sql` and paste it in the Supabase SQL Editor
-   - Execute the script
+   - Execute the script (this includes all tables including team-project assignments)
 
 2. Set up Firebase Authentication:
    - Enable Google Sign-in provider

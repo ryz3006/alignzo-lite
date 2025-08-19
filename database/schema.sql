@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Team-Project Assignment table
+CREATE TABLE IF NOT EXISTS team_project_assignments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(team_id, project_id)
+);
+
 -- Project categories table
 CREATE TABLE IF NOT EXISTS project_categories (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -84,6 +94,8 @@ CREATE TABLE IF NOT EXISTS timers (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_team_project_assignments_team_id ON team_project_assignments(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_project_assignments_project_id ON team_project_assignments(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_categories_project_id ON project_categories(project_id);
 CREATE INDEX IF NOT EXISTS idx_work_logs_user_email ON work_logs(user_email);
 CREATE INDEX IF NOT EXISTS idx_work_logs_project_id ON work_logs(project_id);
@@ -104,6 +116,7 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_teams_updated_at BEFORE UPDATE ON teams FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_team_project_assignments_updated_at BEFORE UPDATE ON team_project_assignments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_project_categories_updated_at BEFORE UPDATE ON project_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_work_logs_updated_at BEFORE UPDATE ON work_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_timers_updated_at BEFORE UPDATE ON timers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -113,6 +126,7 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_project_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timers ENABLE ROW LEVEL SECURITY;
@@ -122,6 +136,7 @@ CREATE POLICY "Allow public read access" ON users FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON teams FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON team_members FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON projects FOR SELECT USING (true);
+CREATE POLICY "Allow public read access" ON team_project_assignments FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON project_categories FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON work_logs FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON timers FOR SELECT USING (true);
@@ -131,6 +146,7 @@ CREATE POLICY "Allow public insert" ON users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON teams FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON team_members FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert" ON team_project_assignments FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON project_categories FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON work_logs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON timers FOR INSERT WITH CHECK (true);
@@ -139,6 +155,7 @@ CREATE POLICY "Allow public update" ON users FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON teams FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON team_members FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON projects FOR UPDATE USING (true);
+CREATE POLICY "Allow public update" ON team_project_assignments FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON project_categories FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON work_logs FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON timers FOR UPDATE USING (true);
@@ -147,6 +164,7 @@ CREATE POLICY "Allow public delete" ON users FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON teams FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON team_members FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON projects FOR DELETE USING (true);
+CREATE POLICY "Allow public delete" ON team_project_assignments FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON project_categories FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON work_logs FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON timers FOR DELETE USING (true);
