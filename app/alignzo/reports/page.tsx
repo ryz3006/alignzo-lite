@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { supabase, WorkLog, Project, ProjectCategory } from '@/lib/supabase';
-import { Edit, Trash2, Search, Download, Plus, Eye } from 'lucide-react';
+import { Edit, Trash2, Search, Download, Plus, Eye, RefreshCw } from 'lucide-react';
 import { formatDuration, formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -29,7 +29,7 @@ export default function UserWorkReportsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage] = useState(10);
   
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -55,9 +55,25 @@ export default function UserWorkReportsPage() {
   const [breakMinutes, setBreakMinutes] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
 
+  // Multi-select state
+  const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   useEffect(() => {
     loadWorkLogs();
     loadProjects();
+    
+    // Set up real-time subscription for work logs to auto-refresh when timer stops
+    const subscription = supabase
+      .channel('work_logs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_logs' }, () => {
+        loadWorkLogs();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadWorkLogs = async () => {
@@ -119,13 +135,25 @@ export default function UserWorkReportsPage() {
 
   const handleEdit = (log: WorkLogWithProject) => {
     setEditingLog(log);
+    
+    // Format datetime for input fields (remove timezone info and format as YYYY-MM-DDTHH:MM)
+    const formatDateTimeForInput = (dateString: string) => {
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    
     setFormData({
       project_id: log.project_id,
       ticket_id: log.ticket_id,
       task_detail: log.task_detail,
       dynamic_category_selections: log.dynamic_category_selections || {},
-      start_time: log.start_time,
-      end_time: log.end_time,
+      start_time: formatDateTimeForInput(log.start_time),
+      end_time: formatDateTimeForInput(log.end_time),
       total_pause_duration_seconds: log.total_pause_duration_seconds,
       logged_duration_seconds: log.logged_duration_seconds,
     });
@@ -250,6 +278,53 @@ export default function UserWorkReportsPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedLogs.size === 0) {
+      toast.error('Please select work logs to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedLogs.size} work log(s)?`)) return;
+
+    try {
+      const logIds = Array.from(selectedLogs);
+      const { error } = await supabase
+        .from('work_logs')
+        .delete()
+        .in('id', logIds);
+
+      if (error) throw error;
+      toast.success(`${selectedLogs.size} work log(s) deleted successfully`);
+      setSelectedLogs(new Set());
+      setSelectAll(false);
+      loadWorkLogs();
+    } catch (error: any) {
+      console.error('Error deleting work logs:', error);
+      toast.error(error.message || 'Failed to delete work logs');
+    }
+  };
+
+  const handleSelectLog = (logId: string) => {
+    const newSelected = new Set(selectedLogs);
+    if (newSelected.has(logId)) {
+      newSelected.delete(logId);
+    } else {
+      newSelected.add(logId);
+    }
+    setSelectedLogs(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedLogs(new Set());
+      setSelectAll(false);
+    } else {
+      const allIds = new Set(currentLogs.map(log => log.id));
+      setSelectedLogs(allIds);
+      setSelectAll(true);
+    }
+  };
+
   const handleExport = () => {
     const csvContent = [
       ['Project', 'Ticket ID', 'Task Detail', 'Start Time', 'End Time', 'Duration (hours)', 'Break Duration', 'Created'],
@@ -272,6 +347,12 @@ export default function UserWorkReportsPage() {
     a.download = `my-work-logs-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+    loadWorkLogs();
+    toast.success('Data refreshed');
   };
 
   const getProjectCategories = (projectId: string) => {
@@ -313,6 +394,13 @@ export default function UserWorkReportsPage() {
             Add Work Log
           </button>
           <button
+            onClick={handleRefresh}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          <button
             onClick={handleExport}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
           >
@@ -336,11 +424,36 @@ export default function UserWorkReportsPage() {
         </div>
       </div>
 
+      {/* Bulk Actions */}
+      {selectedLogs.size > 0 && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-yellow-800">
+              {selectedLogs.size} work log(s) selected
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm"
+            >
+              Delete Selected ({selectedLogs.size})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Work Logs Table */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Project
               </th>
@@ -364,6 +477,14 @@ export default function UserWorkReportsPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {currentLogs.map((log) => (
               <tr key={log.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={selectedLogs.has(log.id)}
+                    onChange={() => handleSelectLog(log.id)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {log.project?.name || 'N/A'}
@@ -422,7 +543,7 @@ export default function UserWorkReportsPage() {
           <div className="text-sm text-gray-700">
             Showing {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} results
           </div>
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
@@ -430,9 +551,37 @@ export default function UserWorkReportsPage() {
             >
               Previous
             </button>
-            <span className="px-3 py-2 text-sm font-medium text-gray-700">
-              Page {currentPage} of {totalPages}
-            </span>
+            
+            {/* Page Numbers */}
+            <div className="flex space-x-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${
+                      currentPage === pageNum
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
             <button
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
