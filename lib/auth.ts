@@ -72,7 +72,7 @@ export async function getCurrentUser() {
     return null;
   }
   return new Promise<FirebaseUser | null>((resolve) => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth!.onAuthStateChanged((user) => {
       unsubscribe();
       resolve(user);
     });
