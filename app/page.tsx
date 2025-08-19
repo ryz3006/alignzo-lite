@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, signInWithGoogle, checkUserAccess } from '@/lib/auth';
+import { getCurrentUser, signInWithGoogle, checkUserAccess, signOutUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
 import { Chrome } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -56,6 +56,18 @@ export default function HomePage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+      toast.success('Logged out successfully');
+      setAccessDenied(false);
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -76,13 +88,19 @@ export default function HomePage() {
               Your email is not registered in the system. Please contact your administrator to be added.
             </p>
           </div>
-          <div className="mt-8 space-y-6">
+          <div className="mt-8 space-y-4">
+            <button
+              onClick={handleLogout}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Logout & Clear Session
+            </button>
             <button
               onClick={() => {
                 setAccessDenied(false);
                 setUser(null);
               }}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             >
               Try Different Account
             </button>

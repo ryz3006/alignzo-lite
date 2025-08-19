@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, getCurrentAdmin, isAdminUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentAdmin, isAdminUser, signOutUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
@@ -34,9 +34,15 @@ export default function AdminPage() {
     try {
       // Check admin session first
       const currentAdmin = getCurrentAdmin();
+      console.log('Admin check:', { currentAdmin, envVars: {
+        adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+        adminPassword: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ? '***' : 'NOT_SET'
+      }});
+      
       if (currentAdmin) {
         setAdminSession(currentAdmin);
         setConfigStatus(prev => ({ ...prev, admin: true }));
+        setLoading(false);
         // Skip further checks and redirect to dashboard
         router.push('/admin/dashboard');
         return;
@@ -100,6 +106,17 @@ export default function AdminPage() {
     router.push('/admin/login');
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+      toast.success('Logged out successfully');
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -144,6 +161,20 @@ export default function AdminPage() {
             <p className="mt-2 text-center text-sm text-gray-600">
               You don't have admin privileges
             </p>
+          </div>
+          <div className="mt-8 space-y-4">
+            <button
+              onClick={handleLogout}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Logout & Clear Session
+            </button>
+            <button
+              onClick={handleAdminLogin}
+              className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              Back to Login
+            </button>
           </div>
         </div>
       </div>

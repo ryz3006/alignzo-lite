@@ -21,6 +21,15 @@ export async function signInAsAdmin(email: string, password: string) {
     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
     
+    console.log('Admin login attempt:', {
+      inputEmail: email,
+      inputPassword: password.length > 0 ? '***' : 'EMPTY',
+      adminEmail,
+      adminPassword: adminPassword ? '***' : 'NOT_SET',
+      emailMatch: email === adminEmail,
+      passwordMatch: password === adminPassword
+    });
+    
     if (!adminEmail || !adminPassword) {
       throw new Error('Admin credentials not configured in environment variables');
     }
@@ -31,11 +40,13 @@ export async function signInAsAdmin(email: string, password: string) {
     
     // Store admin session in localStorage
     if (typeof window !== 'undefined') {
-      localStorage.setItem('admin_session', JSON.stringify({
+      const session = {
         email: adminEmail,
         loginTime: Date.now(),
         isAdmin: true
-      }));
+      };
+      localStorage.setItem('admin_session', JSON.stringify(session));
+      console.log('Admin session stored:', session);
     }
     
     return { email: adminEmail, isAdmin: true };

@@ -21,6 +21,10 @@ export default function AdminLoginPage() {
       router.push('/admin/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
+      console.log('Environment variables check:', {
+        adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+        adminPassword: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ? '***' : 'NOT_SET'
+      });
       toast.error(error.message || 'Login failed');
     } finally {
       setLoading(false);
