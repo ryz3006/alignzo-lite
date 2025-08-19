@@ -3,149 +3,156 @@
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { supabase, WorkLog, Project, User, Team } from '@/lib/supabase';
-import { BarChart3, PieChart, TrendingUp, Users, Download } from 'lucide-react';
+import { 
+  BarChart3, 
+  PieChart, 
+  TrendingUp, 
+  Users, 
+  Download, 
+  Filter,
+  Target,
+  Clock,
+  UserCheck,
+  FolderOpen,
+  Activity
+} from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart as RechartsPieChart, 
+  Pie, 
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area
+} from 'recharts';
 import toast from 'react-hot-toast';
 
-interface TeamAnalytics {
+// Chart colors
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
+
+// Types for analytics data
+interface TeamMetrics {
   teamName: string;
-  totalHours: number;
+  occupancyRate: number;
+  totalWorkedHours: number;
+  totalAvailableHours: number;
   memberCount: number;
-  averageHoursPerMember: number;
+  ftePerProject: Record<string, number>;
 }
 
-interface ProjectAnalytics {
+interface ProjectMetrics {
   projectName: string;
   totalHours: number;
   userCount: number;
   averageHoursPerUser: number;
+  categoryDistribution: Record<string, number>;
+  averageTimePerTask: number;
+  taskCount: number;
 }
 
-interface UserAnalytics {
+interface IndividualMetrics {
   userName: string;
-  totalHours: number;
-  projectCount: number;
-  averageHoursPerProject: number;
+  userEmail: string;
+  occupancyRate: number;
+  totalWorkedHours: number;
+  availableHours: number;
+  projectHours: Record<string, number>;
+  taskContributions: Array<{
+    ticketId: string;
+    hours: number;
+    projectName: string;
+  }>;
 }
 
-export default function UserAnalyticsPage() {
+interface TrendData {
+  date: string;
+  teamOccupancy: number;
+  projectHours: number;
+  individualOccupancy: number;
+}
+
+interface FilterState {
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  teamName: string;
+  projectName: string;
+  userEmail: string;
+  category: string;
+}
+
+export default function AnalyticsPage() {
   const [user, setUser] = useState<any>(null);
-  const [teamAnalytics, setTeamAnalytics] = useState<TeamAnalytics[]>([]);
-  const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics[]>([]);
-  const [userAnalytics, setUserAnalytics] = useState<UserAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFilter, setSelectedFilter] = useState('team');
+  const [activeTab, setActiveTab] = useState('team');
+  const [filters, setFilters] = useState<FilterState>({
+    dateRange: {
+      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      end: new Date().toISOString().split('T')[0]
+    },
+    teamName: '',
+    projectName: '',
+    userEmail: '',
+    category: ''
+  });
+
+  // Analytics data states
+  const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([]);
+  const [projectMetrics, setProjectMetrics] = useState<ProjectMetrics[]>([]);
+  const [individualMetrics, setIndividualMetrics] = useState<IndividualMetrics[]>([]);
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<string[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<string[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   useEffect(() => {
     loadAnalytics();
-  }, []);
+  }, [filters]);
 
   const loadAnalytics = async () => {
     try {
+      setLoading(true);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
 
       if (!currentUser?.email) return;
 
-      // Get all work logs with related data
-      const { data: workLogs, error: logsError } = await supabase
-        .from('work_logs')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-        .order('created_at', { ascending: false });
+      // Load all necessary data
+      const [workLogs, teams, projects, users, categories] = await Promise.all([
+        loadWorkLogs(),
+        loadTeams(),
+        loadProjects(),
+        loadUsers(),
+        loadCategories()
+      ]);
 
-      if (logsError) throw logsError;
+      // Calculate metrics
+      const teamData = calculateTeamMetrics(workLogs, teams, projects, users);
+      const projectData = calculateProjectMetrics(workLogs, projects, users);
+      const individualData = calculateIndividualMetrics(workLogs, users);
+      const trendData = calculateTrendData(workLogs, teams, projects);
 
-      // Get teams and team members
-      const { data: teams, error: teamsError } = await supabase
-        .from('teams')
-        .select(`
-          *,
-          team_members(*)
-        `);
+      setTeamMetrics(teamData);
+      setProjectMetrics(projectData);
+      setIndividualMetrics(individualData);
+      setTrendData(trendData);
 
-      if (teamsError) throw teamsError;
+      // Set available filter options
+      setAvailableTeams(teams.map(t => t.name));
+      setAvailableProjects(projects.map(p => p.name));
+      setAvailableUsers(users.map(u => u.email));
+      setAvailableCategories(categories);
 
-      // Get users
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('*');
-
-      if (usersError) throw usersError;
-
-      const logs = workLogs || [];
-      const teamsData = teams || [];
-      const usersData = users || [];
-
-      // Calculate team analytics
-      const teamStats = teamsData.map(team => {
-        const teamMembers = team.team_members || [];
-        const memberEmails = teamMembers.map((member: any) => {
-          const user = usersData.find(u => u.id === member.user_id);
-          return user?.email;
-        }).filter(Boolean);
-
-        const teamLogs = logs.filter(log => memberEmails.includes(log.user_email));
-        const totalHours = teamLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-        return {
-          teamName: team.name,
-          totalHours: Math.round(totalHours * 100) / 100,
-          memberCount: memberEmails.length,
-          averageHoursPerMember: memberEmails.length > 0 ? Math.round((totalHours / memberEmails.length) * 100) / 100 : 0,
-        };
-      });
-
-      // Calculate project analytics
-      const projectMap = new Map<string, { logs: any[], users: Set<string> }>();
-      logs.forEach(log => {
-        const projectName = log.project?.name || 'Unknown Project';
-        if (!projectMap.has(projectName)) {
-          projectMap.set(projectName, { logs: [], users: new Set() });
-        }
-        const project = projectMap.get(projectName)!;
-        project.logs.push(log);
-        project.users.add(log.user_email);
-      });
-
-      const projectStats = Array.from(projectMap.entries()).map(([name, data]) => {
-        const totalHours = data.logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-        return {
-          projectName: name,
-          totalHours: Math.round(totalHours * 100) / 100,
-          userCount: data.users.size,
-          averageHoursPerUser: data.users.size > 0 ? Math.round((totalHours / data.users.size) * 100) / 100 : 0,
-        };
-      });
-
-      // Calculate user analytics
-      const userMap = new Map<string, { logs: any[], projects: Set<string> }>();
-      logs.forEach(log => {
-        if (!userMap.has(log.user_email)) {
-          userMap.set(log.user_email, { logs: [], projects: new Set() });
-        }
-        const user = userMap.get(log.user_email)!;
-        user.logs.push(log);
-        user.projects.add(log.project?.name || 'Unknown Project');
-      });
-
-      const userStats = Array.from(userMap.entries()).map(([email, data]) => {
-        const totalHours = data.logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-        const userName = usersData.find(u => u.email === email)?.full_name || email;
-        return {
-          userName,
-          totalHours: Math.round(totalHours * 100) / 100,
-          projectCount: data.projects.size,
-          averageHoursPerProject: data.projects.size > 0 ? Math.round((totalHours / data.projects.size) * 100) / 100 : 0,
-        };
-      });
-
-      setTeamAnalytics(teamStats);
-      setProjectAnalytics(projectStats);
-      setUserAnalytics(userStats);
     } catch (error) {
       console.error('Error loading analytics:', error);
       toast.error('Failed to load analytics data');
@@ -154,43 +161,281 @@ export default function UserAnalyticsPage() {
     }
   };
 
+  const loadWorkLogs = async () => {
+    const { data, error } = await supabase
+      .from('work_logs')
+      .select(`
+        *,
+        project:projects(*)
+      `)
+      .gte('start_time', filters.dateRange.start)
+      .lte('start_time', filters.dateRange.end)
+      .order('start_time', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  };
+
+  const loadTeams = async () => {
+    const { data, error } = await supabase
+      .from('teams')
+      .select(`
+        *,
+        team_members(*)
+      `);
+
+    if (error) throw error;
+    return data || [];
+  };
+
+  const loadProjects = async () => {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*');
+
+    if (error) throw error;
+    return data || [];
+  };
+
+  const loadUsers = async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*');
+
+    if (error) throw error;
+    return data || [];
+  };
+
+  const loadCategories = async () => {
+    const { data, error } = await supabase
+      .from('project_categories')
+      .select('name');
+
+    if (error) throw error;
+    return Array.from(new Set((data || []).map(c => c.name)));
+  };
+
+  const calculateTeamMetrics = (workLogs: any[], teams: any[], projects: any[], users: any[]) => {
+    const standardWorkHoursPerDay = 8;
+    const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
+
+    return teams.map(team => {
+      const teamMembers = team.team_members || [];
+      const memberEmails = teamMembers.map((member: any) => {
+        const user = users.find(u => u.id === member.user_id);
+        return user?.email;
+      }).filter(Boolean);
+
+      const teamLogs = workLogs.filter(log => memberEmails.includes(log.user_email));
+      const totalWorkedHours = teamLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const totalAvailableHours = memberEmails.length * standardWorkHoursPerDay * workingDaysInPeriod;
+      const occupancyRate = totalAvailableHours > 0 ? (totalWorkedHours / totalAvailableHours) * 100 : 0;
+
+      // Calculate FTE per project
+      const ftePerProject: Record<string, number> = {};
+      const projectGroups = groupBy(teamLogs, 'project.name');
+      
+      Object.entries(projectGroups).forEach(([projectName, logs]) => {
+        const projectHours = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+        const standardFteHours = standardWorkHoursPerDay * workingDaysInPeriod;
+        ftePerProject[projectName] = standardFteHours > 0 ? projectHours / standardFteHours : 0;
+      });
+
+      return {
+        teamName: team.name,
+        occupancyRate: Math.round(occupancyRate * 100) / 100,
+        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
+        totalAvailableHours: Math.round(totalAvailableHours * 100) / 100,
+        memberCount: memberEmails.length,
+        ftePerProject
+      };
+    });
+  };
+
+  const calculateProjectMetrics = (workLogs: any[], projects: any[], users: any[]) => {
+    return projects.map(project => {
+      const projectLogs = workLogs.filter(log => log.project?.id === project.id);
+      const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const uniqueUsers = new Set(projectLogs.map((log: any) => log.user_email));
+      const uniqueTasks = new Set(projectLogs.map((log: any) => log.ticket_id));
+
+      // Calculate category distribution
+      const categoryDistribution: Record<string, number> = {};
+      projectLogs.forEach((log: any) => {
+        Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
+          if (!categoryDistribution[category]) categoryDistribution[category] = 0;
+          categoryDistribution[category] += (log.logged_duration_seconds || 0) / 3600;
+        });
+      });
+
+      return {
+        projectName: project.name,
+        totalHours: Math.round(totalHours * 100) / 100,
+        userCount: uniqueUsers.size,
+        averageHoursPerUser: uniqueUsers.size > 0 ? Math.round((totalHours / uniqueUsers.size) * 100) / 100 : 0,
+        categoryDistribution,
+        averageTimePerTask: uniqueTasks.size > 0 ? Math.round((totalHours / uniqueTasks.size) * 100) / 100 : 0,
+        taskCount: uniqueTasks.size
+      };
+    });
+  };
+
+  const calculateIndividualMetrics = (workLogs: any[], users: any[]) => {
+    const standardWorkHoursPerDay = 8;
+    const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
+
+    return users.map(user => {
+      const userLogs = workLogs.filter(log => log.user_email === user.email);
+      const totalWorkedHours = userLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const availableHours = standardWorkHoursPerDay * workingDaysInPeriod;
+      const occupancyRate = availableHours > 0 ? (totalWorkedHours / availableHours) * 100 : 0;
+
+      // Calculate hours by project
+      const projectHours: Record<string, number> = {};
+      const projectGroups = groupBy(userLogs, 'project.name');
+      Object.entries(projectGroups).forEach(([projectName, logs]) => {
+        projectHours[projectName] = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      });
+
+      // Calculate task contributions
+      const taskContributions = userLogs.map((log: any) => ({
+        ticketId: log.ticket_id,
+        hours: (log.logged_duration_seconds || 0) / 3600,
+        projectName: log.project?.name || 'Unknown'
+      }));
+
+      return {
+        userName: user.full_name,
+        userEmail: user.email,
+        occupancyRate: Math.round(occupancyRate * 100) / 100,
+        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
+        availableHours: Math.round(availableHours * 100) / 100,
+        projectHours,
+        taskContributions
+      };
+    });
+  };
+
+  const calculateTrendData = (workLogs: any[], teams: any[], projects: any[]) => {
+    // Group by week for trend analysis
+    const weeklyData = groupByWeek(workLogs);
+    
+    return Object.entries(weeklyData).map(([week, logs]) => {
+      const teamOccupancy = calculateWeeklyTeamOccupancy(logs as any[], teams);
+      const projectHours = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const individualOccupancy = calculateWeeklyIndividualOccupancy(logs as any[]);
+
+      return {
+        date: week,
+        teamOccupancy: Math.round(teamOccupancy * 100) / 100,
+        projectHours: Math.round(projectHours * 100) / 100,
+        individualOccupancy: Math.round(individualOccupancy * 100) / 100
+      };
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
+
+  // Helper functions
+  const calculateWorkingDays = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let workingDays = 0;
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) workingDays++;
+    }
+    
+    return workingDays;
+  };
+
+  const groupBy = (array: any[], key: string) => {
+    return array.reduce((groups: any, item: any) => {
+      const group = key.split('.').reduce((obj: any, k: string) => obj?.[k], item) || 'Unknown';
+      groups[group] = groups[group] || [];
+      groups[group].push(item);
+      return groups;
+    }, {});
+  };
+
+  const groupByWeek = (logs: any[]) => {
+    return logs.reduce((groups: any, log: any) => {
+      const date = new Date(log.start_time);
+      const week = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay()).toISOString().split('T')[0];
+      groups[week] = groups[week] || [];
+      groups[week].push(log);
+      return groups;
+    }, {});
+  };
+
+  const calculateWeeklyTeamOccupancy = (logs: any[], teams: any[]) => {
+    // Simplified calculation for weekly team occupancy
+    const totalHours = logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+    const estimatedAvailableHours = logs.length * 8 * 5; // Rough estimate
+    return estimatedAvailableHours > 0 ? (totalHours / estimatedAvailableHours) * 100 : 0;
+  };
+
+  const calculateWeeklyIndividualOccupancy = (logs: any[]) => {
+    const totalHours = logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+    const estimatedAvailableHours = 8 * 5; // 40 hours per week
+    return estimatedAvailableHours > 0 ? (totalHours / estimatedAvailableHours) * 100 : 0;
+  };
+
   const handleExport = () => {
     let csvContent = '';
     let filename = '';
 
-    if (selectedFilter === 'team') {
-      csvContent = [
-        ['Team Name', 'Total Hours', 'Member Count', 'Average Hours per Member'],
-        ...teamAnalytics.map(team => [
-          team.teamName,
-          team.totalHours.toString(),
-          team.memberCount.toString(),
-          team.averageHoursPerMember.toString(),
-        ])
-      ].map(row => row.join(',')).join('\n');
-      filename = 'team-analytics.csv';
-    } else if (selectedFilter === 'project') {
-      csvContent = [
-        ['Project Name', 'Total Hours', 'User Count', 'Average Hours per User'],
-        ...projectAnalytics.map(project => [
-          project.projectName,
-          project.totalHours.toString(),
-          project.userCount.toString(),
-          project.averageHoursPerUser.toString(),
-        ])
-      ].map(row => row.join(',')).join('\n');
-      filename = 'project-analytics.csv';
-    } else {
-      csvContent = [
-        ['User Name', 'Total Hours', 'Project Count', 'Average Hours per Project'],
-        ...userAnalytics.map(user => [
-          user.userName,
-          user.totalHours.toString(),
-          user.projectCount.toString(),
-          user.averageHoursPerProject.toString(),
-        ])
-      ].map(row => row.join(',')).join('\n');
-      filename = 'user-analytics.csv';
+    switch (activeTab) {
+      case 'team':
+        csvContent = [
+          ['Team Name', 'Occupancy Rate (%)', 'Total Worked Hours', 'Total Available Hours', 'Member Count'],
+          ...teamMetrics.map(team => [
+            team.teamName,
+            team.occupancyRate.toString(),
+            team.totalWorkedHours.toString(),
+            team.totalAvailableHours.toString(),
+            team.memberCount.toString(),
+          ])
+        ].map(row => row.join(',')).join('\n');
+        filename = 'team-analytics.csv';
+        break;
+      case 'project':
+        csvContent = [
+          ['Project Name', 'Total Hours', 'User Count', 'Average Hours per User', 'Task Count', 'Average Time per Task'],
+          ...projectMetrics.map(project => [
+            project.projectName,
+            project.totalHours.toString(),
+            project.userCount.toString(),
+            project.averageHoursPerUser.toString(),
+            project.taskCount.toString(),
+            project.averageTimePerTask.toString(),
+          ])
+        ].map(row => row.join(',')).join('\n');
+        filename = 'project-analytics.csv';
+        break;
+      case 'individual':
+        csvContent = [
+          ['User Name', 'Email', 'Occupancy Rate (%)', 'Total Worked Hours', 'Available Hours'],
+          ...individualMetrics.map(individual => [
+            individual.userName,
+            individual.userEmail,
+            individual.occupancyRate.toString(),
+            individual.totalWorkedHours.toString(),
+            individual.availableHours.toString(),
+          ])
+        ].map(row => row.join(',')).join('\n');
+        filename = 'individual-analytics.csv';
+        break;
+      case 'trends':
+        csvContent = [
+          ['Date', 'Team Occupancy (%)', 'Project Hours', 'Individual Occupancy (%)'],
+          ...trendData.map(trend => [
+            trend.date,
+            trend.teamOccupancy.toString(),
+            trend.projectHours.toString(),
+            trend.individualOccupancy.toString(),
+          ])
+        ].map(row => row.join(',')).join('\n');
+        filename = 'trend-analytics.csv';
+        break;
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -202,29 +447,7 @@ export default function UserAnalyticsPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  const getChartData = () => {
-    if (selectedFilter === 'team') {
-      return teamAnalytics.map(team => ({
-        name: team.teamName,
-        value: team.totalHours,
-        memberCount: team.memberCount,
-      }));
-    } else if (selectedFilter === 'project') {
-      return projectAnalytics.map(project => ({
-        name: project.projectName,
-        value: project.totalHours,
-        userCount: project.userCount,
-      }));
-    } else {
-      return userAnalytics.map(user => ({
-        name: user.userName,
-        value: user.totalHours,
-        projectCount: user.projectCount,
-      }));
-    }
-  };
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
   if (loading) {
     return (
@@ -235,11 +458,12 @@ export default function UserAnalyticsPage() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">Team and project performance insights</p>
+          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+          <p className="text-gray-600">Comprehensive team and project performance insights</p>
         </div>
         <button
           onClick={handleExport}
@@ -250,159 +474,435 @@ export default function UserAnalyticsPage() {
         </button>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="mb-6">
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setSelectedFilter('team')}
-            className={`px-4 py-2 rounded-md font-medium ${
-              selectedFilter === 'team'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users className="inline h-4 w-4 mr-2" />
-            Team Analytics
-          </button>
-          <button
-            onClick={() => setSelectedFilter('project')}
-            className={`px-4 py-2 rounded-md font-medium ${
-              selectedFilter === 'project'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <BarChart3 className="inline h-4 w-4 mr-2" />
-            Project Analytics
-          </button>
-          <button
-            onClick={() => setSelectedFilter('user')}
-            className={`px-4 py-2 rounded-md font-medium ${
-              selectedFilter === 'user'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <TrendingUp className="inline h-4 w-4 mr-2" />
-            User Analytics
-          </button>
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center mb-4">
+          <Filter className="h-5 w-5 mr-2 text-gray-600" />
+          <h3 className="text-lg font-medium text-gray-900">Filters</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={filters.dateRange.start}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, start: e.target.value }
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <input
+              type="date"
+              value={filters.dateRange.end}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, end: e.target.value }
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
+            <select
+              value={filters.teamName}
+              onChange={(e) => setFilters(prev => ({ ...prev, teamName: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Teams</option>
+              {availableTeams.map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+            <select
+              value={filters.projectName}
+              onChange={(e) => setFilters(prev => ({ ...prev, projectName: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Projects</option>
+              {availableProjects.map(project => (
+                <option key={project} value={project}>{project}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <select
+              value={filters.category}
+              onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Categories</option>
+              {availableCategories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Charts */}
+      {/* Navigation Tabs */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[
+              { id: 'team', label: 'Team Metrics', icon: Users },
+              { id: 'project', label: 'Project Metrics', icon: FolderOpen },
+              { id: 'individual', label: 'Individual Metrics', icon: UserCheck },
+              { id: 'trends', label: 'Trend Analysis', icon: TrendingUp }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <tab.icon className="h-4 w-4 mr-2" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-6">
+          {activeTab === 'team' && <TeamMetricsTab data={teamMetrics} />}
+          {activeTab === 'project' && <ProjectMetricsTab data={projectMetrics} />}
+          {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} />}
+          {activeTab === 'trends' && <TrendsTab data={trendData} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Team Metrics Tab Component
+function TeamMetricsTab({ data }: { data: TeamMetrics[] }) {
+  const chartData = data.map(team => ({
+    name: team.teamName,
+    occupancyRate: team.occupancyRate,
+    totalHours: team.totalWorkedHours,
+    memberCount: team.memberCount
+  }));
+
+  return (
+    <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar Chart */}
+        {/* Team Occupancy Rate */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            {selectedFilter === 'team' ? 'Team Hours' : selectedFilter === 'project' ? 'Project Hours' : 'User Hours'}
-          </h2>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Occupancy Rate</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={getChartData()}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  fontSize={12}
-                />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
                 <YAxis />
-                <Tooltip 
-                  formatter={(value: any) => [`${value} hours`, 'Duration']}
-                  labelFormatter={(label) => `${selectedFilter === 'team' ? 'Team' : selectedFilter === 'project' ? 'Project' : 'User'}: ${label}`}
-                />
-                <Bar dataKey="value" fill="#3b82f6" />
+                <Tooltip formatter={(value: any) => [`${value}%`, 'Occupancy Rate']} />
+                <Bar dataKey="occupancyRate" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Pie Chart */}
+        {/* Team Hours Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            {selectedFilter === 'team' ? 'Team Distribution' : selectedFilter === 'project' ? 'Project Distribution' : 'User Distribution'}
-          </h2>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Hours Distribution</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <Pie
-                  data={getChartData()}
+                  data={chartData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
-                  dataKey="value"
+                  dataKey="totalHours"
                 >
-                  {getChartData().map((entry, index) => (
+                  {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: any) => [`${value} hours`, 'Duration']} />
+                <Tooltip formatter={(value: any) => [`${value} hours`, 'Total Hours']} />
               </RechartsPieChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
+      {/* Team Details Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">
-            {selectedFilter === 'team' ? 'Team Details' : selectedFilter === 'project' ? 'Project Details' : 'User Details'}
-          </h3>
+          <h3 className="text-lg font-medium text-gray-900">Team Details</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {selectedFilter === 'team' ? 'Team Name' : selectedFilter === 'project' ? 'Project Name' : 'User Name'}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {selectedFilter === 'team' ? 'Member Count' : selectedFilter === 'project' ? 'User Count' : 'Project Count'}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Average Hours
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Occupancy Rate (%)</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Worked Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member Count</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {(selectedFilter === 'team' ? teamAnalytics : selectedFilter === 'project' ? projectAnalytics : userAnalytics).map((item, index) => (
+              {data.map((team, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {selectedFilter === 'team' ? (item as TeamAnalytics).teamName : 
-                       selectedFilter === 'project' ? (item as ProjectAnalytics).projectName : 
-                       (item as UserAnalytics).userName}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {selectedFilter === 'team' ? (item as TeamAnalytics).totalHours : 
-                       selectedFilter === 'project' ? (item as ProjectAnalytics).totalHours : 
-                       (item as UserAnalytics).totalHours}h
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {selectedFilter === 'team' ? (item as TeamAnalytics).memberCount : 
-                       selectedFilter === 'project' ? (item as ProjectAnalytics).userCount : 
-                       (item as UserAnalytics).projectCount}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {selectedFilter === 'team' ? (item as TeamAnalytics).averageHoursPerMember : 
-                       selectedFilter === 'project' ? (item as ProjectAnalytics).averageHoursPerUser : 
-                       (item as UserAnalytics).averageHoursPerProject}h
-                    </div>
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{team.teamName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{team.occupancyRate}%</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{team.totalWorkedHours}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{team.totalAvailableHours}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{team.memberCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Project Metrics Tab Component
+function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
+  const chartData = data.map(project => ({
+    name: project.projectName,
+    totalHours: project.totalHours,
+    userCount: project.userCount,
+    averageTimePerTask: project.averageTimePerTask
+  }));
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Total Hours by Project */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Total Hours by Project</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value} hours`, 'Total Hours']} />
+                <Bar dataKey="totalHours" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Average Time per Task */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Average Time per Task</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value} hours`, 'Average Time']} />
+                <Bar dataKey="averageTimePerTask" fill="#f59e0b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Project Details Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Project Details</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Count</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Hours per User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Count</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Time per Task</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((project, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{project.projectName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.totalHours}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.userCount}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.averageHoursPerUser}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.taskCount}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.averageTimePerTask}h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Individual Metrics Tab Component
+function IndividualMetricsTab({ data }: { data: IndividualMetrics[] }) {
+  const chartData = data.map(individual => ({
+    name: individual.userName,
+    occupancyRate: individual.occupancyRate,
+    totalHours: individual.totalWorkedHours
+  }));
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Individual Occupancy Rate */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Individual Occupancy Rate</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value}%`, 'Occupancy Rate']} />
+                <Bar dataKey="occupancyRate" fill="#8b5cf6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Individual Hours Distribution */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Individual Hours Distribution</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsPieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="totalHours"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: any) => [`${value} hours`, 'Total Hours']} />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Individual Details Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Individual Details</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Occupancy Rate (%)</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Worked Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Hours</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((individual, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{individual.userName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{individual.userEmail}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{individual.occupancyRate}%</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{individual.totalWorkedHours}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{individual.availableHours}h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Trends Tab Component
+function TrendsTab({ data }: { data: TrendData[] }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Team Occupancy Trend */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Occupancy Trend</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value}%`, 'Occupancy Rate']} />
+                <Line type="monotone" dataKey="teamOccupancy" stroke="#3b82f6" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Project Hours Trend */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Hours Trend</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value} hours`, 'Project Hours']} />
+                <Area type="monotone" dataKey="projectHours" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Trend Details Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Trend Details</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Occupancy (%)</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Individual Occupancy (%)</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((trend, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{trend.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{trend.teamOccupancy}%</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{trend.projectHours}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{trend.individualOccupancy}%</td>
                 </tr>
               ))}
             </tbody>
