@@ -13,7 +13,7 @@
     "react": "^18",
     "react-dom": "^18",
     "@supabase/supabase-js": "^2.38.5",
-    "firebase": "^10.7.1",
+    "firebase": "^9.23.0",
     "react-firebase-hooks": "^5.1.1",
     "lucide-react": "^0.294.0",
     "recharts": "^2.8.0",

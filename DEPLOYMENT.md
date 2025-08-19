@@ -117,13 +117,26 @@ Before using the application, make sure to:
 
 ### Common Issues:
 
-1. **Build fails**: Check that all environment variables are set correctly in GitHub secrets
+1. **Build fails**: 
+   - Check that all environment variables are set correctly in GitHub secrets
+   - Ensure `package-lock.json` is committed to the repository
+   - Verify Firebase version compatibility (using Firebase v9.23.0)
+
 2. **Authentication not working**: Verify Firebase configuration and domain settings
+
 3. **Database errors**: Ensure Supabase tables are created using the provided schema
-4. **404 errors**: Make sure GitHub Pages is enabled and pointing to the `gh-pages` branch
+
+4. **404 errors**: 
+   - Make sure GitHub Pages is enabled and pointing to the `gh-pages` branch
+   - Verify the workflow successfully generated `index.html` in the `out` directory
+
+5. **Dependencies lock file error**: 
+   - Run `npm install` locally to generate `package-lock.json`
+   - Commit the `package-lock.json` file to the repository
 
 ### Support:
 
 - Check the GitHub Actions logs for build errors
 - Verify environment variables are correctly set
 - Ensure all dependencies are properly installed
+- The workflow includes verification steps to check if `index.html` was generated
