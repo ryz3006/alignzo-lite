@@ -82,8 +82,14 @@ The GitHub workflow (`.github/workflows/deploy.yml`) is already configured to:
 ### Vercel Deployment
 
 1. Connect your GitHub repository to Vercel
-2. Add the same environment variables in Vercel dashboard
-3. Deploy automatically on every push
+2. Add the same environment variables in Vercel dashboard:
+   - Go to your Vercel project dashboard
+   - Navigate to Settings → Environment Variables
+   - Add all the environment variables listed above
+3. The application will automatically deploy on every push to the main branch
+4. Vercel will use the `vercel.json` configuration for optimal deployment
+
+**Note**: Vercel deployment uses server-side rendering, while GitHub Pages uses static export. The configuration automatically adapts based on the deployment platform.
 
 ### Netlify Deployment
 

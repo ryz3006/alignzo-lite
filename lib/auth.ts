@@ -4,6 +4,9 @@ import { supabase } from './supabase';
 
 export async function signInWithGoogle() {
   try {
+    if (!auth || !googleProvider) {
+      throw new Error('Firebase not initialized');
+    }
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
@@ -14,6 +17,9 @@ export async function signInWithGoogle() {
 
 export async function signInAsAdmin(email: string, password: string) {
   try {
+    if (!auth) {
+      throw new Error('Firebase not initialized');
+    }
     const result = await signInWithEmailAndPassword(auth, email, password);
     return result.user;
   } catch (error) {
@@ -24,6 +30,9 @@ export async function signInAsAdmin(email: string, password: string) {
 
 export async function signOutUser() {
   try {
+    if (!auth) {
+      throw new Error('Firebase not initialized');
+    }
     await signOut(auth);
   } catch (error) {
     console.error('Error signing out:', error);
@@ -59,6 +68,9 @@ export function isAdminUser(user: FirebaseUser | null): boolean {
 }
 
 export async function getCurrentUser() {
+  if (!auth) {
+    return null;
+  }
   return new Promise<FirebaseUser | null>((resolve) => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       unsubscribe();

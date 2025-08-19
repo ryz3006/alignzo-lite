@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // Only use static export for GitHub Pages, not for Vercel
+  ...(process.env.VERCEL ? {} : { output: 'export' }),
   trailingSlash: true,
   images: {
     unoptimized: true,
