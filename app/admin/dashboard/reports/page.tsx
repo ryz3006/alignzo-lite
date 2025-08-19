@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 
 interface WorkLogWithDetails extends WorkLog {
   project: Project;
-  user: User;
 }
 
 export default function WorkReportsPage() {
@@ -35,8 +34,7 @@ export default function WorkReportsPage() {
         .from('work_logs')
         .select(`
           *,
-          project:projects(*),
-          user:users!work_logs_user_email_fkey(*)
+          project:projects(*)
         `)
         .order('created_at', { ascending: false });
 
