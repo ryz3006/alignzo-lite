@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { supabase, WorkLog, Project, User, Team } from '@/lib/supabase';
 import { 
@@ -14,7 +14,9 @@ import {
   Clock,
   UserCheck,
   FolderOpen,
-  Activity
+  Activity,
+  Check,
+  Image
 } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 import { 
@@ -31,7 +33,9 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  ComposedChart,
+  Legend
 } from 'recharts';
 import toast from 'react-hot-toast';
 
@@ -56,6 +60,8 @@ interface ProjectMetrics {
   categoryDistribution: Record<string, number>;
   averageTimePerTask: number;
   taskCount: number;
+  fte: number;
+  categoryOptions: Record<string, { [key: string]: number }>;
 }
 
 interface IndividualMetrics {
@@ -96,7 +102,7 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState('team');
   const [filters, setFilters] = useState<FilterState>({
     dateRange: {
-      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      start: new Date().toISOString().split('T')[0],
       end: new Date().toISOString().split('T')[0]
     },
     teamName: '',
@@ -104,6 +110,7 @@ export default function AnalyticsPage() {
     userEmail: '',
     category: ''
   });
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>(filters);
 
   // Analytics data states
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([]);
@@ -115,9 +122,12 @@ export default function AnalyticsPage() {
   const [availableUsers, setAvailableUsers] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
+  // Chart refs for download
+  const chartRefs = useRef<{ [key: string]: any }>({});
+
   useEffect(() => {
     loadAnalytics();
-  }, [filters]);
+  }, [appliedFilters]);
 
   const loadAnalytics = async () => {
     try {
@@ -168,8 +178,8 @@ export default function AnalyticsPage() {
         *,
         project:projects(*)
       `)
-      .gte('start_time', filters.dateRange.start)
-      .lte('start_time', filters.dateRange.end)
+      .gte('start_time', appliedFilters.dateRange.start)
+      .lte('start_time', appliedFilters.dateRange.end)
       .order('start_time', { ascending: false });
 
     if (error) throw error;
@@ -217,7 +227,7 @@ export default function AnalyticsPage() {
 
   const calculateTeamMetrics = (workLogs: any[], teams: any[], projects: any[], users: any[]) => {
     const standardWorkHoursPerDay = 8;
-    const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
+    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
 
     return teams.map(team => {
       const teamMembers = team.team_members || [];
@@ -253,18 +263,31 @@ export default function AnalyticsPage() {
   };
 
   const calculateProjectMetrics = (workLogs: any[], projects: any[], users: any[]) => {
+    const standardWorkHoursPerDay = 8;
+    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
+
     return projects.map(project => {
       const projectLogs = workLogs.filter(log => log.project?.id === project.id);
       const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const uniqueUsers = new Set(projectLogs.map((log: any) => log.user_email));
       const uniqueTasks = new Set(projectLogs.map((log: any) => log.ticket_id));
 
+      // Calculate FTE
+      const standardFteHours = standardWorkHoursPerDay * workingDaysInPeriod;
+      const fte = standardFteHours > 0 ? totalHours / standardFteHours : 0;
+
       // Calculate category distribution
       const categoryDistribution: Record<string, number> = {};
+      const categoryOptions: Record<string, { [key: string]: number }> = {};
+      
       projectLogs.forEach((log: any) => {
         Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
           if (!categoryDistribution[category]) categoryDistribution[category] = 0;
           categoryDistribution[category] += (log.logged_duration_seconds || 0) / 3600;
+          
+          if (!categoryOptions[category]) categoryOptions[category] = {};
+          if (!categoryOptions[category][value as string]) categoryOptions[category][value as string] = 0;
+          categoryOptions[category][value as string] += (log.logged_duration_seconds || 0) / 3600;
         });
       });
 
@@ -275,14 +298,16 @@ export default function AnalyticsPage() {
         averageHoursPerUser: uniqueUsers.size > 0 ? Math.round((totalHours / uniqueUsers.size) * 100) / 100 : 0,
         categoryDistribution,
         averageTimePerTask: uniqueTasks.size > 0 ? Math.round((totalHours / uniqueTasks.size) * 100) / 100 : 0,
-        taskCount: uniqueTasks.size
+        taskCount: uniqueTasks.size,
+        fte: Math.round(fte * 100) / 100,
+        categoryOptions
       };
     });
   };
 
   const calculateIndividualMetrics = (workLogs: any[], users: any[]) => {
     const standardWorkHoursPerDay = 8;
-    const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
+    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
 
     return users.map(user => {
       const userLogs = workLogs.filter(log => log.user_email === user.email);
@@ -379,6 +404,10 @@ export default function AnalyticsPage() {
     return estimatedAvailableHours > 0 ? (totalHours / estimatedAvailableHours) * 100 : 0;
   };
 
+  const handleApplyFilters = () => {
+    setAppliedFilters(filters);
+  };
+
   const handleExport = () => {
     let csvContent = '';
     let filename = '';
@@ -399,7 +428,7 @@ export default function AnalyticsPage() {
         break;
       case 'project':
         csvContent = [
-          ['Project Name', 'Total Hours', 'User Count', 'Average Hours per User', 'Task Count', 'Average Time per Task'],
+          ['Project Name', 'Total Hours', 'User Count', 'Average Hours per User', 'Task Count', 'Average Time per Task', 'FTE'],
           ...projectMetrics.map(project => [
             project.projectName,
             project.totalHours.toString(),
@@ -407,6 +436,7 @@ export default function AnalyticsPage() {
             project.averageHoursPerUser.toString(),
             project.taskCount.toString(),
             project.averageTimePerTask.toString(),
+            project.fte.toString(),
           ])
         ].map(row => row.join(',')).join('\n');
         filename = 'project-analytics.csv';
@@ -447,7 +477,37 @@ export default function AnalyticsPage() {
     window.URL.revokeObjectURL(url);
   };
 
-
+  const downloadChartAsImage = (chartId: string, filename: string) => {
+    const chartElement = chartRefs.current[chartId];
+    if (chartElement) {
+      // Create a canvas and draw the chart
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 800;
+      canvas.height = 600;
+      
+      // Convert SVG to image (simplified approach)
+      const svgElement = chartElement.querySelector('svg');
+      if (svgElement) {
+        const svgData = new XMLSerializer().serializeToString(svgElement);
+        const img = new window.Image();
+        img.onload = () => {
+          ctx?.drawImage(img, 0, 0, 800, 600);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${filename}.png`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }
+          });
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -465,20 +525,31 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
           <p className="text-gray-600">Comprehensive team and project performance insights</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export Data
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleExport}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Data
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center mb-4">
-          <Filter className="h-5 w-5 mr-2 text-gray-600" />
-          <h3 className="text-lg font-medium text-gray-900">Filters</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <Filter className="h-5 w-5 mr-2 text-gray-600" />
+            <h3 className="text-lg font-medium text-gray-900">Filters</h3>
+          </div>
+          <button
+            onClick={handleApplyFilters}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Apply Filters
+          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
@@ -575,10 +646,10 @@ export default function AnalyticsPage() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'team' && <TeamMetricsTab data={teamMetrics} />}
-          {activeTab === 'project' && <ProjectMetricsTab data={projectMetrics} />}
-          {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} />}
-          {activeTab === 'trends' && <TrendsTab data={trendData} />}
+          {activeTab === 'team' && <TeamMetricsTab data={teamMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'project' && <ProjectMetricsTab data={projectMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'trends' && <TrendsTab data={trendData} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
         </div>
       </div>
     </div>
@@ -586,7 +657,7 @@ export default function AnalyticsPage() {
 }
 
 // Team Metrics Tab Component
-function TeamMetricsTab({ data }: { data: TeamMetrics[] }) {
+function TeamMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: TeamMetrics[], chartRefs: any, downloadChartAsImage: (chartId: string, filename: string) => void }) {
   const chartData = data.map(team => ({
     name: team.teamName,
     occupancyRate: team.occupancyRate,
@@ -596,11 +667,60 @@ function TeamMetricsTab({ data }: { data: TeamMetrics[] }) {
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Users className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Teams</p>
+              <p className="text-2xl font-bold">{data.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Clock className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Hours</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.totalWorkedHours, 0).toFixed(1)}h</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Target className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Avg Occupancy</p>
+              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, team) => sum + team.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <UserCheck className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Members</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, team) => sum + team.memberCount, 0)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Team Occupancy Rate */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Occupancy Rate</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Rate</h3>
+            <button
+              onClick={() => downloadChartAsImage('team-occupancy', 'team-occupancy-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['team-occupancy'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -615,8 +735,17 @@ function TeamMetricsTab({ data }: { data: TeamMetrics[] }) {
 
         {/* Team Hours Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Hours Distribution</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Team Hours Distribution</h3>
+            <button
+              onClick={() => downloadChartAsImage('team-hours', 'team-hours-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['team-hours'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <Pie
@@ -675,21 +804,71 @@ function TeamMetricsTab({ data }: { data: TeamMetrics[] }) {
 }
 
 // Project Metrics Tab Component
-function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
+function ProjectMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: ProjectMetrics[], chartRefs: any, downloadChartAsImage: (chartId: string, filename: string) => void }) {
   const chartData = data.map(project => ({
     name: project.projectName,
     totalHours: project.totalHours,
     userCount: project.userCount,
-    averageTimePerTask: project.averageTimePerTask
+    averageTimePerTask: project.averageTimePerTask,
+    fte: project.fte
   }));
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <FolderOpen className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Projects</p>
+              <p className="text-2xl font-bold">{data.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Clock className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Hours</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.totalHours, 0).toFixed(1)}h</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Users className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Users</p>
+              <p className="text-2xl font-bold">{new Set(data.flatMap(p => Array.from({ length: p.userCount }, (_, i) => `${p.projectName}-${i}`))).size}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Target className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total FTE</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, project) => sum + project.fte, 0).toFixed(1)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Total Hours by Project */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Total Hours by Project</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Total Hours by Project</h3>
+            <button
+              onClick={() => downloadChartAsImage('project-hours', 'project-hours-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['project-hours'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -702,22 +881,75 @@ function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
           </div>
         </div>
 
-        {/* Average Time per Task */}
+        {/* FTE by Project */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Average Time per Task</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">FTE by Project</h3>
+            <button
+              onClick={() => downloadChartAsImage('project-fte', 'project-fte-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['project-fte'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
                 <YAxis />
-                <Tooltip formatter={(value: any) => [`${value} hours`, 'Average Time']} />
-                <Bar dataKey="averageTimePerTask" fill="#f59e0b" />
+                <Tooltip formatter={(value: any) => [`${value} FTE`, 'Full-Time Equivalent']} />
+                <Bar dataKey="fte" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
+
+      {/* Category Distribution Charts */}
+      {data.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {Object.keys(data[0].categoryOptions).map((category, index) => (
+            <div key={category} className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">{category} Distribution</h3>
+                <button
+                  onClick={() => downloadChartAsImage(`category-${category}`, `${category}-distribution-chart`)}
+                  className="text-blue-600 hover:text-blue-800 flex items-center"
+                >
+                  <Image className="h-4 w-4 mr-1" />
+                  Download
+                </button>
+              </div>
+                             <div className="h-64" ref={(el) => { chartRefs.current[`category-${category}`] = el; }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={Object.entries(data[0].categoryOptions[category]).map(([key, value]) => ({
+                        name: key,
+                        value: value
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {Object.entries(data[0].categoryOptions[category]).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: any) => [`${value} hours`, 'Hours']} />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Project Details Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -734,6 +966,7 @@ function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Hours per User</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Count</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Time per Task</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FTE</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -745,6 +978,7 @@ function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.averageHoursPerUser}h</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.taskCount}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.averageTimePerTask}h</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{project.fte}</td>
                 </tr>
               ))}
             </tbody>
@@ -756,7 +990,7 @@ function ProjectMetricsTab({ data }: { data: ProjectMetrics[] }) {
 }
 
 // Individual Metrics Tab Component
-function IndividualMetricsTab({ data }: { data: IndividualMetrics[] }) {
+function IndividualMetricsTab({ data, chartRefs, downloadChartAsImage }: { data: IndividualMetrics[], chartRefs: any, downloadChartAsImage: (chartId: string, filename: string) => void }) {
   const chartData = data.map(individual => ({
     name: individual.userName,
     occupancyRate: individual.occupancyRate,
@@ -765,11 +999,60 @@ function IndividualMetricsTab({ data }: { data: IndividualMetrics[] }) {
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <UserCheck className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Users</p>
+              <p className="text-2xl font-bold">{data.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Clock className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Hours</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, individual) => sum + individual.totalWorkedHours, 0).toFixed(1)}h</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Target className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Avg Occupancy</p>
+              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, individual) => sum + individual.occupancyRate, 0) / data.length).toFixed(1) : 0}%</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Activity className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Active Users</p>
+              <p className="text-2xl font-bold">{data.filter(individual => individual.totalWorkedHours > 0).length}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Individual Occupancy Rate */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Individual Occupancy Rate</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Individual Occupancy Rate</h3>
+            <button
+              onClick={() => downloadChartAsImage('individual-occupancy', 'individual-occupancy-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['individual-occupancy'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -784,8 +1067,17 @@ function IndividualMetricsTab({ data }: { data: IndividualMetrics[] }) {
 
         {/* Individual Hours Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Individual Hours Distribution</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Individual Hours Distribution</h3>
+            <button
+              onClick={() => downloadChartAsImage('individual-hours', 'individual-hours-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+                     <div className="h-64" ref={(el) => { chartRefs.current['individual-hours'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <Pie
@@ -844,14 +1136,54 @@ function IndividualMetricsTab({ data }: { data: IndividualMetrics[] }) {
 }
 
 // Trends Tab Component
-function TrendsTab({ data }: { data: TrendData[] }) {
+function TrendsTab({ data, chartRefs, downloadChartAsImage }: { data: TrendData[], chartRefs: any, downloadChartAsImage: (chartId: string, filename: string) => void }) {
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <TrendingUp className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Data Points</p>
+              <p className="text-2xl font-bold">{data.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Clock className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Total Hours</p>
+              <p className="text-2xl font-bold">{data.reduce((sum, trend) => sum + trend.projectHours, 0).toFixed(1)}h</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+          <div className="flex items-center">
+            <Target className="h-8 w-8 mr-3" />
+            <div>
+              <p className="text-sm opacity-90">Avg Team Occupancy</p>
+              <p className="text-2xl font-bold">{data.length > 0 ? (data.reduce((sum, trend) => sum + trend.teamOccupancy, 0) / data.length).toFixed(1) : 0}%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Team Occupancy Trend */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Occupancy Trend</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Team Occupancy Trend</h3>
+            <button
+              onClick={() => downloadChartAsImage('team-trend', 'team-occupancy-trend-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+                     <div className="h-64" ref={(el) => { chartRefs.current['team-trend'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -866,8 +1198,17 @@ function TrendsTab({ data }: { data: TrendData[] }) {
 
         {/* Project Hours Trend */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Hours Trend</h3>
-          <div className="h-64">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Project Hours Trend</h3>
+            <button
+              onClick={() => downloadChartAsImage('project-trend', 'project-hours-trend-chart')}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <Image className="h-4 w-4 mr-1" />
+              Download
+            </button>
+          </div>
+          <div className="h-64" ref={(el) => { chartRefs.current['project-trend'] = el; }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
