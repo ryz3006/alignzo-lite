@@ -1,5 +1,5 @@
 import { auth, googleProvider } from './firebase';
-import { signInWithPopup, signInWithEmailAndPassword, signOut, User as FirebaseUser } from 'firebase/auth';
+import { signInWithPopup, signInWithEmailAndPassword, signOut, User as FirebaseUser, Auth } from 'firebase/auth';
 import { supabase } from './supabase';
 
 export async function signInWithGoogle() {
