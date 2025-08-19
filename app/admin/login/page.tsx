@@ -101,6 +101,16 @@ export default function AdminLoginPage() {
             </button>
           </div>
         </form>
+        
+        {/* Go back to user login link */}
+        <div className="text-center">
+          <a
+            href="/"
+            className="text-sm text-primary-600 hover:text-primary-500 transition-colors"
+          >
+            ← Go back to user login
+          </a>
+        </div>
       </div>
     </div>
   );

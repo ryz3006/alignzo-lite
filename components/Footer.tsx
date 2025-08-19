@@ -41,7 +41,7 @@ export default function Footer({ className = '' }: FooterProps) {
                 </li>
                 <li>
                   <a
-                    href="https://github.com/ryz3006"
+                    href="https://github.com/ryz3006/alignzo-lite"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-gray-400 hover:text-white flex items-center space-x-2 transition-colors"
@@ -121,13 +121,92 @@ export default function Footer({ className = '' }: FooterProps) {
 
                 {/* Step 1: Clone Repository */}
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 1: Clone the Repository</h4>
-                  <div className="bg-gray-100 p-4 rounded-md">
-                    <code className="text-sm">
-                      git clone https://github.com/ryz3006/alignzo-lite.git<br />
-                      cd alignzo-lite<br />
-                      npm install
-                    </code>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Step 1: Clone the Repository from GitHub</h4>
+                  <p className="text-sm text-gray-700 mb-3">
+                    This step will download the complete source code to your computer. Here's how to do it step by step:
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option A: Using Command Line (Recommended)</h5>
+                      <p className="text-sm text-gray-600 mb-2">
+                        If you have Git installed on your computer, open your terminal/command prompt and run these commands:
+                      </p>
+                      <div className="bg-gray-100 p-4 rounded-md">
+                        <code className="text-sm">
+                          # Download the project from GitHub<br />
+                          git clone https://github.com/ryz3006/alignzo-lite.git<br />
+                          <br />
+                          # Navigate into the project folder<br />
+                          cd alignzo-lite<br />
+                          <br />
+                          # Install all required dependencies<br />
+                          npm install
+                        </code>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        <strong>What these commands do:</strong><br />
+                        • <code>git clone</code> downloads the entire project from GitHub<br />
+                        • <code>cd alignzo-lite</code> moves you into the project folder<br />
+                        • <code>npm install</code> installs all the software packages the project needs
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option B: Using GitHub Desktop (For Beginners)</h5>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                        <li>
+                          Download and install{' '}
+                          <a
+                            href="https://desktop.github.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            GitHub Desktop
+                          </a>
+                        </li>
+                        <li>Sign in with your GitHub account</li>
+                        <li>Click "Clone a repository from the Internet"</li>
+                        <li>Enter: <code className="bg-gray-200 px-1 rounded">https://github.com/ryz3006/alignzo-lite</code></li>
+                        <li>Choose where to save the project on your computer</li>
+                        <li>Click "Clone"</li>
+                        <li>Open the project folder in your code editor (like VS Code)</li>
+                        <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                      </ol>
+                    </div>
+
+                    <div>
+                      <h5 className="text-md font-semibold text-gray-800 mb-2">Option C: Direct Download (Simplest)</h5>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                        <li>
+                          Go to{' '}
+                          <a
+                            href="https://github.com/ryz3006/alignzo-lite"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline"
+                          >
+                            the project on GitHub
+                          </a>
+                        </li>
+                        <li>Click the green "Code" button</li>
+                        <li>Select "Download ZIP"</li>
+                        <li>Extract the ZIP file to a folder on your computer</li>
+                        <li>Open the extracted folder in your code editor</li>
+                        <li>Open terminal in your editor and run: <code className="bg-gray-200 px-1 rounded">npm install</code></li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+                      <h6 className="text-sm font-semibold text-blue-800 mb-2">💡 Pro Tips:</h6>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        <li>• Make sure you have Node.js installed (download from nodejs.org)</li>
+                        <li>• Use a code editor like VS Code for the best experience</li>
+                        <li>• If you get any errors, make sure you're in the correct folder</li>
+                        <li>• The <code className="bg-blue-200 px-1 rounded">npm install</code> step might take a few minutes</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
 
