@@ -93,7 +93,6 @@ interface FilterState {
   teamName: string;
   projectName: string;
   userEmail: string;
-  category: string;
 }
 
 export default function AnalyticsPage() {
@@ -107,8 +106,7 @@ export default function AnalyticsPage() {
     },
     teamName: '',
     projectName: '',
-    userEmail: '',
-    category: ''
+    userEmail: ''
   });
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(filters);
 
@@ -120,7 +118,7 @@ export default function AnalyticsPage() {
   const [availableTeams, setAvailableTeams] = useState<string[]>([]);
   const [availableProjects, setAvailableProjects] = useState<string[]>([]);
   const [availableUsers, setAvailableUsers] = useState<string[]>([]);
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+
 
   // Chart refs for download
   const chartRefs = useRef<{ [key: string]: any }>({});
@@ -138,12 +136,11 @@ export default function AnalyticsPage() {
       if (!currentUser?.email) return;
 
       // Load all necessary data
-      const [workLogs, teams, projects, users, categories] = await Promise.all([
+      const [workLogs, teams, projects, users] = await Promise.all([
         loadWorkLogs(),
         loadTeams(),
         loadProjects(),
-        loadUsers(),
-        loadCategories()
+        loadUsers()
       ]);
 
       // Calculate metrics
@@ -161,7 +158,6 @@ export default function AnalyticsPage() {
       setAvailableTeams(teams.map(t => t.name));
       setAvailableProjects(projects.map(p => p.name));
       setAvailableUsers(users.map(u => u.email));
-      setAvailableCategories(categories);
 
     } catch (error) {
       console.error('Error loading analytics:', error);
@@ -172,36 +168,56 @@ export default function AnalyticsPage() {
   };
 
   const loadWorkLogs = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('work_logs')
       .select(`
         *,
         project:projects(*)
       `)
       .gte('start_time', appliedFilters.dateRange.start)
-      .lte('start_time', appliedFilters.dateRange.end)
-      .order('start_time', { ascending: false });
+      .lte('start_time', appliedFilters.dateRange.end);
+
+    // Apply user email filter if specified
+    if (appliedFilters.userEmail) {
+      query = query.eq('user_email', appliedFilters.userEmail);
+    }
+
+    const { data, error } = await query.order('start_time', { ascending: false });
 
     if (error) throw error;
     return data || [];
   };
 
   const loadTeams = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('teams')
       .select(`
         *,
         team_members(*)
       `);
 
+    // Apply team name filter if specified
+    if (appliedFilters.teamName) {
+      query = query.eq('name', appliedFilters.teamName);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
     return data || [];
   };
 
   const loadProjects = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('projects')
       .select('*');
+
+    // Apply project name filter if specified
+    if (appliedFilters.projectName) {
+      query = query.eq('name', appliedFilters.projectName);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return data || [];
@@ -216,14 +232,7 @@ export default function AnalyticsPage() {
     return data || [];
   };
 
-  const loadCategories = async () => {
-    const { data, error } = await supabase
-      .from('project_categories')
-      .select('name');
 
-    if (error) throw error;
-    return Array.from(new Set((data || []).map(c => c.name)));
-  };
 
   const calculateTeamMetrics = (workLogs: any[], teams: any[], projects: any[], users: any[]) => {
     const standardWorkHoursPerDay = 8;
@@ -603,15 +612,15 @@ export default function AnalyticsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">User Email</label>
             <select
-              value={filters.category}
-              onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+              value={filters.userEmail}
+              onChange={(e) => setFilters(prev => ({ ...prev, userEmail: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All Categories</option>
-              {availableCategories.map(category => (
-                <option key={category} value={category}>{category}</option>
+              <option value="">All Users</option>
+              {availableUsers.map(userEmail => (
+                <option key={userEmail} value={userEmail}>{userEmail}</option>
               ))}
             </select>
           </div>
