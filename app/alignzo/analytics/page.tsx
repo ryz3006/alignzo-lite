@@ -199,7 +199,7 @@ export default function AnalyticsPage() {
       setAvailableTeams(teams.map(t => t.name));
       setAvailableProjects(projects.map(p => p.name));
       setAvailableUsers(users.map(u => u.email));
-      setAvailableTasks([...new Set(workLogs.map(log => log.ticket_id))]);
+      setAvailableTasks(Array.from(new Set(workLogs.map(log => log.ticket_id))));
 
     } catch (error) {
       console.error('Error loading analytics:', error);
