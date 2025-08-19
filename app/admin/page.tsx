@@ -148,6 +148,16 @@ export default function AdminPage() {
               Admin Login
             </button>
           </div>
+          
+          {/* Go back to user login link */}
+          <div className="text-center mt-4">
+            <a
+              href="/"
+              className="text-sm text-blue-600 hover:text-blue-500 transition-colors underline"
+            >
+              ← Go back to user login
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -181,6 +191,16 @@ export default function AdminPage() {
             >
               Back to Login
             </button>
+          </div>
+          
+          {/* Go back to user login link */}
+          <div className="text-center mt-4">
+            <a
+              href="/"
+              className="text-sm text-blue-600 hover:text-blue-500 transition-colors underline"
+            >
+              ← Go back to user login
+            </a>
           </div>
         </div>
       </div>
