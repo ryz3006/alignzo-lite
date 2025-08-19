@@ -17,39 +17,37 @@ export async function signInWithGoogle() {
 
 export async function signInAsAdmin(email: string, password: string) {
   try {
-    // Check against environment variables instead of Firebase
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
-    
-    console.log('Admin login attempt:', {
-      inputEmail: email,
-      inputPassword: password.length > 0 ? '***' : 'EMPTY',
-      adminEmail,
-      adminPassword: adminPassword ? '***' : 'NOT_SET',
-      emailMatch: email === adminEmail,
-      passwordMatch: password === adminPassword
+    // Use server-side API route for admin authentication
+    const response = await fetch('/api/admin/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
     });
-    
-    if (!adminEmail || !adminPassword) {
-      throw new Error('Admin credentials not configured in environment variables');
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Authentication failed');
     }
-    
-    if (email !== adminEmail || password !== adminPassword) {
-      throw new Error('Invalid admin credentials');
+
+    if (data.success && data.admin) {
+      // Store admin session in localStorage
+      if (typeof window !== 'undefined') {
+        const session = {
+          email: data.admin.email,
+          loginTime: Date.now(),
+          isAdmin: true
+        };
+        localStorage.setItem('admin_session', JSON.stringify(session));
+        console.log('Admin session stored:', session);
+      }
+      
+      return data.admin;
+    } else {
+      throw new Error('Invalid response from server');
     }
-    
-    // Store admin session in localStorage
-    if (typeof window !== 'undefined') {
-      const session = {
-        email: adminEmail,
-        loginTime: Date.now(),
-        isAdmin: true
-      };
-      localStorage.setItem('admin_session', JSON.stringify(session));
-      console.log('Admin session stored:', session);
-    }
-    
-    return { email: adminEmail, isAdmin: true };
   } catch (error) {
     console.error('Error signing in as admin:', error);
     throw error;
