@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userEmail = searchParams.get('userEmail');
+    const query = searchParams.get('query') || '';
 
     if (!userEmail) {
       return NextResponse.json(
@@ -31,26 +32,61 @@ export async function GET(request: NextRequest) {
 
     // Fetch JIRA users using the JIRA API
     try {
-      console.log('Fetching JIRA users from:', `${integration.base_url}/rest/api/3/users/search`);
+      let jiraUsers = [];
       
-      const jiraResponse = await fetch(`${integration.base_url}/rest/api/3/users/search`, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${integration.user_email_integration}:${integration.api_token}`).toString('base64')}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+      // Strategy 1: Search by email if query looks like an email
+      if (query && query.includes('@')) {
+        console.log('Searching JIRA users by email:', query);
+        const emailSearchUrl = `${integration.base_url}/rest/api/3/user/search?query=${encodeURIComponent(query)}`;
+        console.log('Email search URL:', emailSearchUrl);
+        
+        const emailResponse = await fetch(emailSearchUrl, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${integration.user_email_integration}:${integration.api_token}`).toString('base64')}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Email search response status:', emailResponse.status);
+
+        if (emailResponse.ok) {
+          jiraUsers = await emailResponse.json();
+          console.log('Email search results:', JSON.stringify(jiraUsers, null, 2));
+        } else {
+          const errorText = await emailResponse.text();
+          console.log('Email search failed:', errorText);
         }
-      });
-
-      console.log('JIRA API response status:', jiraResponse.status);
-
-      if (!jiraResponse.ok) {
-        const errorText = await jiraResponse.text();
-        console.error('JIRA API error response:', errorText);
-        throw new Error(`JIRA API error: ${jiraResponse.status} - ${errorText}`);
       }
+      
+      // Strategy 2: If no results from email search or query doesn't look like email, try general search
+      if (jiraUsers.length === 0) {
+        console.log('Performing general JIRA user search with query:', query);
+        let searchUrl = `${integration.base_url}/rest/api/3/user/search`;
+        if (query.trim()) {
+          searchUrl += `?query=${encodeURIComponent(query)}`;
+        }
+        console.log('General search URL:', searchUrl);
+        
+        const generalResponse = await fetch(searchUrl, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${integration.user_email_integration}:${integration.api_token}`).toString('base64')}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
 
-      const jiraUsers = await jiraResponse.json();
-      console.log('JIRA API response:', JSON.stringify(jiraUsers, null, 2));
+        console.log('General search response status:', generalResponse.status);
+
+        if (!generalResponse.ok) {
+          const errorText = await generalResponse.text();
+          console.error('General search error response:', errorText);
+          throw new Error(`JIRA API error: ${generalResponse.status} - ${errorText}`);
+        }
+
+        jiraUsers = await generalResponse.json();
+        console.log('General search results:', JSON.stringify(jiraUsers, null, 2));
+      }
       
       // Extract relevant user information
       const users = jiraUsers.map((user: any) => ({

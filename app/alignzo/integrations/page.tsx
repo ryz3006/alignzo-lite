@@ -617,34 +617,49 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
   }, []);
 
   // Fetch JIRA users for suggestions
-  useEffect(() => {
-    const fetchJiraUsers = async () => {
-      try {
-        setLoadingJiraUsers(true);
-        const currentUser = await getCurrentUser();
-        if (currentUser?.email) {
-          console.log('Fetching JIRA users for:', currentUser.email);
-          const response = await fetch(`/api/integrations/jira/users?userEmail=${encodeURIComponent(currentUser.email)}`);
-          console.log('JIRA users API response status:', response.status);
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('JIRA users data:', data);
-            setJiraUsers(data.users || []);
-            setJiraUsersError(data.error || null);
-          } else {
-            const errorData = await response.json();
-            console.error('JIRA users API error:', errorData);
-            setJiraUsersError(errorData.error || 'Failed to fetch JIRA users');
-          }
+  const fetchJiraUsers = async (searchQuery = '') => {
+    try {
+      setLoadingJiraUsers(true);
+      const currentUser = await getCurrentUser();
+      if (currentUser?.email) {
+        console.log('Fetching JIRA users for:', currentUser.email, 'with query:', searchQuery);
+        let url = `/api/integrations/jira/users?userEmail=${encodeURIComponent(currentUser.email)}`;
+        if (searchQuery.trim()) {
+          url += `&query=${encodeURIComponent(searchQuery)}`;
         }
-      } catch (error) {
-        console.error('Failed to fetch JIRA users:', error);
-      } finally {
-        setLoadingJiraUsers(false);
+        
+        const response = await fetch(url);
+        console.log('JIRA users API response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('JIRA users data:', data);
+          setJiraUsers(data.users || []);
+          setJiraUsersError(data.error || null);
+        } else {
+          const errorData = await response.json();
+          console.error('JIRA users API error:', errorData);
+          setJiraUsersError(errorData.error || 'Failed to fetch JIRA users');
+        }
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch JIRA users:', error);
+    } finally {
+      setLoadingJiraUsers(false);
+    }
+  };
 
+  // Manual search function triggered by search icon click
+  const handleManualSearch = (searchQuery: string) => {
+    if (searchQuery.trim()) {
+      fetchJiraUsers(searchQuery);
+      setShowAssigneeDropdown(true);
+      setShowReporterDropdown(true);
+    }
+  };
+
+  // Initial fetch on component mount (without search query)
+  useEffect(() => {
     fetchJiraUsers();
   }, []);
 
@@ -701,26 +716,43 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           JIRA Assignee Name <span className="text-red-500">*</span>
         </label>
         <div className="relative">
-          <div className="flex">
+          <div className="relative">
             <input
               type="text"
               value={assigneeSearchTerm}
               onChange={(e) => {
-                setAssigneeSearchTerm(e.target.value);
-                setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }));
-                setShowAssigneeDropdown(true);
+                const value = e.target.value;
+                setAssigneeSearchTerm(value);
+                setFormData(prev => ({ ...prev, jiraAssigneeName: value }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleManualSearch(assigneeSearchTerm);
+                }
               }}
               onFocus={() => setShowAssigneeDropdown(true)}
-              placeholder="Search JIRA users..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Type JIRA user name or email..."
+              className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <button
-              type="button"
-              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
-              className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              ▼
-            </button>
+            <div className="absolute inset-y-0 right-0 flex items-center">
+              <button
+                type="button"
+                onClick={() => handleManualSearch(assigneeSearchTerm)}
+                className="px-3 py-1 mx-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+                title="Search JIRA users"
+              >
+                🔍
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+                className="px-3 py-1 text-gray-500 hover:text-gray-700 focus:outline-none"
+                title="Show/hide dropdown"
+              >
+                ▼
+              </button>
+            </div>
           </div>
                      {showAssigneeDropdown && (
              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
@@ -758,9 +790,9 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
              </div>
            )}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Search and select from your JIRA users
-        </p>
+                 <p className="text-xs text-gray-500 mt-1">
+           Type a name or email, then click 🔍 or press Enter to search JIRA users
+         </p>
       </div>
 
       <div>
@@ -768,26 +800,43 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           JIRA Reporter Name
         </label>
         <div className="relative">
-          <div className="flex">
+          <div className="relative">
             <input
               type="text"
               value={reporterSearchTerm}
               onChange={(e) => {
-                setReporterSearchTerm(e.target.value);
-                setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }));
-                setShowReporterDropdown(true);
+                const value = e.target.value;
+                setReporterSearchTerm(value);
+                setFormData(prev => ({ ...prev, jiraReporterName: value }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleManualSearch(reporterSearchTerm);
+                }
               }}
               onFocus={() => setShowReporterDropdown(true)}
-              placeholder="Search JIRA users (optional)..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Type JIRA user name or email (optional)..."
+              className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <button
-              type="button"
-              onClick={() => setShowReporterDropdown(!showReporterDropdown)}
-              className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              ▼
-            </button>
+            <div className="absolute inset-y-0 right-0 flex items-center">
+              <button
+                type="button"
+                onClick={() => handleManualSearch(reporterSearchTerm)}
+                className="px-3 py-1 mx-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+                title="Search JIRA users"
+              >
+                🔍
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReporterDropdown(!showReporterDropdown)}
+                className="px-3 py-1 text-gray-500 hover:text-gray-700 focus:outline-none"
+                title="Show/hide dropdown"
+              >
+                ▼
+              </button>
+            </div>
           </div>
                      {showReporterDropdown && (
              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
@@ -825,9 +874,9 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
              </div>
            )}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Optional: Search and select JIRA reporter if different from assignee
-        </p>
+                 <p className="text-xs text-gray-500 mt-1">
+           Optional: Type a name or email, then click 🔍 or press Enter to search JIRA users
+         </p>
       </div>
 
       <div>
