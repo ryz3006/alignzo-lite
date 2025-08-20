@@ -49,14 +49,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { 
-      userEmail, 
-      jiraAssigneeName, 
-      jiraReporterName, 
-      jiraProjectKey, 
-      integrationUserEmail 
+      user_email, 
+      jira_assignee_name, 
+      jira_reporter_name, 
+      jira_project_key, 
+      integration_user_email 
     } = body;
 
-    if (!userEmail || !jiraAssigneeName || !integrationUserEmail) {
+    if (!user_email || !jira_assignee_name || !integration_user_email) {
       return NextResponse.json(
         { error: 'User email, JIRA assignee name, and integration user email are required' },
         { status: 400 }
@@ -67,9 +67,9 @@ export async function POST(request: NextRequest) {
     const { data: existingMapping } = await supabase
       .from('jira_user_mappings')
       .select('id')
-      .eq('user_email', userEmail)
-      .eq('jira_project_key', jiraProjectKey || null)
-      .eq('integration_user_email', integrationUserEmail)
+      .eq('user_email', user_email)
+      .eq('jira_project_key', jira_project_key || null)
+      .eq('integration_user_email', integration_user_email)
       .single();
 
     let result;
@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from('jira_user_mappings')
         .update({
-          jira_assignee_name: jiraAssigneeName,
-          jira_reporter_name: jiraReporterName,
+          jira_assignee_name: jira_assignee_name,
+          jira_reporter_name: jira_reporter_name,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingMapping.id)
@@ -93,11 +93,11 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from('jira_user_mappings')
         .insert({
-          user_email: userEmail,
-          jira_assignee_name: jiraAssigneeName,
-          jira_reporter_name: jiraReporterName,
-          jira_project_key: jiraProjectKey,
-          integration_user_email: integrationUserEmail
+          user_email: user_email,
+          jira_assignee_name: jira_assignee_name,
+          jira_reporter_name: jira_reporter_name,
+          jira_project_key: jira_project_key,
+          integration_user_email: integration_user_email
         })
         .select()
         .single();

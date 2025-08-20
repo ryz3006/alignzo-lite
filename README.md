@@ -152,6 +152,46 @@ The application uses the following main tables:
 4. Use the bell icon to manage active timers
 5. Pause, resume, or stop timers as needed
 
+## JIRA Integration
+
+### JIRA User Mapping Feature
+
+The JIRA User Mapping feature allows users to map their team members' email addresses to JIRA assignee and reporter names. This enables enhanced analytics that correlate JIRA work with internal team members.
+
+#### Features
+- **User Mapping**: Map internal team member emails to JIRA assignee/reporter names
+- **Project-Specific Mapping**: Optional project-specific mappings for different JIRA projects
+- **JIRA User Suggestions**: Dropdown suggestions from actual JIRA users
+- **Enhanced Analytics**: New JIRA Assignee/Reporter analytics tab
+
+#### Setup Instructions
+
+1. **Database Setup**: You have two options to create the `jira_user_mappings` table:
+
+   **Option A: Run the migration script (requires environment variables):**
+   ```bash
+   npm run setup-jira-mapping
+   ```
+   
+   **Option B: Manual SQL execution (recommended for quick setup):**
+   - Go to your Supabase dashboard
+   - Navigate to the SQL Editor
+   - Copy and paste the contents of `database/jira_user_mapping.sql`
+   - Execute the SQL script
+
+2. **JIRA Integration**: 
+   - Go to `/alignzo/integrations` page
+   - Configure your JIRA connection
+   - Verify the connection
+   - Use the "User Mapping" button to create mappings
+
+#### API Endpoints
+
+- `GET /api/integrations/jira/user-mapping` - Get user mappings
+- `POST /api/integrations/jira/user-mapping` - Create/update user mapping
+- `DELETE /api/integrations/jira/user-mapping` - Delete user mapping
+- `GET /api/integrations/jira/users` - Get JIRA users for suggestions
+
 ## API Endpoints
 
 The application uses Supabase's auto-generated REST API:

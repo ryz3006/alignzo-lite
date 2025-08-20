@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
 import { supabase } from '@/lib/supabase';
@@ -585,6 +585,60 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
     jiraReporterName: mapping?.jira_reporter_name || '',
     jiraProjectKey: mapping?.jira_project_key || ''
   });
+  
+  const [jiraUsers, setJiraUsers] = useState<Array<{id: string, name: string, email: string, username: string}>>([]);
+  const [loadingJiraUsers, setLoadingJiraUsers] = useState(false);
+  const [showAssigneeSuggestions, setShowAssigneeSuggestions] = useState(false);
+  const [showReporterSuggestions, setShowReporterSuggestions] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Handle clicks outside the form to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(event.target as Node)) {
+        setShowAssigneeSuggestions(false);
+        setShowReporterSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Fetch JIRA users for suggestions
+  useEffect(() => {
+    const fetchJiraUsers = async () => {
+      try {
+        setLoadingJiraUsers(true);
+        const currentUser = await getCurrentUser();
+        if (currentUser?.email) {
+          const response = await fetch(`/api/integrations/jira/users?userEmail=${encodeURIComponent(currentUser.email)}`);
+          if (response.ok) {
+            const data = await response.json();
+            setJiraUsers(data.users || []);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch JIRA users:', error);
+      } finally {
+        setLoadingJiraUsers(false);
+      }
+    };
+
+    fetchJiraUsers();
+  }, []);
+
+  const handleAssigneeSelect = (user: {name: string, username: string}) => {
+    setFormData(prev => ({ ...prev, jiraAssigneeName: user.name }));
+    setShowAssigneeSuggestions(false);
+  };
+
+  const handleReporterSelect = (user: {name: string, username: string}) => {
+    setFormData(prev => ({ ...prev, jiraReporterName: user.name }));
+    setShowReporterSuggestions(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -602,7 +656,7 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Team Member Email <span className="text-red-500">*</span>
@@ -626,14 +680,46 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
         <label className="block text-sm font-medium text-gray-700 mb-1">
           JIRA Assignee Name <span className="text-red-500">*</span>
         </label>
-        <input
-          type="text"
-          value={formData.jiraAssigneeName}
-          onChange={(e) => setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }))}
-          placeholder="Enter JIRA assignee name"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          required
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={formData.jiraAssigneeName}
+            onChange={(e) => {
+              setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }));
+              setShowAssigneeSuggestions(true);
+            }}
+            onFocus={() => setShowAssigneeSuggestions(true)}
+            placeholder="Enter JIRA assignee name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            required
+          />
+          {showAssigneeSuggestions && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+              {loadingJiraUsers ? (
+                <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
+              ) : jiraUsers.length > 0 ? (
+                jiraUsers
+                  .filter(user => 
+                    user.name.toLowerCase().includes(formData.jiraAssigneeName.toLowerCase()) ||
+                    user.username.toLowerCase().includes(formData.jiraAssigneeName.toLowerCase())
+                  )
+                  .map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => handleAssigneeSelect(user)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                    >
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-gray-500">@{user.username}</div>
+                    </button>
+                  ))
+              ) : (
+                <div className="p-3 text-center text-gray-500">No JIRA users found</div>
+              )}
+            </div>
+          )}
+        </div>
         <p className="text-xs text-gray-500 mt-1">
           The exact name as it appears in JIRA (e.g., "John Doe", "john.doe")
         </p>
@@ -643,13 +729,45 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
         <label className="block text-sm font-medium text-gray-700 mb-1">
           JIRA Reporter Name
         </label>
-        <input
-          type="text"
-          value={formData.jiraReporterName}
-          onChange={(e) => setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }))}
-          placeholder="Enter JIRA reporter name (optional)"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={formData.jiraReporterName}
+            onChange={(e) => {
+              setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }));
+              setShowReporterSuggestions(true);
+            }}
+            onFocus={() => setShowReporterSuggestions(true)}
+            placeholder="Enter JIRA reporter name (optional)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {showReporterSuggestions && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+              {loadingJiraUsers ? (
+                <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
+              ) : jiraUsers.length > 0 ? (
+                jiraUsers
+                  .filter(user => 
+                    user.name.toLowerCase().includes(formData.jiraReporterName.toLowerCase()) ||
+                    user.username.toLowerCase().includes(formData.jiraReporterName.toLowerCase())
+                  )
+                  .map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => handleReporterSelect(user)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                    >
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-gray-500">@{user.username}</div>
+                    </button>
+                  ))
+              ) : (
+                <div className="p-3 text-center text-gray-500">No JIRA users found</div>
+              )}
+            </div>
+          )}
+        </div>
         <p className="text-xs text-gray-500 mt-1">
           Optional: The JIRA reporter name if different from assignee
         </p>
