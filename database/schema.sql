@@ -3,6 +3,13 @@
 -- =====================================================
 -- This file contains the complete database schema for the Alignzo Lite application
 -- Run this file in your Supabase SQL Editor to set up the entire database
+-- 
+-- This master schema includes:
+-- 1. Core application tables (users, teams, projects, etc.)
+-- 2. Work tracking tables (work_logs, timers)
+-- 3. Integration tables (JIRA mappings, user integrations)
+-- 4. Ticket upload functionality tables
+-- 5. All necessary indexes, constraints, triggers, and RLS policies
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -146,6 +153,132 @@ CREATE TABLE IF NOT EXISTS jira_project_mappings (
 );
 
 -- =====================================================
+-- TICKET UPLOAD TABLES
+-- =====================================================
+
+-- Ticket sources table (Remedy, ServiceNow, etc.)
+CREATE TABLE IF NOT EXISTS ticket_sources (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ticket upload mappings table
+CREATE TABLE IF NOT EXISTS ticket_upload_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    source_organization_field VARCHAR(255) NOT NULL, -- e.g., "Assigned_Support_Organization"
+    source_organization_value VARCHAR(500) NOT NULL, -- e.g., "IT Support Team A"
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(source_id, project_id, source_organization_value)
+);
+
+-- Ticket upload user mappings table
+CREATE TABLE IF NOT EXISTS ticket_upload_user_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    mapping_id UUID REFERENCES ticket_upload_mappings(id) ON DELETE CASCADE,
+    user_email VARCHAR(255) NOT NULL,
+    source_assignee_field VARCHAR(255) NOT NULL, -- e.g., "Assignee"
+    source_assignee_value VARCHAR(500) NOT NULL, -- e.g., "john.doe@company.com"
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(mapping_id, user_email, source_assignee_value)
+);
+
+-- Uploaded tickets table
+CREATE TABLE IF NOT EXISTS uploaded_tickets (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
+    mapping_id UUID REFERENCES ticket_upload_mappings(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    incident_id VARCHAR(255) NOT NULL,
+    priority VARCHAR(50),
+    region VARCHAR(255),
+    assigned_support_organization VARCHAR(500),
+    assigned_group VARCHAR(500),
+    vertical VARCHAR(255),
+    sub_vertical VARCHAR(255),
+    owner_support_organization VARCHAR(500),
+    owner_group VARCHAR(500),
+    owner VARCHAR(255),
+    reported_source VARCHAR(255),
+    user_name VARCHAR(255),
+    site_group VARCHAR(255),
+    operational_category_tier_1 VARCHAR(255),
+    operational_category_tier_2 VARCHAR(255),
+    operational_category_tier_3 VARCHAR(255),
+    product_name VARCHAR(255),
+    product_categorization_tier_1 VARCHAR(255),
+    product_categorization_tier_2 VARCHAR(255),
+    product_categorization_tier_3 VARCHAR(255),
+    incident_type VARCHAR(255),
+    summary TEXT,
+    assignee VARCHAR(255),
+    mapped_user_email VARCHAR(255), -- Mapped user email from master mappings or project mappings
+    reported_date1 TIMESTAMP WITH TIME ZONE,
+    responded_date TIMESTAMP WITH TIME ZONE,
+    last_resolved_date TIMESTAMP WITH TIME ZONE,
+    closed_date TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(100),
+    status_reason_hidden TEXT,
+    pending_reason TEXT,
+    group_transfers INTEGER,
+    total_transfers INTEGER,
+    department VARCHAR(255),
+    vip BOOLEAN,
+    company VARCHAR(255),
+    vendor_ticket_number VARCHAR(255),
+    reported_to_vendor BOOLEAN,
+    resolution TEXT,
+    resolver_group VARCHAR(500),
+    reopen_count INTEGER,
+    reopened_date TIMESTAMP WITH TIME ZONE,
+    service_desk_1st_assigned_date TIMESTAMP WITH TIME ZONE,
+    service_desk_1st_assigned_group VARCHAR(500),
+    submitter VARCHAR(255),
+    owner_login_id VARCHAR(255),
+    impact VARCHAR(100),
+    submit_date TIMESTAMP WITH TIME ZONE,
+    report_date TIMESTAMP WITH TIME ZONE,
+    vil_function VARCHAR(255),
+    it_partner VARCHAR(255),
+    mttr DECIMAL(10,2),
+    mtti DECIMAL(10,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Upload sessions table for tracking upload progress
+CREATE TABLE IF NOT EXISTS upload_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_email VARCHAR(255) NOT NULL,
+    source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    total_rows INTEGER NOT NULL,
+    processed_rows INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'processing', -- 'processing', 'completed', 'failed'
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Master mapping table for centralized user mappings (similar to JIRA integrations)
+CREATE TABLE IF NOT EXISTS ticket_master_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
+    source_assignee_value VARCHAR(500) NOT NULL, -- e.g., "john.doe@company.com"
+    mapped_user_email VARCHAR(255) NOT NULL, -- e.g., "john.doe@alignzo.com"
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(source_id, source_assignee_value)
+);
+
+-- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
 
@@ -175,6 +308,40 @@ CREATE INDEX IF NOT EXISTS idx_jira_user_mappings_project_key ON jira_user_mappi
 CREATE INDEX IF NOT EXISTS idx_jira_project_mappings_dashboard_project ON jira_project_mappings(dashboard_project_id);
 CREATE INDEX IF NOT EXISTS idx_jira_project_mappings_integration_user ON jira_project_mappings(integration_user_email);
 CREATE INDEX IF NOT EXISTS idx_jira_project_mappings_jira_project ON jira_project_mappings(jira_project_key);
+
+-- Ticket source indexes
+CREATE INDEX IF NOT EXISTS idx_ticket_sources_name ON ticket_sources(name);
+
+-- Mapping indexes
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_mappings_source_id ON ticket_upload_mappings(source_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_mappings_project_id ON ticket_upload_mappings(project_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_mappings_organization_value ON ticket_upload_mappings(source_organization_value);
+
+-- User mapping indexes
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_user_mappings_mapping_id ON ticket_upload_user_mappings(mapping_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_user_mappings_user_email ON ticket_upload_user_mappings(user_email);
+CREATE INDEX IF NOT EXISTS idx_ticket_upload_user_mappings_assignee_value ON ticket_upload_user_mappings(source_assignee_value);
+
+-- Uploaded tickets indexes
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_source_id ON uploaded_tickets(source_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_mapping_id ON uploaded_tickets(mapping_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_project_id ON uploaded_tickets(project_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_incident_id ON uploaded_tickets(incident_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_assignee ON uploaded_tickets(assignee);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_mapped_user_email ON uploaded_tickets(mapped_user_email);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_reported_date ON uploaded_tickets(reported_date1);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_status ON uploaded_tickets(status);
+
+-- Upload sessions indexes
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_user_email ON upload_sessions(user_email);
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_status ON upload_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at);
+
+-- Master mapping indexes
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_source_id ON ticket_master_mappings(source_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_assignee_value ON ticket_master_mappings(source_assignee_value);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_user_email ON ticket_master_mappings(mapped_user_email);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_active ON ticket_master_mappings(is_active);
 
 -- =====================================================
 -- CONSTRAINTS
@@ -222,6 +389,14 @@ CREATE TRIGGER update_user_integrations_updated_at BEFORE UPDATE ON user_integra
 CREATE TRIGGER update_jira_user_mappings_updated_at BEFORE UPDATE ON jira_user_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_jira_project_mappings_updated_at BEFORE UPDATE ON jira_project_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Ticket upload table triggers
+CREATE TRIGGER update_ticket_sources_updated_at BEFORE UPDATE ON ticket_sources FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ticket_upload_mappings_updated_at BEFORE UPDATE ON ticket_upload_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ticket_upload_user_mappings_updated_at BEFORE UPDATE ON ticket_upload_user_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_uploaded_tickets_updated_at BEFORE UPDATE ON uploaded_tickets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_upload_sessions_updated_at BEFORE UPDATE ON upload_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ticket_master_mappings_updated_at BEFORE UPDATE ON ticket_master_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
 -- =====================================================
@@ -238,6 +413,12 @@ ALTER TABLE timers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_integrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jira_user_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jira_project_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_upload_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_upload_user_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE uploaded_tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE upload_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_master_mappings ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- RLS POLICIES
@@ -302,6 +483,46 @@ CREATE POLICY "Users can create project mappings" ON jira_project_mappings FOR I
 CREATE POLICY "Users can update their own project mappings" ON jira_project_mappings FOR UPDATE USING (true);
 CREATE POLICY "Users can delete their own project mappings" ON jira_project_mappings FOR DELETE USING (true);
 
+-- Ticket upload policies (public access for now)
+CREATE POLICY "Allow public read access" ON ticket_sources FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_sources FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_sources FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_sources FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access" ON ticket_upload_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_upload_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_upload_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_upload_mappings FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access" ON ticket_upload_user_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_upload_user_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_upload_user_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_upload_user_mappings FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access" ON uploaded_tickets FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON uploaded_tickets FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON uploaded_tickets FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON uploaded_tickets FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access" ON upload_sessions FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON upload_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON upload_sessions FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON upload_sessions FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access" ON ticket_master_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_master_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_master_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_master_mappings FOR DELETE USING (true);
+
+-- =====================================================
+-- INITIAL DATA
+-- =====================================================
+
+-- Insert default ticket sources
+INSERT INTO ticket_sources (name, description) VALUES 
+('Remedy', 'BMC Remedy ITSM ticketing system')
+ON CONFLICT (name) DO NOTHING;
+
 -- =====================================================
 -- COMMENTS FOR DOCUMENTATION
 -- =====================================================
@@ -317,9 +538,30 @@ COMMENT ON TABLE timers IS 'Active work timers for ongoing sessions';
 COMMENT ON TABLE user_integrations IS 'External service integrations (JIRA, Slack, etc.)';
 COMMENT ON TABLE jira_user_mappings IS 'Maps internal users to JIRA assignee/reporter names';
 COMMENT ON TABLE jira_project_mappings IS 'Maps dashboard projects to JIRA projects for analytics integration';
+COMMENT ON TABLE ticket_sources IS 'Supported ticket system sources for data upload';
+COMMENT ON TABLE ticket_upload_mappings IS 'Maps source organization fields to dashboard projects';
+COMMENT ON TABLE ticket_upload_user_mappings IS 'Maps source assignee fields to dashboard users';
+COMMENT ON TABLE uploaded_tickets IS 'Uploaded ticket data from external systems';
+COMMENT ON TABLE upload_sessions IS 'Tracks upload progress and status';
+COMMENT ON TABLE ticket_master_mappings IS 'Centralized user mappings for all ticket sources (similar to JIRA integrations)';
 
 -- =====================================================
 -- SCHEMA COMPLETE
 -- =====================================================
 -- All tables, indexes, constraints, triggers, and RLS policies have been created
 -- The database is now ready for the Alignzo Lite application
+-- 
+-- This master schema includes:
+-- ✓ Core application functionality (users, teams, projects, work tracking)
+-- ✓ JIRA integration support (user mappings, project mappings)
+-- ✓ Ticket upload functionality (Remedy, ServiceNow, etc.)
+-- ✓ Master mapping system for centralized user management
+-- ✓ All necessary performance indexes and security policies
+-- 
+-- NEXT STEPS:
+-- 1. Access the main application at /alignzo
+-- 2. Set up your first project and team
+-- 3. Configure JIRA integrations if needed
+-- 4. Set up ticket upload mappings at /alignzo/upload-tickets
+-- 5. Upload your first ticket dump file
+-- 6. Monitor work tracking and analytics
