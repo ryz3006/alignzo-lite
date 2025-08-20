@@ -44,7 +44,8 @@ interface JiraProjectMapping {
   project?: {
     id: string;
     name: string;
-    description?: string;
+    product: string;
+    country: string;
   };
 }
 
@@ -320,7 +321,7 @@ export default function IntegrationsPage() {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, description')
+        .select('id, name, product, country')
         .order('name');
 
       if (error) throw error;
@@ -697,7 +698,7 @@ export default function IntegrationsPage() {
                         <div className="text-sm font-medium text-gray-900">
                           {mapping.project?.name || 'Unknown Project'}
                         </div>
-                        <div className="text-sm text-gray-500">{mapping.project?.description}</div>
+                        <div className="text-sm text-gray-500">{mapping.project?.product} • {mapping.project?.country}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {mapping.jira_project_key}

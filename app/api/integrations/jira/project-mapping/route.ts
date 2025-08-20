@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       .from('jira_project_mappings')
       .select(`
         *,
-        project:projects(id, name, description)
+        project:projects(id, name, product, country)
       `)
       .eq('integration_user_email', integrationUserEmail);
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         .eq('id', existingMapping.id)
         .select(`
           *,
-          project:projects(id, name, description)
+          project:projects(id, name, product, country)
         `)
         .single();
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         })
         .select(`
           *,
-          project:projects(id, name, description)
+          project:projects(id, name, product, country)
         `)
         .single();
 
