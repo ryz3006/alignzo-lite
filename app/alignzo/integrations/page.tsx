@@ -585,19 +585,27 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
     jiraReporterName: mapping?.jira_reporter_name || '',
     jiraProjectKey: mapping?.jira_project_key || ''
   });
+
+  // Initialize search terms when mapping changes
+  useEffect(() => {
+    setAssigneeSearchTerm(mapping?.jira_assignee_name || '');
+    setReporterSearchTerm(mapping?.jira_reporter_name || '');
+  }, [mapping]);
   
   const [jiraUsers, setJiraUsers] = useState<Array<{id: string, name: string, email: string, username: string}>>([]);
   const [loadingJiraUsers, setLoadingJiraUsers] = useState(false);
-  const [showAssigneeSuggestions, setShowAssigneeSuggestions] = useState(false);
-  const [showReporterSuggestions, setShowReporterSuggestions] = useState(false);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [showReporterDropdown, setShowReporterDropdown] = useState(false);
+  const [assigneeSearchTerm, setAssigneeSearchTerm] = useState('');
+  const [reporterSearchTerm, setReporterSearchTerm] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Handle clicks outside the form to close suggestions
+  // Handle clicks outside the form to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (formRef.current && !formRef.current.contains(event.target as Node)) {
-        setShowAssigneeSuggestions(false);
-        setShowReporterSuggestions(false);
+        setShowAssigneeDropdown(false);
+        setShowReporterDropdown(false);
       }
     };
 
@@ -632,12 +640,14 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
 
   const handleAssigneeSelect = (user: {name: string, username: string}) => {
     setFormData(prev => ({ ...prev, jiraAssigneeName: user.name }));
-    setShowAssigneeSuggestions(false);
+    setAssigneeSearchTerm(user.name);
+    setShowAssigneeDropdown(false);
   };
 
   const handleReporterSelect = (user: {name: string, username: string}) => {
     setFormData(prev => ({ ...prev, jiraReporterName: user.name }));
-    setShowReporterSuggestions(false);
+    setReporterSearchTerm(user.name);
+    setShowReporterDropdown(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -681,37 +691,48 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           JIRA Assignee Name <span className="text-red-500">*</span>
         </label>
         <div className="relative">
-          <input
-            type="text"
-            value={formData.jiraAssigneeName}
-            onChange={(e) => {
-              setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }));
-              setShowAssigneeSuggestions(true);
-            }}
-            onFocus={() => setShowAssigneeSuggestions(true)}
-            placeholder="Enter JIRA assignee name"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
-          />
-          {showAssigneeSuggestions && (
+          <div className="flex">
+            <input
+              type="text"
+              value={assigneeSearchTerm}
+              onChange={(e) => {
+                setAssigneeSearchTerm(e.target.value);
+                setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }));
+                setShowAssigneeDropdown(true);
+              }}
+              onFocus={() => setShowAssigneeDropdown(true)}
+              placeholder="Search JIRA users..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+              className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              ▼
+            </button>
+          </div>
+          {showAssigneeDropdown && (
             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
               {loadingJiraUsers ? (
                 <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
               ) : jiraUsers.length > 0 ? (
                 jiraUsers
                   .filter(user => 
-                    user.name.toLowerCase().includes(formData.jiraAssigneeName.toLowerCase()) ||
-                    user.username.toLowerCase().includes(formData.jiraAssigneeName.toLowerCase())
+                    user.name.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
+                    user.username.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
+                    user.email.toLowerCase().includes(assigneeSearchTerm.toLowerCase())
                   )
+                  .slice(0, 10) // Limit to 10 results for better performance
                   .map((user) => (
                     <button
                       key={user.id}
                       type="button"
                       onClick={() => handleAssigneeSelect(user)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
                     >
                       <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-gray-500">@{user.username}</div>
+                      <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
                     </button>
                   ))
               ) : (
@@ -721,7 +742,7 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           )}
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          The exact name as it appears in JIRA (e.g., "John Doe", "john.doe")
+          Search and select from your JIRA users
         </p>
       </div>
 
@@ -730,36 +751,48 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           JIRA Reporter Name
         </label>
         <div className="relative">
-          <input
-            type="text"
-            value={formData.jiraReporterName}
-            onChange={(e) => {
-              setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }));
-              setShowReporterSuggestions(true);
-            }}
-            onFocus={() => setShowReporterSuggestions(true)}
-            placeholder="Enter JIRA reporter name (optional)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {showReporterSuggestions && (
+          <div className="flex">
+            <input
+              type="text"
+              value={reporterSearchTerm}
+              onChange={(e) => {
+                setReporterSearchTerm(e.target.value);
+                setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }));
+                setShowReporterDropdown(true);
+              }}
+              onFocus={() => setShowReporterDropdown(true)}
+              placeholder="Search JIRA users (optional)..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowReporterDropdown(!showReporterDropdown)}
+              className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              ▼
+            </button>
+          </div>
+          {showReporterDropdown && (
             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
               {loadingJiraUsers ? (
                 <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
               ) : jiraUsers.length > 0 ? (
                 jiraUsers
                   .filter(user => 
-                    user.name.toLowerCase().includes(formData.jiraReporterName.toLowerCase()) ||
-                    user.username.toLowerCase().includes(formData.jiraReporterName.toLowerCase())
+                    user.name.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
+                    user.username.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
+                    user.email.toLowerCase().includes(reporterSearchTerm.toLowerCase())
                   )
+                  .slice(0, 10) // Limit to 10 results for better performance
                   .map((user) => (
                     <button
                       key={user.id}
                       type="button"
                       onClick={() => handleReporterSelect(user)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
                     >
                       <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-gray-500">@{user.username}</div>
+                      <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
                     </button>
                   ))
               ) : (
@@ -769,7 +802,7 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
           )}
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Optional: The JIRA reporter name if different from assignee
+          Optional: Search and select JIRA reporter if different from assignee
         </p>
       </div>
 

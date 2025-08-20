@@ -64,13 +64,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if mapping already exists
-    const { data: existingMapping } = await supabase
+    const { data: existingMappings, error: checkError } = await supabase
       .from('jira_user_mappings')
       .select('id')
       .eq('user_email', user_email)
       .eq('jira_project_key', jira_project_key || null)
-      .eq('integration_user_email', integration_user_email)
-      .single();
+      .eq('integration_user_email', integration_user_email);
+
+    if (checkError) {
+      console.error('Error checking existing mapping:', checkError);
+      return NextResponse.json(
+        { error: 'Failed to check existing mapping' },
+        { status: 500 }
+      );
+    }
+
+    const existingMapping = existingMappings && existingMappings.length > 0 ? existingMappings[0] : null;
 
     let result;
     if (existingMapping) {
