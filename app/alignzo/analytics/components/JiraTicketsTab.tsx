@@ -169,10 +169,13 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       );
 
       // First, get all available JIRA project mappings for the user
+      console.log('Fetching JIRA project mappings...');
       const allProjectMappings = await Promise.race([
         getAllJiraProjectMappings(),
         timeoutPromise
       ]) as JiraProjectMapping[];
+      
+      console.log('Project mappings received:', allProjectMappings);
       
       if (allProjectMappings.length === 0) {
         setError('No JIRA project mappings found. Please configure project mappings first.');
@@ -185,6 +188,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       // Filter by mapped projects only
       const availableProjectKeys = allProjectMappings.map((mapping: JiraProjectMapping) => mapping.jira_project_key);
+      console.log('Available project keys:', availableProjectKeys);
       jql = `project in ("${availableProjectKeys.join('", "')}")`;
 
       // Further filter by selected projects if specified
@@ -224,10 +228,27 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       console.log('Executing JIRA search with JQL:', jql);
       setLoadingProgress('Fetching JIRA data...');
-      const result = await Promise.race([
-        searchAllJiraIssues(credentials, jql),
-        timeoutPromise
-      ]) as { success: boolean; issues?: JiraIssue[]; message: string };
+      console.log('About to call searchAllJiraIssues with credentials:', credentials);
+      console.log('JQL query:', jql);
+      
+      let result: { success: boolean; issues?: JiraIssue[]; message: string };
+      
+      try {
+        console.log('Starting JIRA API call...');
+        setLoadingProgress('Making JIRA API request...');
+        
+        result = await Promise.race([
+          searchAllJiraIssues(credentials, jql),
+          timeoutPromise
+        ]) as { success: boolean; issues?: JiraIssue[]; message: string };
+        
+        console.log('JIRA search result:', result);
+        setLoadingProgress('Processing JIRA data...');
+      } catch (error) {
+        console.error('Error in JIRA search:', error);
+        setError(`JIRA search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return;
+      }
       
       if (!result.success) {
         setError(result.message);
@@ -274,12 +295,19 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         const data = await response.json();
         const projectMappings = data.mappings || [];
         
+        console.log('Project mappings for filtering:', projectMappings);
+        console.log('Dashboard project names to filter:', dashboardProjectNames);
+        
         const jiraProjectKeys = projectMappings
           .filter((mapping: JiraProjectMapping) => {
-            return dashboardProjectNames.includes(mapping.project?.name || '');
+            const projectName = mapping.project?.name || '';
+            const isIncluded = dashboardProjectNames.includes(projectName);
+            console.log(`Project mapping: ${projectName}, included: ${isIncluded}`);
+            return isIncluded;
           })
           .map((mapping: JiraProjectMapping) => mapping.jira_project_key);
         
+        console.log('Filtered JIRA project keys:', jiraProjectKeys);
         return jiraProjectKeys;
       }
     } catch (error) {
@@ -298,12 +326,15 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         const data = await response.json();
         const userMappings = data.mappings || [];
         
+        console.log('User mappings received:', userMappings);
+        
         const jiraUserNames = userMappings
           .filter((mapping: any) => {
-            return dashboardUserEmails.includes(mapping.user?.email || '');
+            return dashboardUserEmails.includes(mapping.user_email || '');
           })
-          .map((mapping: any) => mapping.jira_username || mapping.jira_display_name);
+          .map((mapping: any) => mapping.jira_assignee_name || mapping.jira_reporter_name);
         
+        console.log('Filtered JIRA user names:', jiraUserNames);
         return jiraUserNames.filter(Boolean); // Remove any undefined/null values
       }
     } catch (error) {
