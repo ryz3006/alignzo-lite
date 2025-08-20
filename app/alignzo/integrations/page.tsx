@@ -3,12 +3,18 @@
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
+import { supabase } from '@/lib/supabase';
 import { 
   ExternalLink, 
   CheckCircle, 
   XCircle, 
   Settings,
-  AlertCircle
+  AlertCircle,
+  Users,
+  MapPin,
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface JiraIntegration {
@@ -19,10 +25,26 @@ interface JiraIntegration {
   is_verified: boolean;
 }
 
+interface JiraUserMapping {
+  id?: string;
+  user_email: string;
+  jira_assignee_name: string;
+  jira_reporter_name?: string;
+  jira_project_key?: string;
+  integration_user_email: string;
+}
+
+interface TeamMember {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
 export default function IntegrationsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showMappingModal, setShowMappingModal] = useState(false);
   const [jiraIntegration, setJiraIntegration] = useState<JiraIntegration>({
     base_url: '',
     user_email_integration: '',
@@ -33,6 +55,12 @@ export default function IntegrationsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [verificationMessage, setVerificationMessage] = useState('');
+  
+  // User mapping states
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [userMappings, setUserMappings] = useState<JiraUserMapping[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(false);
+  const [editingMapping, setEditingMapping] = useState<JiraUserMapping | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -65,10 +93,45 @@ export default function IntegrationsPage() {
             api_token: data.integration.api_token || '',
             is_verified: data.integration.is_verified
           });
+          
+          // Load team members and user mappings if integration is verified
+          if (data.integration.is_verified) {
+            await loadTeamMembers();
+            await loadUserMappings(userEmail);
+          }
         }
       }
     } catch (error) {
       console.error('Failed to load JIRA integration:', error);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, full_name, email')
+        .order('full_name');
+      
+      if (error) throw error;
+      setTeamMembers(users || []);
+    } catch (error) {
+      console.error('Failed to load team members:', error);
+    }
+  };
+
+  const loadUserMappings = async (integrationUserEmail: string) => {
+    try {
+      setLoadingMappings(true);
+      const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(integrationUserEmail)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUserMappings(data.mappings || []);
+      }
+    } catch (error) {
+      console.error('Failed to load user mappings:', error);
+    } finally {
+      setLoadingMappings(false);
     }
   };
 
@@ -157,6 +220,64 @@ export default function IntegrationsPage() {
     setVerificationMessage('');
   };
 
+  const handleUserMapping = () => {
+    setShowMappingModal(true);
+    setEditingMapping(null);
+  };
+
+  const handleSaveMapping = async (mapping: Omit<JiraUserMapping, 'integration_user_email'>) => {
+    if (!user?.email) return;
+
+    try {
+      const response = await fetch('/api/integrations/jira/user-mapping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...mapping,
+          integration_user_email: user.email,
+        }),
+      });
+
+      if (response.ok) {
+        await loadUserMappings(user.email);
+        setShowMappingModal(false);
+        setEditingMapping(null);
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to save mapping.');
+      }
+    } catch (error) {
+      console.error('Failed to save mapping:', error);
+      alert('An error occurred while saving the mapping.');
+    }
+  };
+
+  const handleDeleteMapping = async (mappingId: string) => {
+    if (!confirm('Are you sure you want to delete this mapping?')) return;
+
+    try {
+      const response = await fetch(`/api/integrations/jira/user-mapping?id=${mappingId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadUserMappings(user!.email!);
+      } else {
+        alert('Failed to delete mapping.');
+      }
+    } catch (error) {
+      console.error('Failed to delete mapping:', error);
+      alert('An error occurred while deleting the mapping.');
+    }
+  };
+
+  const handleEditMapping = (mapping: JiraUserMapping) => {
+    setEditingMapping(mapping);
+    setShowMappingModal(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -197,13 +318,22 @@ export default function IntegrationsPage() {
           
           <div className="flex items-center space-x-3">
             {jiraIntegration.is_verified ? (
-              <button
-                onClick={handleEdit}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                <Settings className="w-4 h-4 mr-2 inline" />
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={handleUserMapping}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <MapPin className="w-4 h-4 mr-2 inline" />
+                  User Mapping
+                </button>
+                <button
+                  onClick={handleEdit}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                >
+                  <Settings className="w-4 h-4 mr-2 inline" />
+                  Edit
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => setShowModal(true)}
@@ -215,6 +345,88 @@ export default function IntegrationsPage() {
           </div>
         </div>
       </div>
+
+      {/* User Mappings Section */}
+      {jiraIntegration.is_verified && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <MapPin className="w-5 h-5 mr-2 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">JIRA User Mappings</h3>
+            </div>
+            <button
+              onClick={handleUserMapping}
+              className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 flex items-center"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Mapping
+            </button>
+          </div>
+          
+          {loadingMappings ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            </div>
+          ) : userMappings.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 mb-4">No user mappings configured yet.</p>
+              <p className="text-sm text-gray-400">Map your team members' emails to JIRA assignee/reporter names to enable enhanced analytics.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Member</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JIRA Assignee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JIRA Reporter</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {userMappings.map((mapping) => (
+                    <tr key={mapping.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {teamMembers.find(m => m.email === mapping.user_email)?.full_name || mapping.user_email}
+                        </div>
+                        <div className="text-sm text-gray-500">{mapping.user_email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {mapping.jira_assignee_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {mapping.jira_reporter_name || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {mapping.jira_project_key || 'All Projects'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleEditMapping(mapping)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMapping(mapping.id!)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Integration Modal */}
       {showModal && (
@@ -320,6 +532,154 @@ export default function IntegrationsPage() {
           </div>
         </div>
       )}
+
+      {/* User Mapping Modal */}
+      {showMappingModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {editingMapping ? 'Edit User Mapping' : 'Add User Mapping'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowMappingModal(false);
+                    setEditingMapping(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <UserMappingForm
+                teamMembers={teamMembers}
+                mapping={editingMapping}
+                onSave={handleSaveMapping}
+                onCancel={() => {
+                  setShowMappingModal(false);
+                  setEditingMapping(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// User Mapping Form Component
+interface UserMappingFormProps {
+  teamMembers: TeamMember[];
+  mapping: JiraUserMapping | null;
+  onSave: (mapping: Omit<JiraUserMapping, 'integration_user_email'>) => void;
+  onCancel: () => void;
+}
+
+function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMappingFormProps) {
+  const [formData, setFormData] = useState({
+    userEmail: mapping?.user_email || '',
+    jiraAssigneeName: mapping?.jira_assignee_name || '',
+    jiraReporterName: mapping?.jira_reporter_name || '',
+    jiraProjectKey: mapping?.jira_project_key || ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.userEmail || !formData.jiraAssigneeName) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Team Member Email <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={formData.userEmail}
+          onChange={(e) => setFormData(prev => ({ ...prev, userEmail: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
+        >
+          <option value="">Select a team member</option>
+          {teamMembers.map((member) => (
+            <option key={member.id} value={member.email}>
+              {member.full_name} ({member.email})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          JIRA Assignee Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formData.jiraAssigneeName}
+          onChange={(e) => setFormData(prev => ({ ...prev, jiraAssigneeName: e.target.value }))}
+          placeholder="Enter JIRA assignee name"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          The exact name as it appears in JIRA (e.g., "John Doe", "john.doe")
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          JIRA Reporter Name
+        </label>
+        <input
+          type="text"
+          value={formData.jiraReporterName}
+          onChange={(e) => setFormData(prev => ({ ...prev, jiraReporterName: e.target.value }))}
+          placeholder="Enter JIRA reporter name (optional)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Optional: The JIRA reporter name if different from assignee
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          JIRA Project Key
+        </label>
+        <input
+          type="text"
+          value={formData.jiraProjectKey}
+          onChange={(e) => setFormData(prev => ({ ...prev, jiraProjectKey: e.target.value }))}
+          placeholder="e.g., PROJ, DEV (leave empty for all projects)"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Optional: Specific JIRA project key. Leave empty to apply to all projects.
+        </p>
+      </div>
+
+      <div className="flex space-x-3 pt-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          {mapping ? 'Update Mapping' : 'Save Mapping'}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -54,6 +54,7 @@ import IndividualMetricsTab from './components/IndividualMetricsTab';
 import WorkTypeMetricsTab from './components/WorkTypeMetricsTab';
 import TrendsTab from './components/TrendsTab';
 import JiraMetricsTab from './components/JiraMetricsTab';
+import JiraAssigneeReporterTab from './components/JiraAssigneeReporterTab';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
@@ -647,6 +648,9 @@ export default function AnalyticsPage() {
       case 'jira':
         // JIRA data export will be handled within the JiraMetricsTab component
         return;
+      case 'jira-assignee-reporter':
+        // JIRA assignee/reporter data export will be handled within the JiraAssigneeReporterTab component
+        return;
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -944,7 +948,8 @@ export default function AnalyticsPage() {
               { id: 'individual', label: 'Individual Metrics', icon: UserCheck },
               { id: 'worktypes', label: 'Work Type Analysis', icon: Layers },
               { id: 'trends', label: 'Trend Analysis', icon: TrendingUp },
-              { id: 'jira', label: 'JIRA Analytics', icon: ExternalLink }
+              { id: 'jira', label: 'JIRA Analytics', icon: ExternalLink },
+              { id: 'jira-assignee-reporter', label: 'JIRA Assignee/Reporter', icon: UserCheck }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -970,6 +975,7 @@ export default function AnalyticsPage() {
           {activeTab === 'worktypes' && <WorkTypeMetricsTab data={workTypeMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'trends' && <TrendsTab data={trendData} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'jira' && <JiraMetricsTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'jira-assignee-reporter' && <JiraAssigneeReporterTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
         </div>
       </div>
     </div>
