@@ -115,14 +115,15 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
       setJiraCredentials(credentials);
       
       // Load user mappings
-      await loadUserMappings(currentUser.email);
+      const mappings = await loadUserMappings(currentUser.email);
       
-      if (userMappings.length === 0) {
+      if (mappings.length === 0) {
         setShowMappingWarning(true);
         setLoading(false);
         return;
       }
 
+      setUserMappings(mappings);
       await loadJiraData(credentials);
     } catch (error) {
       console.error('Error checking JIRA integration:', error);
@@ -137,11 +138,14 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
       const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(integrationUserEmail)}`);
       if (response.ok) {
         const data = await response.json();
-        setUserMappings(data.mappings || []);
+        const mappings = data.mappings || [];
+        setUserMappings(mappings);
+        return mappings;
       }
     } catch (error) {
       console.error('Failed to load user mappings:', error);
     }
+    return [];
   };
 
   const loadJiraData = async (credentials: any) => {
