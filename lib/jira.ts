@@ -222,8 +222,8 @@ export async function verifyJiraCredentials(credentials: JiraCredentials): Promi
 }
 
 export async function searchJiraIssues(
-  credentials: JiraCredentials,
-  jql: string,
+  credentials: JiraCredentials, 
+  jql: string, 
   maxResults: number = 50
 ): Promise<JiraApiResponse<{ issues: JiraIssue[] }>> {
   try {
@@ -239,8 +239,8 @@ export async function searchJiraIssues(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        jql,
-        maxResults,
+          jql,
+          maxResults,
         fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'created', 'updated']
       }),
     }, credentials);
@@ -258,7 +258,7 @@ export async function searchJiraIssues(
 }
 
 export async function searchAllJiraIssues(
-  credentials: JiraCredentials,
+  credentials: JiraCredentials, 
   projectKey: string,
   maxResults: number = 100
 ): Promise<JiraApiResponse<{ issues: JiraIssue[] }>> {
@@ -277,7 +277,7 @@ export async function getJiraIssue(
 
     const result = await makeJiraApiCall<JiraIssue>(url, {
       method: 'GET',
-      headers: {
+        headers: {
         'Authorization': `Basic ${authHeader}`,
         'Accept': 'application/json',
       },
@@ -296,7 +296,7 @@ export async function getJiraIssue(
 }
 
 export async function createJiraIssue(
-  credentials: JiraCredentials,
+  credentials: JiraCredentials, 
   issueData: {
     projectKey: string;
     summary: string;
@@ -314,9 +314,12 @@ export async function createJiraIssue(
     // First, try to get user info to get accountId if assignee is provided
     let assigneeField = undefined;
     if (issueData.assignee) {
+      console.log(`Attempting to assign ticket to: ${issueData.assignee}`);
       try {
         // Try to get user info to get accountId
         const userUrl = `${baseUrl}/rest/api/2/user?username=${encodeURIComponent(issueData.assignee)}`;
+        console.log(`Looking up user at URL: ${userUrl}`);
+        
         const userResult = await makeJiraApiCall<{ accountId: string; name: string; emailAddress: string }>(userUrl, {
           method: 'GET',
           headers: {
@@ -325,26 +328,30 @@ export async function createJiraIssue(
           },
         }, credentials);
 
+        console.log('User lookup result:', userResult);
+
         if (userResult.success && userResult.data) {
           // Use accountId if available, otherwise fall back to name
           assigneeField = {
             accountId: userResult.data.accountId
           };
-          console.log(`Found user accountId: ${userResult.data.accountId} for assignee: ${issueData.assignee}`);
+          console.log(`✓ Found user accountId: ${userResult.data.accountId} for assignee: ${issueData.assignee}`);
         } else {
           // Fall back to using name
           assigneeField = {
             name: issueData.assignee
           };
-          console.log(`Using name for assignee: ${issueData.assignee} (accountId lookup failed)`);
+          console.log(`⚠ Using name for assignee: ${issueData.assignee} (accountId lookup failed:`, userResult);
         }
       } catch (error) {
         // Fall back to using name if user lookup fails
         assigneeField = {
           name: issueData.assignee
         };
-        console.log(`Using name for assignee: ${issueData.assignee} (user lookup failed)`);
+        console.log(`⚠ Using name for assignee: ${issueData.assignee} (user lookup failed):`, error);
       }
+    } else {
+      console.log('No assignee provided in issueData');
     }
 
     const ticketData = {
@@ -367,6 +374,7 @@ export async function createJiraIssue(
     };
 
     console.log('Creating JIRA ticket with data:', JSON.stringify(ticketData, null, 2));
+    console.log('Assignee field being sent:', assigneeField);
 
     const result = await makeJiraApiCall<{ key: string; id: string }>(url, {
       method: 'POST',

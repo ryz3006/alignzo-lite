@@ -10,6 +10,8 @@ The enhanced timer and work log modals now support seamless integration with JIR
 - Create new JIRA tickets on-the-fly
 - Link work logs to actual JIRA tickets
 
+**Note**: The enhanced modals have now replaced the legacy timer and work log modals throughout the application. The legacy modals are no longer in use.
+
 ## Features
 
 ### 1. Ticket Source Selection
@@ -170,9 +172,17 @@ CREATE TABLE jira_project_mappings (
 );
 ```
 
-## Demo Page
+## Recent Changes (Latest Update)
 
-A demo page is available at `/alignzo/enhanced-timer-demo` to showcase the new functionality.
+### Legacy Modal Replacement
+- **Enhanced Timer Modal**: Now replaces the legacy timer modal in the header
+- **Enhanced Work Log Modal**: Now replaces the legacy work log modal in the reports page
+- **Demo Page Removal**: The demo page has been removed as the enhanced modals are now integrated throughout the application
+
+### Integration Points
+- **Header Timer Button**: The "+" button in the header now opens the enhanced timer modal with JIRA integration
+- **Reports Page**: The "Add Work Log" button now opens the enhanced work log modal with JIRA integration
+- **Seamless Experience**: Users can now access JIRA integration features directly from the main application interface
 
 ## Error Handling
 

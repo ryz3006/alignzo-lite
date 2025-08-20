@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Creating JIRA ticket in project: ${projectKey} assigned to integration user: ${credentials.user_email_integration}`);
+    console.log('JIRA credentials:', {
+      base_url: credentials.base_url,
+      user_email_integration: credentials.user_email_integration,
+      hasApiToken: !!credentials.api_token
+    });
 
     // Use enhanced create issue function with integration user as assignee
     const result = await createJiraIssue(credentials, {

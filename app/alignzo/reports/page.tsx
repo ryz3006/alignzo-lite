@@ -6,6 +6,7 @@ import { supabase, WorkLog, Project, ProjectCategory } from '@/lib/supabase';
 import { Edit, Trash2, Search, Download, Plus, Eye, RefreshCw } from 'lucide-react';
 import { formatDuration, formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import EnhancedWorkLogModal from '@/components/EnhancedWorkLogModal';
 
 interface WorkLogWithProject extends WorkLog {
   project: Project;
@@ -38,7 +39,7 @@ export default function UserWorkReportsPage() {
   const [editingLog, setEditingLog] = useState<WorkLogWithProject | null>(null);
   const [viewingLog, setViewingLog] = useState<WorkLogWithProject | null>(null);
   
-  // Form data
+  // Form data for edit modal
   const [formData, setFormData] = useState<FormData>({
     project_id: '',
     ticket_id: '',
@@ -50,7 +51,7 @@ export default function UserWorkReportsPage() {
     logged_duration_seconds: 0,
   });
 
-  // Break duration inputs
+  // Break duration inputs for edit modal
   const [breakHours, setBreakHours] = useState(0);
   const [breakMinutes, setBreakMinutes] = useState(0);
   const [breakSeconds, setBreakSeconds] = useState(0);
@@ -221,44 +222,7 @@ export default function UserWorkReportsPage() {
     }
   };
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) throw new Error('User not authenticated');
 
-      const breakDuration = calculateBreakDuration();
-      const startTime = new Date(formData.start_time);
-      const endTime = new Date(formData.end_time);
-      const totalDuration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-      const loggedDuration = totalDuration - breakDuration;
-
-      const newWorkLog = {
-        user_email: currentUser.email,
-        project_id: formData.project_id,
-        ticket_id: formData.ticket_id,
-        task_detail: formData.task_detail,
-        dynamic_category_selections: formData.dynamic_category_selections,
-        start_time: formData.start_time,
-        end_time: formData.end_time,
-        total_pause_duration_seconds: breakDuration,
-        logged_duration_seconds: loggedDuration,
-      };
-
-      const { error } = await supabase
-        .from('work_logs')
-        .insert([newWorkLog]);
-
-      if (error) throw error;
-      toast.success('Work log added successfully');
-      setShowAddModal(false);
-      loadWorkLogs();
-    } catch (error: any) {
-      console.error('Error adding work log:', error);
-      toast.error(error.message || 'Failed to add work log');
-    }
-  };
 
   const handleDelete = async (logId: string) => {
     if (!confirm('Are you sure you want to delete this work log?')) return;
@@ -864,195 +828,11 @@ export default function UserWorkReportsPage() {
         </div>
       )}
 
-      {/* Add Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Add New Work Log
-                </h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <form onSubmit={handleAdd} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Project
-                    </label>
-                    <select
-                      required
-                      value={formData.project_id}
-                      onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">Select Project</option>
-                      {projects.map(project => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Ticket ID
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.ticket_id}
-                      onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Task Detail
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={formData.task_detail}
-                    onChange={(e) => setFormData({ ...formData, task_detail: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-
-                {/* Categories */}
-                {formData.project_id && getProjectCategories(formData.project_id).length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Categories
-                    </label>
-                    <div className="space-y-2">
-                      {getProjectCategories(formData.project_id).map(category => (
-                        <div key={category.id}>
-                          <label className="block text-sm text-gray-600 mb-1">
-                            {category.name}
-                          </label>
-                          <select
-                            value={formData.dynamic_category_selections[category.name] || ''}
-                            onChange={(e) => setFormData({
-                              ...formData,
-                              dynamic_category_selections: {
-                                ...formData.dynamic_category_selections,
-                                [category.name]: e.target.value
-                              }
-                            })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          >
-                            <option value="">Select {category.name}</option>
-                            {category.options.map((option: string) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Date/Time
-                    </label>
-                    <input
-                      type="datetime-local"
-                      required
-                      value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      End Date/Time
-                    </label>
-                    <input
-                      type="datetime-local"
-                      required
-                      value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Break Duration (if any)
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Hours</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={breakHours}
-                        onChange={(e) => setBreakHours(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Minutes</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={breakMinutes}
-                        onChange={(e) => setBreakMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Seconds</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={breakSeconds}
-                        onChange={(e) => setBreakSeconds(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
-                  >
-                    Add Work Log
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Enhanced Work Log Modal */}
+      <EnhancedWorkLogModal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+      />
     </div>
   );
 }

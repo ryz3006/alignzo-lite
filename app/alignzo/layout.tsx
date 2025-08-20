@@ -15,7 +15,7 @@ import {
   Settings
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
-import TimerModal from '@/components/TimerModal';
+import EnhancedTimerModal from '@/components/EnhancedTimerModal';
 import TimerManagementModal from '@/components/TimerManagementModal';
 
 function UserDashboardContent({ children }: { children: React.ReactNode }) {
@@ -159,7 +159,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Timer Modals */}
-      <TimerModal 
+      <EnhancedTimerModal 
         isOpen={showTimerModal} 
         onClose={() => setShowTimerModal(false)} 
       />
