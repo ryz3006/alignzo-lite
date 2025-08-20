@@ -974,8 +974,8 @@ export default function AnalyticsPage() {
           {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'worktypes' && <WorkTypeMetricsTab data={workTypeMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'trends' && <TrendsTab data={trendData} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'jira' && <JiraMetricsTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'jira-assignee-reporter' && <JiraAssigneeReporterTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+                      {activeTab === 'jira' && <JiraMetricsTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} filters={appliedFilters} />}
+          {activeTab === 'jira-assignee-reporter' && <JiraAssigneeReporterTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} filters={appliedFilters} />}
         </div>
       </div>
     </div>

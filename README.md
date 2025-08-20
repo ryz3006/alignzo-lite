@@ -89,7 +89,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 1. Go to [Supabase](https://supabase.com)
 2. Create a new project
 3. Go to Settings → API to get your URL and anon key
-4. Go to SQL Editor and run the database schema from `database/schema.sql`
+4. Go to SQL Editor and run the complete database schema from `database/schema.sql`
+   - This master schema file contains all tables, indexes, constraints, triggers, and RLS policies
+   - It will set up the entire database in one go
 
 ### 6. Run the Application
 
@@ -176,31 +178,19 @@ The JIRA Project Mapping feature allows users to map their dashboard projects to
 
 #### Setup Instructions
 
-1. **User Mapping Database Setup**: You have two options to create the `jira_user_mappings` table:
+**Database Setup (All-in-One):**
+The master schema file `database/schema.sql` includes all JIRA mapping tables. If you haven't set up the database yet:
 
-   **Option A: Run the migration script (requires environment variables):**
-   ```bash
-   npm run setup-jira-mapping
-   ```
-   
-   **Option B: Manual SQL execution (recommended for quick setup):**
-   - Go to your Supabase dashboard
-   - Navigate to the SQL Editor
-   - Copy and paste the contents of `database/jira_user_mapping.sql`
-   - Execute the SQL script
+1. Go to your Supabase dashboard
+2. Navigate to the SQL Editor
+3. Copy and paste the entire contents of `database/schema.sql`
+4. Execute the SQL script
 
-2. **Project Mapping Database Setup**: You have two options to create the `jira_project_mappings` table:
+This will create all tables including `jira_user_mappings` and `jira_project_mappings` with proper indexes, constraints, triggers, and RLS policies.
 
-   **Option A: Run the migration script (requires environment variables):**
-   ```bash
-   npm run setup-jira-project-mapping
-   ```
-   
-   **Option B: Manual SQL execution (recommended for quick setup):**
-   - Go to your Supabase dashboard
-   - Navigate to the SQL Editor
-   - Copy and paste the contents of `database/jira_project_mapping.sql`
-   - Execute the SQL script
+**If you already have the base schema but need JIRA tables:**
+- Run the individual JIRA mapping scripts from the `database/` directory
+- Or use the master schema file which will safely create missing tables
 
 3. **JIRA Integration**: 
    - Go to `/alignzo/integrations` page

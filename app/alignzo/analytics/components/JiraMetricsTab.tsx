@@ -38,6 +38,22 @@ import Link from 'next/link';
 interface JiraMetricsTabProps {
   chartRefs: React.MutableRefObject<{ [key: string]: any }>;
   downloadChartAsImage: (chartId: string, filename: string) => void;
+  filters?: {
+    selectedProjects?: string[];
+    selectedUsers?: string[];
+    dateRange?: {
+      start: string;
+      end: string;
+    };
+  };
+}
+
+interface JiraProjectMapping {
+  id: string;
+  dashboard_project_id: string;
+  jira_project_key: string;
+  jira_project_name?: string;
+  integration_user_email: string;
 }
 
 interface JiraProjectMetrics {
@@ -61,7 +77,7 @@ interface JiraProjectMetrics {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
 
-export default function JiraMetricsTab({ chartRefs, downloadChartAsImage }: JiraMetricsTabProps) {
+export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filters }: JiraMetricsTabProps) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [jiraCredentials, setJiraCredentials] = useState<any>(null);
@@ -73,6 +89,12 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage }: Jira
   useEffect(() => {
     checkJiraIntegration();
   }, []);
+
+  useEffect(() => {
+    if (jiraCredentials) {
+      loadJiraData(jiraCredentials);
+    }
+  }, [filters, jiraCredentials]);
 
   const checkJiraIntegration = async () => {
     try {
@@ -109,8 +131,27 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage }: Jira
       setRefreshing(true);
       setError(null);
 
-      // Search for all issues across projects
-      const result = await searchJiraIssues(credentials, 'project IS NOT EMPTY ORDER BY updated DESC', 1000);
+      let jql = 'project IS NOT EMPTY';
+
+      // Add project filter if projects are selected
+      if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
+        // Get JIRA project keys for selected dashboard projects
+        const projectKeys = await getJiraProjectKeysForDashboardProjects(filters.selectedProjects);
+        if (projectKeys.length > 0) {
+          jql = `project in ("${projectKeys.join('", "')}")`;
+        }
+      }
+
+      // Add date range filter if provided
+      if (filters?.dateRange) {
+        const startDate = filters.dateRange.start;
+        const endDate = filters.dateRange.end;
+        jql += ` AND updated >= "${startDate}" AND updated <= "${endDate}"`;
+      }
+
+      jql += ' ORDER BY updated DESC';
+
+      const result = await searchJiraIssues(credentials, jql, 1000);
       
       if (!result.success) {
         setError(result.message);
@@ -125,6 +166,29 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage }: Jira
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const getJiraProjectKeysForDashboardProjects = async (dashboardProjectIds: string[]): Promise<string[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      const response = await fetch(`/api/integrations/jira/project-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const projectMappings = data.mappings || [];
+        
+        // Filter mappings for selected dashboard projects and extract JIRA project keys
+        const jiraProjectKeys = projectMappings
+          .filter((mapping: JiraProjectMapping) => dashboardProjectIds.includes(mapping.dashboard_project_id))
+          .map((mapping: JiraProjectMapping) => mapping.jira_project_key);
+        
+        return jiraProjectKeys;
+      }
+    } catch (error) {
+      console.error('Failed to get JIRA project keys:', error);
+    }
+    return [];
   };
 
   const calculateProjectMetrics = (issues: JiraIssue[]) => {

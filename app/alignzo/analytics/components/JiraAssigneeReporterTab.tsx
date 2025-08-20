@@ -42,6 +42,14 @@ import Link from 'next/link';
 interface JiraAssigneeReporterTabProps {
   chartRefs: React.MutableRefObject<{ [key: string]: any }>;
   downloadChartAsImage: (chartId: string, filename: string) => void;
+  filters?: {
+    selectedProjects?: string[];
+    selectedUsers?: string[];
+    dateRange?: {
+      start: string;
+      end: string;
+    };
+  };
 }
 
 interface JiraUserMapping {
@@ -50,6 +58,14 @@ interface JiraUserMapping {
   jira_assignee_name: string;
   jira_reporter_name?: string;
   jira_project_key?: string;
+  integration_user_email: string;
+}
+
+interface JiraProjectMapping {
+  id: string;
+  dashboard_project_id: string;
+  jira_project_key: string;
+  jira_project_name?: string;
   integration_user_email: string;
 }
 
@@ -77,7 +93,7 @@ interface MappedUserMetrics {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
 
-export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImage }: JiraAssigneeReporterTabProps) {
+export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImage, filters }: JiraAssigneeReporterTabProps) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [jiraCredentials, setJiraCredentials] = useState<any>(null);
@@ -91,6 +107,12 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
   useEffect(() => {
     checkJiraIntegration();
   }, []);
+
+  useEffect(() => {
+    if (jiraCredentials && userMappings.length > 0) {
+      loadJiraData(jiraCredentials);
+    }
+  }, [filters, jiraCredentials, userMappings]);
 
   const checkJiraIntegration = async () => {
     try {
@@ -138,7 +160,15 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
       const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(integrationUserEmail)}`);
       if (response.ok) {
         const data = await response.json();
-        const mappings = data.mappings || [];
+        let mappings = data.mappings || [];
+        
+        // Filter by selected users if filters are provided
+        if (filters?.selectedUsers && filters.selectedUsers.length > 0) {
+          mappings = mappings.filter((mapping: JiraUserMapping) => 
+            filters.selectedUsers!.includes(mapping.user_email)
+          );
+        }
+        
         setUserMappings(mappings);
         return mappings;
       }
@@ -159,15 +189,33 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
       
       let jql = '';
       if (mappedAssigneeNames.length > 0 && mappedReporterNames.length > 0) {
-        jql = `(assignee in ("${mappedAssigneeNames.join('", "')}") OR reporter in ("${mappedReporterNames.join('", "')}")) ORDER BY updated DESC`;
+        jql = `(assignee in ("${mappedAssigneeNames.join('", "')}") OR reporter in ("${mappedReporterNames.join('", "')}"))`;
       } else if (mappedAssigneeNames.length > 0) {
-        jql = `assignee in ("${mappedAssigneeNames.join('", "')}") ORDER BY updated DESC`;
+        jql = `assignee in ("${mappedAssigneeNames.join('", "')}")`;
       } else if (mappedReporterNames.length > 0) {
-        jql = `reporter in ("${mappedReporterNames.join('", "')}") ORDER BY updated DESC`;
+        jql = `reporter in ("${mappedReporterNames.join('", "')}")`;
       } else {
         setError('No valid user mappings found');
         return;
       }
+
+      // Add project filter if projects are selected
+      if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
+        // Get JIRA project keys for selected dashboard projects
+        const projectKeys = await getJiraProjectKeysForDashboardProjects(filters.selectedProjects);
+        if (projectKeys.length > 0) {
+          jql += ` AND project in ("${projectKeys.join('", "')}")`;
+        }
+      }
+
+      // Add date range filter if provided
+      if (filters?.dateRange) {
+        const startDate = filters.dateRange.start;
+        const endDate = filters.dateRange.end;
+        jql += ` AND updated >= "${startDate}" AND updated <= "${endDate}"`;
+      }
+
+      jql += ' ORDER BY updated DESC';
 
       const result = await searchJiraIssues(credentials, jql, 1000);
       
@@ -184,6 +232,29 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const getJiraProjectKeysForDashboardProjects = async (dashboardProjectIds: string[]): Promise<string[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      const response = await fetch(`/api/integrations/jira/project-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const projectMappings = data.mappings || [];
+        
+        // Filter mappings for selected dashboard projects and extract JIRA project keys
+        const jiraProjectKeys = projectMappings
+          .filter((mapping: JiraProjectMapping) => dashboardProjectIds.includes(mapping.dashboard_project_id))
+          .map((mapping: JiraProjectMapping) => mapping.jira_project_key);
+        
+        return jiraProjectKeys;
+      }
+    } catch (error) {
+      console.error('Failed to get JIRA project keys:', error);
+    }
+    return [];
   };
 
   const calculateMappedUserMetrics = (issues: JiraIssue[]) => {
