@@ -22,6 +22,9 @@ import Link from 'next/link';
 // Import actual working components
 import WorkloadTab from './components/WorkloadTab';
 import ProjectHealthTab from './components/ProjectHealthTab';
+import JiraTicketsTab from './components/JiraTicketsTab';
+import OperationalEfficiencyTab from './components/OperationalEfficiencyTab';
+import TeamInsightsTab from './components/TeamInsightsTab';
 
 interface FilterState {
   dateRange: {
@@ -407,16 +410,16 @@ export default function EnhancedAnalytics() {
             <ProjectHealthTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
           {activeTab === 'jira-tickets' && jiraEnabled && (
-            <JiraTicketsTab />
+            <JiraTicketsTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
           {activeTab === 'jira-tickets' && !jiraEnabled && (
             <JiraSetupPrompt />
           )}
           {activeTab === 'operational-efficiency' && (
-            <OperationalEfficiencyTab />
+            <OperationalEfficiencyTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
           {activeTab === 'team-insights' && (
-            <TeamInsightsTab />
+            <TeamInsightsTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
         </div>
       </div>
@@ -424,43 +427,7 @@ export default function EnhancedAnalytics() {
   );
 }
 
-// Placeholder Tab Components for unimplemented features
 
-function JiraTicketsTab() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Tickets & Issues</h2>
-      <p className="text-gray-600">JIRA ticket analytics and SLA compliance</p>
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-        <p className="text-purple-800">JIRA ticket analytics implementation coming soon...</p>
-      </div>
-    </div>
-  );
-}
-
-function OperationalEfficiencyTab() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Operational Efficiency</h2>
-      <p className="text-gray-600">KPI analysis and efficiency metrics</p>
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-        <p className="text-orange-800">Operational efficiency analytics implementation coming soon...</p>
-      </div>
-    </div>
-  );
-}
-
-function TeamInsightsTab() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Team Insights</h2>
-      <p className="text-gray-600">Comprehensive team performance and managerial insights</p>
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-        <p className="text-indigo-800">Team insights analytics implementation coming soon...</p>
-      </div>
-    </div>
-  );
-}
 
 function JiraSetupPrompt() {
   return (
