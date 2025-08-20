@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
 import { supabase, WorkLog, Project, User, Team } from '@/lib/supabase';
 import { 
