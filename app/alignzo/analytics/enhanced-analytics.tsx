@@ -2,129 +2,23 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, WorkLog, Project, User, Team } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { getJiraCredentials } from '@/lib/jira';
 import { 
-  BarChart3, 
-  PieChart, 
-  TrendingUp, 
   Users, 
-  Download, 
   Filter,
   Target,
   Clock,
-  UserCheck,
-  FolderOpen,
+  FileText,
+  Zap,
   Activity,
   Check,
-  Image,
-  HelpCircle,
-  Layers,
-  Calendar,
-  FileText,
-  Zap
+  RefreshCw,
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
-import { formatDuration } from '@/lib/utils';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  ComposedChart,
-  Legend,
-  ScatterChart,
-  Scatter
-} from 'recharts';
 import toast from 'react-hot-toast';
-
-// Import tab components
-import TeamMetricsTab from './components/TeamMetricsTab';
-import ProjectMetricsTab from './components/ProjectMetricsTab';
-import IndividualMetricsTab from './components/IndividualMetricsTab';
-import WorkTypeMetricsTab from './components/WorkTypeMetricsTab';
-import TrendsTab from './components/TrendsTab';
-
-// Chart colors
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
-
-// Info Tooltip Component
-function InfoTooltip({ children, content }: { children: React.ReactNode, content: string }) {
-  return (
-    <div className="group relative inline-block">
-      {children}
-      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10 max-w-xs">
-        {content}
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-      </div>
-    </div>
-  );
-}
-
-// Enhanced Types for analytics data
-interface TeamMetrics {
-  teamName: string;
-  occupancyRate: number;
-  totalWorkedHours: number;
-  totalAvailableHours: number;
-  memberCount: number;
-  ftePerProject: Record<string, number>;
-  hoursByWorkType: Record<string, number>;
-}
-
-interface ProjectMetrics {
-  projectName: string;
-  totalHours: number;
-  userCount: number;
-  averageHoursPerUser: number;
-  categoryDistribution: Record<string, number>;
-  averageTimePerTask: number;
-  taskCount: number;
-  fte: number;
-  categoryOptions: Record<string, { [key: string]: number }>;
-  burnDownData: Array<{
-    date: string;
-    remainingEffort: number;
-    cumulativeHours: number;
-  }>;
-}
-
-interface IndividualMetrics {
-  userName: string;
-  userEmail: string;
-  occupancyRate: number;
-  totalWorkedHours: number;
-  availableHours: number;
-  projectHours: Record<string, number>;
-  taskContributions: Array<{
-    ticketId: string;
-    hours: number;
-    projectName: string;
-  }>;
-  hoursByWorkType: Record<string, number>;
-}
-
-interface TrendData {
-  date: string;
-  teamOccupancy: number;
-  projectHours: number;
-  individualOccupancy: number;
-}
-
-interface WorkTypeMetrics {
-  workType: string;
-  totalHours: number;
-  projectDistribution: Record<string, number>;
-  teamDistribution: Record<string, number>;
-}
+import Link from 'next/link';
 
 interface FilterState {
   dateRange: {
@@ -134,52 +28,51 @@ interface FilterState {
   selectedTeams: string[];
   selectedProjects: string[];
   selectedUsers: string[];
-  selectedTasks: string[];
   showTeamDropdown: boolean;
   showProjectDropdown: boolean;
   showUserDropdown: boolean;
-  showTaskDropdown: boolean;
 }
 
-export default function EnhancedAnalyticsPage() {
+export default function EnhancedAnalytics() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('team');
+  const [activeTab, setActiveTab] = useState('workload');
+  const [jiraEnabled, setJiraEnabled] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
   const [filters, setFilters] = useState<FilterState>({
     dateRange: {
-      start: new Date().toISOString().split('T')[0],
+      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       end: new Date().toISOString().split('T')[0]
     },
     selectedTeams: [],
     selectedProjects: [],
     selectedUsers: [],
-    selectedTasks: [],
     showTeamDropdown: false,
     showProjectDropdown: false,
-    showUserDropdown: false,
-    showTaskDropdown: false
+    showUserDropdown: false
   });
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(filters);
 
-  // Analytics data states
-  const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([]);
-  const [projectMetrics, setProjectMetrics] = useState<ProjectMetrics[]>([]);
-  const [individualMetrics, setIndividualMetrics] = useState<IndividualMetrics[]>([]);
-  const [trendData, setTrendData] = useState<TrendData[]>([]);
-  const [workTypeMetrics, setWorkTypeMetrics] = useState<WorkTypeMetrics[]>([]);
+  // Filter options
   const [availableTeams, setAvailableTeams] = useState<string[]>([]);
   const [availableProjects, setAvailableProjects] = useState<string[]>([]);
   const [availableUsers, setAvailableUsers] = useState<string[]>([]);
-  const [availableTasks, setAvailableTasks] = useState<string[]>([]);
 
   // Chart refs for download
   const chartRefs = useRef<{ [key: string]: any }>({});
 
   useEffect(() => {
-    loadAnalytics();
+    initializeAnalytics();
+  }, []);
+
+  useEffect(() => {
+    if (appliedFilters) {
+      loadAnalyticsData();
+    }
   }, [appliedFilters]);
 
-  const loadAnalytics = async () => {
+  const initializeAnalytics = async () => {
     try {
       setLoading(true);
       const currentUser = await getCurrentUser();
@@ -187,75 +80,59 @@ export default function EnhancedAnalyticsPage() {
 
       if (!currentUser?.email) return;
 
-      // Load all necessary data
-      const [workLogs, teams, projects, users] = await Promise.all([
-        loadWorkLogs(),
-        loadTeams(),
-        loadProjects(),
-        loadUsers()
-      ]);
+      // Check JIRA integration
+      const credentials = await getJiraCredentials(currentUser.email);
+      if (credentials) {
+        setJiraEnabled(true);
+      }
 
-      // Calculate metrics
-      const teamData = calculateTeamMetrics(workLogs, teams, projects, users);
-      const projectData = calculateProjectMetrics(workLogs, projects, users);
-      const individualData = calculateIndividualMetrics(workLogs, users);
-      const trendData = calculateTrendData(workLogs, teams, projects);
-      const workTypeData = calculateWorkTypeMetrics(workLogs, projects, teams);
-
-      setTeamMetrics(teamData);
-      setProjectMetrics(projectData);
-      setIndividualMetrics(individualData);
-      setTrendData(trendData);
-      setWorkTypeMetrics(workTypeData);
-
-      // Set available filter options
-      setAvailableTeams(teams.map(t => t.name));
-      setAvailableProjects(projects.map(p => p.name));
-      setAvailableUsers(users.map(u => u.email));
-      setAvailableTasks(Array.from(new Set(workLogs.map(log => log.ticket_id))));
-
+      // Load filter options
+      await loadFilterOptions();
+      
     } catch (error) {
-      console.error('Error loading analytics:', error);
-      toast.error('Failed to load analytics data');
+      console.error('Error initializing analytics:', error);
+      toast.error('Failed to initialize analytics');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadWorkLogs = async () => {
-    let query = supabase
-        .from('work_logs')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-      .gte('start_time', appliedFilters.dateRange.start)
-      .lte('start_time', appliedFilters.dateRange.end);
+  const loadFilterOptions = async () => {
+    try {
+      const [teams, projects, users] = await Promise.all([
+        loadTeams(),
+        loadProjects(),
+        loadUsers()
+      ]);
 
-    // Apply filters
-    if (appliedFilters.selectedUsers.length > 0) {
-      query = query.in('user_email', appliedFilters.selectedUsers);
+      setAvailableTeams(teams.map(t => t.name));
+      setAvailableProjects(projects.map(p => p.name));
+      setAvailableUsers(users.map(u => u.email));
+    } catch (error) {
+      console.error('Error loading filter options:', error);
     }
-    if (appliedFilters.selectedProjects.length > 0) {
-      query = query.in('project.name', appliedFilters.selectedProjects);
-    }
-    if (appliedFilters.selectedTasks.length > 0) {
-      query = query.in('ticket_id', appliedFilters.selectedTasks);
-    }
+  };
 
-    const { data, error } = await query.order('start_time', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+  const loadAnalyticsData = async () => {
+    try {
+      setRefreshing(true);
+      // Load analytics data based on filters
+      console.log('Loading analytics data with filters:', appliedFilters);
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+      toast.error('Failed to load analytics data');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const loadTeams = async () => {
     let query = supabase
-        .from('teams')
-        .select(`
-          *,
-          team_members(*)
-        `);
+      .from('teams')
+      .select(`
+        *,
+        team_members(*)
+      `);
 
     if (appliedFilters.selectedTeams.length > 0) {
       query = query.in('name', appliedFilters.selectedTeams);
@@ -289,283 +166,12 @@ export default function EnhancedAnalyticsPage() {
     return data || [];
   };
 
-  const calculateTeamMetrics = (workLogs: any[], teams: any[], projects: any[], users: any[]) => {
-    const standardWorkHoursPerDay = 8;
-    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
-
-    const filteredTeams = appliedFilters.selectedTeams.length > 0 
-      ? teams.filter(team => appliedFilters.selectedTeams.includes(team.name))
-      : teams;
-
-    return filteredTeams.map(team => {
-      const teamMembers = team.team_members || [];
-      const memberEmails = teamMembers.map((member: any) => {
-        const user = users.find(u => u.id === member.user_id);
-        return user?.email;
-      }).filter(Boolean);
-
-      const teamLogs = workLogs.filter(log => memberEmails.includes(log.user_email));
-      const totalWorkedHours = teamLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const totalAvailableHours = memberEmails.length * standardWorkHoursPerDay * workingDaysInPeriod;
-      const occupancyRate = totalAvailableHours > 0 ? (totalWorkedHours / totalAvailableHours) * 100 : 0;
-
-      // Calculate FTE per project
-      const ftePerProject: Record<string, number> = {};
-      const projectGroups = groupBy(teamLogs, 'project.name');
-      
-      Object.entries(projectGroups).forEach(([projectName, logs]) => {
-        const projectHours = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-        const standardFteHours = standardWorkHoursPerDay * workingDaysInPeriod;
-        ftePerProject[projectName] = standardFteHours > 0 ? projectHours / standardFteHours : 0;
-      });
-
-      // Calculate hours by work type
-      const hoursByWorkType: Record<string, number> = {};
-      teamLogs.forEach((log: any) => {
-        Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
-          if (category.toLowerCase().includes('work type') || category.toLowerCase().includes('type')) {
-            if (!hoursByWorkType[value as string]) hoursByWorkType[value as string] = 0;
-            hoursByWorkType[value as string] += (log.logged_duration_seconds || 0) / 3600;
-          }
-        });
-      });
-
-      return {
-        teamName: team.name,
-        occupancyRate: Math.round(occupancyRate * 100) / 100,
-        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
-        totalAvailableHours: Math.round(totalAvailableHours * 100) / 100,
-        memberCount: memberEmails.length,
-        ftePerProject,
-        hoursByWorkType
-      };
-    });
-  };
-
-  const calculateProjectMetrics = (workLogs: any[], projects: any[], users: any[]) => {
-    const standardWorkHoursPerDay = 8;
-    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
-
-    const filteredProjects = appliedFilters.selectedProjects.length > 0 
-      ? projects.filter(project => appliedFilters.selectedProjects.includes(project.name))
-      : projects;
-
-    return filteredProjects.map(project => {
-      const projectLogs = workLogs.filter(log => log.project?.id === project.id);
-      const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const uniqueUsers = new Set(projectLogs.map((log: any) => log.user_email));
-      const uniqueTasks = new Set(projectLogs.map((log: any) => log.ticket_id));
-
-      // Calculate FTE
-      const standardFteHours = standardWorkHoursPerDay * workingDaysInPeriod;
-      const fte = standardFteHours > 0 ? totalHours / standardFteHours : 0;
-
-      // Calculate category distribution
-      const categoryDistribution: Record<string, number> = {};
-      const categoryOptions: Record<string, { [key: string]: number }> = {};
-      
-      projectLogs.forEach((log: any) => {
-        Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
-          if (!categoryDistribution[category]) categoryDistribution[category] = 0;
-          categoryDistribution[category] += (log.logged_duration_seconds || 0) / 3600;
-          
-          if (!categoryOptions[category]) categoryOptions[category] = {};
-          if (!categoryOptions[category][value as string]) categoryOptions[category][value as string] = 0;
-          categoryOptions[category][value as string] += (log.logged_duration_seconds || 0) / 3600;
-        });
-      });
-
-      // Calculate burn-down data
-      const burnDownData = calculateBurnDownData(projectLogs, totalHours);
-
-      return {
-        projectName: project.name,
-        totalHours: Math.round(totalHours * 100) / 100,
-        userCount: uniqueUsers.size,
-        averageHoursPerUser: uniqueUsers.size > 0 ? Math.round((totalHours / uniqueUsers.size) * 100) / 100 : 0,
-        categoryDistribution,
-        averageTimePerTask: uniqueTasks.size > 0 ? Math.round((totalHours / uniqueTasks.size) * 100) / 100 : 0,
-        taskCount: uniqueTasks.size,
-        fte: Math.round(fte * 100) / 100,
-        categoryOptions,
-        burnDownData
-      };
-    });
-  };
-
-  const calculateIndividualMetrics = (workLogs: any[], users: any[]) => {
-    const standardWorkHoursPerDay = 8;
-    const workingDaysInPeriod = calculateWorkingDays(appliedFilters.dateRange.start, appliedFilters.dateRange.end);
-
-    const filteredUsers = appliedFilters.selectedUsers.length > 0 
-      ? users.filter(user => appliedFilters.selectedUsers.includes(user.email))
-      : users;
-
-    return filteredUsers.map(user => {
-      const userLogs = workLogs.filter(log => log.user_email === user.email);
-      const totalWorkedHours = userLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const availableHours = standardWorkHoursPerDay * workingDaysInPeriod;
-      const occupancyRate = availableHours > 0 ? (totalWorkedHours / availableHours) * 100 : 0;
-
-      // Calculate hours by project
-      const projectHours: Record<string, number> = {};
-      const projectGroups = groupBy(userLogs, 'project.name');
-      Object.entries(projectGroups).forEach(([projectName, logs]) => {
-        projectHours[projectName] = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      });
-
-      // Calculate task contributions
-      const taskContributions = userLogs.map((log: any) => ({
-        ticketId: log.ticket_id,
-        hours: (log.logged_duration_seconds || 0) / 3600,
-        projectName: log.project?.name || 'Unknown'
-      }));
-
-      // Calculate hours by work type
-      const hoursByWorkType: Record<string, number> = {};
-      userLogs.forEach((log: any) => {
-        Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
-          if (category.toLowerCase().includes('work type') || category.toLowerCase().includes('type')) {
-            if (!hoursByWorkType[value as string]) hoursByWorkType[value as string] = 0;
-            hoursByWorkType[value as string] += (log.logged_duration_seconds || 0) / 3600;
-          }
-        });
-      });
-
-      return {
-        userName: user.full_name,
-        userEmail: user.email,
-        occupancyRate: Math.round(occupancyRate * 100) / 100,
-        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
-        availableHours: Math.round(availableHours * 100) / 100,
-        projectHours,
-        taskContributions,
-        hoursByWorkType
-      };
-    });
-  };
-
-  const calculateWorkTypeMetrics = (workLogs: any[], projects: any[], teams: any[]) => {
-    const workTypeMap = new Map<string, WorkTypeMetrics>();
-
-    workLogs.forEach((log: any) => {
-      Object.entries(log.dynamic_category_selections || {}).forEach(([category, value]) => {
-        if (category.toLowerCase().includes('work type') || category.toLowerCase().includes('type')) {
-          const workType = value as string;
-          const hours = (log.logged_duration_seconds || 0) / 3600;
-          const projectName = log.project?.name || 'Unknown';
-
-          if (!workTypeMap.has(workType)) {
-            workTypeMap.set(workType, {
-              workType,
-              totalHours: 0,
-              projectDistribution: {},
-              teamDistribution: {}
-            });
-          }
-
-          const metrics = workTypeMap.get(workType)!;
-          metrics.totalHours += hours;
-          
-          if (!metrics.projectDistribution[projectName]) metrics.projectDistribution[projectName] = 0;
-          metrics.projectDistribution[projectName] += hours;
-        }
-      });
-    });
-
-    return Array.from(workTypeMap.values());
-  };
-
-  const calculateTrendData = (workLogs: any[], teams: any[], projects: any[]) => {
-    const weeklyData = groupByWeek(workLogs);
-    
-    return Object.entries(weeklyData).map(([week, logs]) => {
-      const teamOccupancy = calculateWeeklyTeamOccupancy(logs as any[], teams);
-      const projectHours = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const individualOccupancy = calculateWeeklyIndividualOccupancy(logs as any[]);
-
-      return {
-        date: week,
-        teamOccupancy: Math.round(teamOccupancy * 100) / 100,
-        projectHours: Math.round(projectHours * 100) / 100,
-        individualOccupancy: Math.round(individualOccupancy * 100) / 100
-      };
-    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  };
-
-  const calculateBurnDownData = (projectLogs: any[], totalHours: number) => {
-    const dailyData = groupByDay(projectLogs);
-    let cumulativeHours = 0;
-    
-    return Object.entries(dailyData).map(([date, logs]) => {
-      const dayHours = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      cumulativeHours += dayHours;
-      const remainingEffort = Math.max(0, totalHours - cumulativeHours);
-      
-      return {
-        date,
-        remainingEffort: Math.round(remainingEffort * 100) / 100,
-        cumulativeHours: Math.round(cumulativeHours * 100) / 100
-      };
-    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  };
-
-  // Helper functions
-  const calculateWorkingDays = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    let workingDays = 0;
-    
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      if (d.getDay() !== 0 && d.getDay() !== 6) workingDays++;
-    }
-    
-    return workingDays;
-  };
-
-  const groupBy = (array: any[], key: string) => {
-    return array.reduce((groups: any, item: any) => {
-      const group = key.split('.').reduce((obj: any, k: string) => obj?.[k], item) || 'Unknown';
-      groups[group] = groups[group] || [];
-      groups[group].push(item);
-      return groups;
-    }, {});
-  };
-
-  const groupByWeek = (logs: any[]) => {
-    return logs.reduce((groups: any, log: any) => {
-      const date = new Date(log.start_time);
-      const week = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay()).toISOString().split('T')[0];
-      groups[week] = groups[week] || [];
-      groups[week].push(log);
-      return groups;
-    }, {});
-  };
-
-  const groupByDay = (logs: any[]) => {
-    return logs.reduce((groups: any, log: any) => {
-      const date = new Date(log.start_time);
-      const day = date.toISOString().split('T')[0];
-      groups[day] = groups[day] || [];
-      groups[day].push(log);
-      return groups;
-    }, {});
-  };
-
-  const calculateWeeklyTeamOccupancy = (logs: any[], teams: any[]) => {
-    const totalHours = logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-    const estimatedAvailableHours = logs.length * 8 * 5;
-    return estimatedAvailableHours > 0 ? (totalHours / estimatedAvailableHours) * 100 : 0;
-  };
-
-  const calculateWeeklyIndividualOccupancy = (logs: any[]) => {
-    const totalHours = logs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-    const estimatedAvailableHours = 8 * 5;
-    return estimatedAvailableHours > 0 ? (totalHours / estimatedAvailableHours) * 100 : 0;
-  };
-
   const handleApplyFilters = () => {
     setAppliedFilters(filters);
+  };
+
+  const handleRefresh = () => {
+    loadAnalyticsData();
   };
 
   // Close dropdowns when clicking outside
@@ -577,8 +183,7 @@ export default function EnhancedAnalyticsPage() {
           ...prev,
           showTeamDropdown: false,
           showProjectDropdown: false,
-          showUserDropdown: false,
-          showTaskDropdown: false
+          showUserDropdown: false
         }));
       }
     };
@@ -586,115 +191,6 @@ export default function EnhancedAnalyticsPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleExport = () => {
-    let csvContent = '';
-    let filename = '';
-
-    switch (activeTab) {
-      case 'team':
-        csvContent = [
-          ['Team Name', 'Occupancy Rate (%)', 'Total Worked Hours', 'Total Available Hours', 'Member Count'],
-          ...teamMetrics.map(team => [
-            team.teamName,
-            team.occupancyRate.toString(),
-            team.totalWorkedHours.toString(),
-            team.totalAvailableHours.toString(),
-            team.memberCount.toString(),
-          ])
-        ].map(row => row.join(',')).join('\n');
-        filename = 'team-analytics.csv';
-        break;
-      case 'project':
-        csvContent = [
-          ['Project Name', 'Total Hours', 'User Count', 'Average Hours per User', 'Task Count', 'Average Time per Task', 'FTE'],
-          ...projectMetrics.map(project => [
-            project.projectName,
-            project.totalHours.toString(),
-            project.userCount.toString(),
-            project.averageHoursPerUser.toString(),
-            project.taskCount.toString(),
-            project.averageTimePerTask.toString(),
-            project.fte.toString(),
-          ])
-        ].map(row => row.join(',')).join('\n');
-        filename = 'project-analytics.csv';
-        break;
-      case 'individual':
-        csvContent = [
-          ['User Name', 'Email', 'Occupancy Rate (%)', 'Total Worked Hours', 'Available Hours'],
-          ...individualMetrics.map(individual => [
-            individual.userName,
-            individual.userEmail,
-            individual.occupancyRate.toString(),
-            individual.totalWorkedHours.toString(),
-            individual.availableHours.toString(),
-          ])
-        ].map(row => row.join(',')).join('\n');
-        filename = 'individual-analytics.csv';
-        break;
-      case 'trends':
-        csvContent = [
-          ['Date', 'Team Occupancy (%)', 'Project Hours', 'Individual Occupancy (%)'],
-          ...trendData.map(trend => [
-            trend.date,
-            trend.teamOccupancy.toString(),
-            trend.projectHours.toString(),
-            trend.individualOccupancy.toString(),
-          ])
-        ].map(row => row.join(',')).join('\n');
-        filename = 'trend-analytics.csv';
-        break;
-      case 'worktypes':
-        csvContent = [
-          ['Work Type', 'Total Hours'],
-          ...workTypeMetrics.map(workType => [
-            workType.workType,
-            workType.totalHours.toString(),
-          ])
-        ].map(row => row.join(',')).join('\n');
-        filename = 'worktype-analytics.csv';
-        break;
-    }
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const downloadChartAsImage = (chartId: string, filename: string) => {
-    const chartElement = chartRefs.current[chartId];
-    if (chartElement) {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 800;
-      canvas.height = 600;
-      
-      const svgElement = chartElement.querySelector('svg');
-      if (svgElement) {
-        const svgData = new XMLSerializer().serializeToString(svgElement);
-        const img = new window.Image();
-        img.onload = () => {
-          ctx?.drawImage(img, 0, 0, 800, 600);
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${filename}.png`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }
-          });
-        };
-        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
-      }
-    }
-  };
 
   if (loading) {
     return (
@@ -709,16 +205,17 @@ export default function EnhancedAnalyticsPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Enhanced Analytics Dashboard</h1>
-          <p className="text-gray-600">Comprehensive team and project performance insights with advanced metrics</p>
+          <h1 className="text-3xl font-bold text-gray-900">IT Operations Analytics</h1>
+          <p className="text-gray-600">Comprehensive workload and operations insights for Telecom Product Operations</p>
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={handleExport}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export Data
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -732,13 +229,13 @@ export default function EnhancedAnalyticsPage() {
           </div>
           <button
             onClick={handleApplyFilters}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
           >
             <Check className="h-4 w-4 mr-2" />
             Apply Filters
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
             <input
@@ -851,119 +348,37 @@ export default function EnhancedAnalyticsPage() {
               )}
             </div>
           </div>
-          <div className="relative filter-dropdown">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Users</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setFilters(prev => ({ ...prev, showUserDropdown: !prev.showUserDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
-              >
-                <span className="text-sm text-gray-700">
-                  {filters.selectedUsers.length === 0 
-                    ? 'All Users' 
-                    : filters.selectedUsers.length === 1 
-                      ? filters.selectedUsers[0] 
-                      : `${filters.selectedUsers.length} users selected`}
-                </span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {filters.showUserDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  <div className="p-2">
-                    {availableUsers.map(userEmail => (
-                      <label key={userEmail} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
-                        <input
-                          type="checkbox"
-                          checked={filters.selectedUsers.includes(userEmail)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFilters(prev => ({ ...prev, selectedUsers: [...prev.selectedUsers, userEmail] }));
-                            } else {
-                              setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== userEmail) }));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{userEmail}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="relative filter-dropdown">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tasks</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setFilters(prev => ({ ...prev, showTaskDropdown: !prev.showTaskDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
-              >
-                <span className="text-sm text-gray-700">
-                  {filters.selectedTasks.length === 0 
-                    ? 'All Tasks' 
-                    : filters.selectedTasks.length === 1 
-                      ? filters.selectedTasks[0] 
-                      : `${filters.selectedTasks.length} tasks selected`}
-                </span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {filters.showTaskDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  <div className="p-2">
-                    {availableTasks.map(task => (
-                      <label key={task} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
-                        <input
-                          type="checkbox"
-                          checked={filters.selectedTasks.includes(task)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFilters(prev => ({ ...prev, selectedTasks: [...prev.selectedTasks, task] }));
-                            } else {
-                              setFilters(prev => ({ ...prev, selectedTasks: prev.selectedTasks.filter(t => t !== task) }));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{task}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Enhanced Navigation Tabs */}
+      {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             {[
-              { id: 'team', label: 'Team Metrics', icon: Users },
-              { id: 'project', label: 'Project Metrics', icon: FolderOpen },
-              { id: 'individual', label: 'Individual Metrics', icon: UserCheck },
-              { id: 'worktypes', label: 'Work Type Analysis', icon: Layers },
-              { id: 'trends', label: 'Trend Analysis', icon: TrendingUp }
+              { id: 'workload', label: 'Workload & Utilization', icon: Users },
+              { id: 'project-health', label: 'Project Health & FTE', icon: Target },
+              { id: 'jira-tickets', label: 'Tickets & Issues', icon: FileText, requiresJira: true },
+              { id: 'operational-efficiency', label: 'Operational Efficiency', icon: Zap },
+              { id: 'team-insights', label: 'Team Insights', icon: Activity }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                disabled={tab.requiresJira && !jiraEnabled}
                 className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : tab.requiresJira && !jiraEnabled
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 <tab.icon className="h-4 w-4 mr-2" />
                 {tab.label}
+                {tab.requiresJira && !jiraEnabled && (
+                  <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1 rounded">JIRA</span>
+                )}
               </button>
             ))}
           </nav>
@@ -971,13 +386,109 @@ export default function EnhancedAnalyticsPage() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'team' && <TeamMetricsTab data={teamMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'project' && <ProjectMetricsTab data={projectMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'worktypes' && <WorkTypeMetricsTab data={workTypeMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
-          {activeTab === 'trends' && <TrendsTab data={trendData} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'workload' && (
+            <WorkloadTab />
+          )}
+          {activeTab === 'project-health' && (
+            <ProjectHealthTab />
+          )}
+          {activeTab === 'jira-tickets' && jiraEnabled && (
+            <JiraTicketsTab />
+          )}
+          {activeTab === 'jira-tickets' && !jiraEnabled && (
+            <JiraSetupPrompt />
+          )}
+          {activeTab === 'operational-efficiency' && (
+            <OperationalEfficiencyTab />
+          )}
+          {activeTab === 'team-insights' && (
+            <TeamInsightsTab />
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Tab Components
+function WorkloadTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Workload & Utilization</h2>
+      <p className="text-gray-600">Individual and team workload analysis with utilization metrics</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-blue-800">Workload analytics implementation coming soon...</p>
+        <p className="text-blue-700 text-sm mt-2">This will include utilization metrics, overtime analysis, and project distribution.</p>
+      </div>
+    </div>
+  );
+}
+
+function ProjectHealthTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Project Health & FTE</h2>
+      <p className="text-gray-600">Project performance metrics and FTE analysis</p>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <p className="text-green-800">Project health analytics implementation coming soon...</p>
+      </div>
+    </div>
+  );
+}
+
+function JiraTicketsTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Tickets & Issues</h2>
+      <p className="text-gray-600">JIRA ticket analytics and SLA compliance</p>
+      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <p className="text-purple-800">JIRA ticket analytics implementation coming soon...</p>
+      </div>
+    </div>
+  );
+}
+
+function OperationalEfficiencyTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Operational Efficiency</h2>
+      <p className="text-gray-600">KPI analysis and efficiency metrics</p>
+      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+        <p className="text-orange-800">Operational efficiency analytics implementation coming soon...</p>
+      </div>
+    </div>
+  );
+}
+
+function TeamInsightsTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Team Insights</h2>
+      <p className="text-gray-600">Comprehensive team performance and managerial insights</p>
+      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+        <p className="text-indigo-800">Team insights analytics implementation coming soon...</p>
+      </div>
+    </div>
+  );
+}
+
+function JiraSetupPrompt() {
+  return (
+    <div className="text-center py-12">
+      <div className="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+        <AlertTriangle className="w-8 h-8 text-yellow-600" />
+      </div>
+      <h3 className="text-lg font-medium text-gray-900 mb-2">JIRA Integration Required</h3>
+      <p className="text-gray-600 mb-6">
+        To view JIRA ticket analytics, you need to set up your JIRA integration first.
+      </p>
+      <Link
+        href="/alignzo/integrations"
+        className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+      >
+        <Settings className="w-4 h-4 mr-2" />
+        Set Up JIRA Integration
+      </Link>
     </div>
   );
 }

@@ -709,6 +709,13 @@ export default function AnalyticsPage() {
           <p className="text-gray-600">Comprehensive team and project performance insights with advanced metrics</p>
         </div>
         <div className="flex space-x-2">
+          <Link
+            href="/alignzo/analytics/enhanced"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            IT Operations Analytics
+          </Link>
           <button
             onClick={handleExport}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
