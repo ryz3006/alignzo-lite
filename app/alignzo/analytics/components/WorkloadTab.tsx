@@ -403,7 +403,8 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
               className="text-gray-600 hover:text-gray-800"
             >
               <Download className="w-4 h-4" />
-            </div>
+            </button>
+          </div>
           <div ref={(el) => { chartRefs.current['daily-trend'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={workloadMetrics[0]?.dailyWorkload || []}>
