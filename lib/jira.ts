@@ -36,6 +36,8 @@ export interface JiraIssue {
       name: string;
     };
     customfield_10016?: number; // Story points field
+    created?: string; // ISO date string
+    updated?: string; // ISO date string
     [key: string]: any; // Allow additional custom fields
   };
 }
@@ -158,7 +160,7 @@ export async function searchJiraIssues(
         requestBody: {
           jql,
           maxResults,
-          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016']
+          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'created', 'updated']
         }
       }),
     });

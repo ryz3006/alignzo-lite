@@ -239,9 +239,20 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       const status = issue.fields.status.name.toLowerCase();
       const priority = issue.fields.priority?.name || 'No Priority';
       const assignee = issue.fields.assignee?.displayName || 'Unassigned';
-      const createdDate = new Date(issue.fields.created || '');
-      const updatedDate = new Date(issue.fields.updated || '');
-      const daysSinceUpdate = Math.floor((now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Safely handle date parsing
+      const createdDateStr = issue.fields.created;
+      const updatedDateStr = issue.fields.updated;
+      
+      const createdDate = createdDateStr ? new Date(createdDateStr) : new Date();
+      const updatedDate = updatedDateStr ? new Date(updatedDateStr) : new Date();
+      
+      // Validate dates
+      const isValidCreatedDate = createdDate instanceof Date && !isNaN(createdDate.getTime());
+      const isValidUpdatedDate = updatedDate instanceof Date && !isNaN(updatedDate.getTime());
+      
+      const daysSinceUpdate = isValidUpdatedDate ? 
+        Math.floor((now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
       // Count by status
       if (status.includes('open') || status.includes('to do')) {
@@ -249,12 +260,16 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       } else if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
         closedTickets++;
         resolvedTicketCount++;
-        const resolutionTime = Math.floor((updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        totalResolutionTime += resolutionTime;
         
-        // Simple SLA compliance (assuming 7 days for resolution)
-        if (resolutionTime <= 7) {
-          slaCompliantTickets++;
+        // Only calculate resolution time if both dates are valid
+        if (isValidCreatedDate && isValidUpdatedDate) {
+          const resolutionTime = Math.floor((updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+          totalResolutionTime += resolutionTime;
+          
+          // Simple SLA compliance (assuming 7 days for resolution)
+          if (resolutionTime <= 7) {
+            slaCompliantTickets++;
+          }
         }
       } else if (status.includes('progress') || status.includes('development')) {
         inProgressTickets++;
@@ -285,23 +300,30 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       
       if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
         userPerf.closedTickets++;
-        const resolutionTime = Math.floor((updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        userPerf.totalResolutionTime += resolutionTime;
-        if (resolutionTime <= 7) {
-          userPerf.slaCompliantTickets++;
+        
+        // Only calculate resolution time if both dates are valid
+        if (isValidCreatedDate && isValidUpdatedDate) {
+          const resolutionTime = Math.floor((updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+          userPerf.totalResolutionTime += resolutionTime;
+          if (resolutionTime <= 7) {
+            userPerf.slaCompliantTickets++;
+          }
         }
       }
 
       // Daily trends (simplified - using updated date)
-      const dateStr = updatedDate.toISOString().split('T')[0];
-      if (!dailyData[dateStr]) {
-        dailyData[dateStr] = { created: 0, resolved: 0, open: 0 };
-      }
-      
-      if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
-        dailyData[dateStr].resolved++;
-      } else {
-        dailyData[dateStr].open++;
+      // Only process daily trends if we have a valid updated date
+      if (isValidUpdatedDate) {
+        const dateStr = updatedDate.toISOString().split('T')[0];
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = { created: 0, resolved: 0, open: 0 };
+        }
+        
+        if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
+          dailyData[dateStr].resolved++;
+        } else {
+          dailyData[dateStr].open++;
+        }
       }
     });
 
