@@ -74,10 +74,25 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     topContributors: [] as string[],
     underutilizedMembers: [] as string[]
   });
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   useEffect(() => {
     loadWorkloadData();
   }, [filters]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.tooltip-container')) {
+        setActiveTooltip(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const loadWorkloadData = async () => {
     try {
@@ -306,16 +321,21 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalUsers}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Total Users</div>
-                <div className="text-gray-300 text-xs">
-                  Number of users who have logged work hours during the selected period. 
-                  Calculated by counting unique user emails from work logs.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'totalUsers' ? null : 'totalUsers')}
+              />
+              {activeTooltip === 'totalUsers' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Total Users</div>
+                  <div className="text-gray-300 text-xs">
+                    Number of users who have logged work hours during the selected period. 
+                    Calculated by counting unique user emails from work logs.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -331,17 +351,22 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <p className="text-2xl font-bold text-gray-900">{summaryMetrics.averageUtilization}%</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Average Utilization</div>
-                <div className="text-gray-300 text-xs">
-                  Average percentage of available work hours that users have logged. 
-                  Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
-                  Available hours = 8 hours × working days in period.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'avgUtilization' ? null : 'avgUtilization')}
+              />
+              {activeTooltip === 'avgUtilization' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Average Utilization</div>
+                  <div className="text-gray-300 text-xs">
+                    Average percentage of available work hours that users have logged. 
+                    Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
+                    Available hours = 8 hours × working days in period.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -357,16 +382,21 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalOvertime}h</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Total Overtime</div>
-                <div className="text-gray-300 text-xs">
-                  Total hours logged beyond the standard 8-hour workday across all users. 
-                  Calculated as: Sum of (Logged Hours - 8 hours) for each day where logged hours &gt; 8.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'totalOvertime' ? null : 'totalOvertime')}
+              />
+              {activeTooltip === 'totalOvertime' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Total Overtime</div>
+                  <div className="text-gray-300 text-xs">
+                    Total hours logged beyond the standard 8-hour workday across all users. 
+                    Calculated as: Sum of (Logged Hours - 8 hours) for each day where logged hours &gt; 8.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -382,17 +412,22 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalIdleHours}h</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Idle Hours</div>
-                <div className="text-gray-300 text-xs">
-                  Total unlogged hours during working days across all users. 
-                  Calculated as: Sum of (8 hours - Logged Hours) for each day where logged hours &lt; 8.
-                  Represents potential capacity that wasn't utilized.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'idleHours' ? null : 'idleHours')}
+              />
+              {activeTooltip === 'idleHours' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Idle Hours</div>
+                  <div className="text-gray-300 text-xs">
+                    Total unlogged hours during working days across all users. 
+                    Calculated as: Sum of (8 hours - Logged Hours) for each day where logged hours &lt; 8.
+                    Represents potential capacity that wasn't utilized.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>

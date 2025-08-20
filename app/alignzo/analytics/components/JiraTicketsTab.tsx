@@ -144,6 +144,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<JiraIssue[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   useEffect(() => {
     checkJiraIntegration();
@@ -154,6 +155,20 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       loadJiraData(jiraCredentials);
     }
   }, [filters, jiraCredentials]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.tooltip-container')) {
+        setActiveTooltip(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const checkJiraIntegration = async () => {
     try {
@@ -231,17 +246,32 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         }
       }
 
-      // Add user filter if users are selected
+      // Add user filter based on availability and selection
+      let usersToFetch: string[] = [];
+      
       if (filters?.selectedUsers && filters.selectedUsers.length > 0) {
-        const jiraUserNames = await getJiraUserNamesForDashboardUsers(filters.selectedUsers);
+        // If users are selected, fetch only for selected users
+        usersToFetch = filters.selectedUsers;
+      } else {
+        // If no users selected, fetch for all available users in the dropdown who have JIRA mappings
+        usersToFetch = await getAvailableUsersWithJiraMappings();
+      }
+      
+      if (usersToFetch.length > 0) {
+        const jiraUserNames = await getJiraUserNamesForDashboardUsers(usersToFetch);
         if (jiraUserNames.length > 0) {
           jql += ` AND assignee in ("${jiraUserNames.join('", "')}")`;
         } else {
-          // If no selected users are mapped, show no data
+          // If no users are mapped to JIRA, show no data
           setJiraIssues([]);
           setTicketMetrics(null);
           return;
         }
+      } else {
+        // If no users available, show no data
+        setJiraIssues([]);
+        setTicketMetrics(null);
+        return;
       }
 
       // Add date range filter if provided
@@ -339,6 +369,45 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       }
     } catch (error) {
       console.error('Failed to get JIRA project keys:', error);
+    }
+    return [];
+  };
+
+  const getAvailableUsersWithJiraMappings = async (): Promise<string[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      // Get all available users from the web app
+      const { data: availableUsers, error: usersError } = await supabase
+        .from('users')
+        .select('email');
+
+      if (usersError) {
+        console.error('Error fetching available users:', usersError);
+        return [];
+      }
+
+      const availableUserEmails = availableUsers?.map(user => user.email) || [];
+      console.log('Available users in web app:', availableUserEmails);
+
+      // Get JIRA user mappings
+      const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const userMappings = data.mappings || [];
+        
+        console.log('JIRA user mappings:', userMappings);
+        
+        // Get intersection of available users and users with JIRA mappings
+        const mappedUserEmails = userMappings.map((mapping: any) => mapping.user_email).filter(Boolean);
+        const usersWithMappings = availableUserEmails.filter(email => mappedUserEmails.includes(email));
+        
+        console.log('Users with JIRA mappings from available users:', usersWithMappings);
+        return usersWithMappings;
+      }
+    } catch (error) {
+      console.error('Error fetching available users with JIRA mappings:', error);
     }
     return [];
   };
@@ -707,16 +776,21 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                 <p className="text-2xl font-bold text-gray-900">{ticketMetrics.totalTickets}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Total Tickets</div>
-                <div className="text-gray-300 text-xs">
-                  Total number of JIRA tickets found in the selected projects and date range. 
-                  Includes all ticket statuses (open, closed, in progress).
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'totalTickets' ? null : 'totalTickets')}
+              />
+              {activeTooltip === 'totalTickets' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Total Tickets</div>
+                  <div className="text-gray-300 text-xs">
+                    Total number of JIRA tickets found in the selected projects and date range. 
+                    Includes all ticket statuses (open, closed, in progress).
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -732,17 +806,22 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                 <p className="text-2xl font-bold text-gray-900">{ticketMetrics.backlogSize}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Backlog Size</div>
-                <div className="text-gray-300 text-xs">
-                  Number of tickets that are open or in progress (not closed/resolved). 
-                  Calculated as: Open Tickets + In Progress Tickets.
-                  Represents current workload and pending work.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'backlogSize' ? null : 'backlogSize')}
+              />
+              {activeTooltip === 'backlogSize' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Backlog Size</div>
+                  <div className="text-gray-300 text-xs">
+                    Number of tickets that are open or in progress (not closed/resolved). 
+                    Calculated as: Open Tickets + In Progress Tickets.
+                    Represents current workload and pending work.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -758,17 +837,22 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                 <p className="text-2xl font-bold text-gray-900">{ticketMetrics.slaComplianceRate}%</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">SLA Compliance</div>
-                <div className="text-gray-300 text-xs">
-                  Percentage of resolved tickets that met the SLA target (7 days). 
-                  Calculated as: (SLA Compliant Tickets ÷ Total Resolved Tickets) × 100.
-                  Higher percentage indicates better service quality.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'slaCompliance' ? null : 'slaCompliance')}
+              />
+              {activeTooltip === 'slaCompliance' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">SLA Compliance</div>
+                  <div className="text-gray-300 text-xs">
+                    Percentage of resolved tickets that met the SLA target (7 days). 
+                    Calculated as: (SLA Compliant Tickets ÷ Total Resolved Tickets) × 100.
+                    Higher percentage indicates better service quality.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -784,17 +868,22 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                 <p className="text-2xl font-bold text-gray-900">{ticketMetrics.averageResolutionTime}d</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Average Resolution Time</div>
-                <div className="text-gray-300 text-xs">
-                  Average number of days to resolve tickets from creation to closure. 
-                  Calculated as: Sum of (Resolution Date - Creation Date) ÷ Number of Resolved Tickets.
-                  Lower values indicate faster ticket resolution.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'avgResolution' ? null : 'avgResolution')}
+              />
+              {activeTooltip === 'avgResolution' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Average Resolution Time</div>
+                  <div className="text-gray-300 text-xs">
+                    Average number of days to resolve tickets from creation to closure. 
+                    Calculated as: Sum of (Resolution Date - Creation Date) ÷ Number of Resolved Tickets.
+                    Lower values indicate faster ticket resolution.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>

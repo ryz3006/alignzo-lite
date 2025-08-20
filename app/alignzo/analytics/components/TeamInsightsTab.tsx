@@ -120,10 +120,25 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
   const [teamInsights, setTeamInsights] = useState<TeamInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   useEffect(() => {
     loadTeamInsightsData();
   }, [filters]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.tooltip-container')) {
+        setActiveTooltip(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const loadTeamInsightsData = async () => {
     try {
@@ -240,15 +255,30 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
         }
       }
 
-      // Add user filter if users are selected
+      // Add user filter based on availability and selection
+      let usersToFetch: string[] = [];
+      
       if (filters?.selectedUsers && filters.selectedUsers.length > 0) {
-        const jiraUserNames = await getJiraUserNamesForDashboardUsers(filters.selectedUsers);
+        // If users are selected, fetch only for selected users
+        usersToFetch = filters.selectedUsers;
+      } else {
+        // If no users selected, fetch for all available users in the dropdown who have JIRA mappings
+        usersToFetch = await getAvailableUsersWithJiraMappings();
+      }
+      
+      if (usersToFetch.length > 0) {
+        const jiraUserNames = await getJiraUserNamesForDashboardUsers(usersToFetch);
         if (jiraUserNames.length > 0) {
           jql += ` AND assignee in ("${jiraUserNames.join('", "')}")`;
         } else {
+          // If no users are mapped to JIRA, show no data
           setJiraIssues([]);
           return;
         }
+      } else {
+        // If no users available, show no data
+        setJiraIssues([]);
+        return;
       }
 
       // Add date range filter if provided
@@ -306,6 +336,45 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
       }
     } catch (error) {
       console.error('Failed to get JIRA project keys:', error);
+    }
+    return [];
+  };
+
+  const getAvailableUsersWithJiraMappings = async (): Promise<string[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      // Get all available users from the web app
+      const { data: availableUsers, error: usersError } = await supabase
+        .from('users')
+        .select('email');
+
+      if (usersError) {
+        console.error('Error fetching available users:', usersError);
+        return [];
+      }
+
+      const availableUserEmails = availableUsers?.map(user => user.email) || [];
+      console.log('Available users in web app:', availableUserEmails);
+
+      // Get JIRA user mappings
+      const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const userMappings = data.mappings || [];
+        
+        console.log('JIRA user mappings:', userMappings);
+        
+        // Get intersection of available users and users with JIRA mappings
+        const mappedUserEmails = userMappings.map((mapping: any) => mapping.user_email).filter(Boolean);
+        const usersWithMappings = availableUserEmails.filter(email => mappedUserEmails.includes(email));
+        
+        console.log('Users with JIRA mappings from available users:', usersWithMappings);
+        return usersWithMappings;
+      }
+    } catch (error) {
+      console.error('Error fetching available users with JIRA mappings:', error);
     }
     return [];
   };
@@ -592,16 +661,21 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
                 <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.totalMembers}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Total Members</div>
-                <div className="text-gray-300 text-xs">
-                  Total number of team members who have logged work hours during the selected period. 
-                  Includes all users with activity in the system.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'totalMembers' ? null : 'totalMembers')}
+              />
+              {activeTooltip === 'totalMembers' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Total Members</div>
+                  <div className="text-gray-300 text-xs">
+                    Total number of team members who have logged work hours during the selected period. 
+                    Includes all users with activity in the system.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -617,16 +691,21 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
                 <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.activeMembers}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Active Members</div>
-                <div className="text-gray-300 text-xs">
-                  Number of team members with optimal utilization (70-90% of available hours). 
-                  These members are working efficiently without being overloaded.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'activeMembers' ? null : 'activeMembers')}
+              />
+              {activeTooltip === 'activeMembers' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Active Members</div>
+                  <div className="text-gray-300 text-xs">
+                    Number of team members with optimal utilization (70-90% of available hours). 
+                    These members are working efficiently without being overloaded.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -642,16 +721,21 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
                 <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.overloadedMembers}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Overloaded Members</div>
-                <div className="text-gray-300 text-xs">
-                  Number of team members with utilization above 90% of available hours. 
-                  These members may be at risk of burnout and need workload redistribution.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'overloadedMembers' ? null : 'overloadedMembers')}
+              />
+              {activeTooltip === 'overloadedMembers' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Overloaded Members</div>
+                  <div className="text-gray-300 text-xs">
+                    Number of team members with utilization above 90% of available hours. 
+                    These members may be at risk of burnout and need workload redistribution.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -667,16 +751,21 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
                 <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.underutilizedMembers}</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Underutilized Members</div>
-                <div className="text-gray-300 text-xs">
-                  Number of team members with utilization below 70% of available hours. 
-                  These members have capacity for additional work or may need skill development.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'underutilizedMembers' ? null : 'underutilizedMembers')}
+              />
+              {activeTooltip === 'underutilizedMembers' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Underutilized Members</div>
+                  <div className="text-gray-300 text-xs">
+                    Number of team members with utilization below 70% of available hours. 
+                    These members have capacity for additional work or may need skill development.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -692,17 +781,22 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
                 <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.averageUtilization}%</p>
               </div>
             </div>
-            <div className="relative group">
-              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
-              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                <div className="font-medium mb-1">Average Utilization</div>
-                <div className="text-gray-300 text-xs">
-                  Average percentage of available work hours that team members have logged. 
-                  Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
-                  Optimal range is 70-90%.
+            <div className="relative tooltip-container">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'avgUtilization' ? null : 'avgUtilization')}
+              />
+              {activeTooltip === 'avgUtilization' && (
+                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Average Utilization</div>
+                  <div className="text-gray-300 text-xs">
+                    Average percentage of available work hours that team members have logged. 
+                    Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
+                    Optimal range is 70-90%.
+                  </div>
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                 </div>
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
+              )}
             </div>
           </div>
         </div>
