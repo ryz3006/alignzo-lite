@@ -162,8 +162,21 @@ export default function UserDashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome back! Here's your work summary.</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600">Welcome back! Here's your work summary.</p>
+          </div>
+          <div className="flex space-x-3">
+            <a
+              href="/alignzo/enhanced-timer-demo"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Clock className="w-4 h-4 mr-2" />
+              Enhanced Timer Demo
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* KPI Cards */}
