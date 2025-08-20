@@ -598,6 +598,7 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
   const [showReporterDropdown, setShowReporterDropdown] = useState(false);
   const [assigneeSearchTerm, setAssigneeSearchTerm] = useState('');
   const [reporterSearchTerm, setReporterSearchTerm] = useState('');
+  const [jiraUsersError, setJiraUsersError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Handle clicks outside the form to close dropdowns
@@ -622,10 +623,19 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
         setLoadingJiraUsers(true);
         const currentUser = await getCurrentUser();
         if (currentUser?.email) {
+          console.log('Fetching JIRA users for:', currentUser.email);
           const response = await fetch(`/api/integrations/jira/users?userEmail=${encodeURIComponent(currentUser.email)}`);
+          console.log('JIRA users API response status:', response.status);
+          
           if (response.ok) {
             const data = await response.json();
+            console.log('JIRA users data:', data);
             setJiraUsers(data.users || []);
+            setJiraUsersError(data.error || null);
+          } else {
+            const errorData = await response.json();
+            console.error('JIRA users API error:', errorData);
+            setJiraUsersError(errorData.error || 'Failed to fetch JIRA users');
           }
         }
       } catch (error) {
@@ -712,34 +722,41 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
               ▼
             </button>
           </div>
-          {showAssigneeDropdown && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-              {loadingJiraUsers ? (
-                <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
-              ) : jiraUsers.length > 0 ? (
-                jiraUsers
-                  .filter(user => 
-                    user.name.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
-                    user.username.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
-                    user.email.toLowerCase().includes(assigneeSearchTerm.toLowerCase())
-                  )
-                  .slice(0, 10) // Limit to 10 results for better performance
-                  .map((user) => (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleAssigneeSelect(user)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
-                    </button>
-                  ))
-              ) : (
-                <div className="p-3 text-center text-gray-500">No JIRA users found</div>
-              )}
-            </div>
-          )}
+                     {showAssigneeDropdown && (
+             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+               {loadingJiraUsers ? (
+                 <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
+               ) : jiraUsersError ? (
+                 <div className="p-3 text-center">
+                   <div className="text-orange-600 text-sm mb-2">{jiraUsersError}</div>
+                   <div className="text-gray-500 text-xs">Showing sample data for testing</div>
+                 </div>
+               ) : jiraUsers.length > 0 ? (
+                 <>
+                   {jiraUsers
+                     .filter(user => 
+                       user.name.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
+                       user.username.toLowerCase().includes(assigneeSearchTerm.toLowerCase()) ||
+                       user.email.toLowerCase().includes(assigneeSearchTerm.toLowerCase())
+                     )
+                     .slice(0, 10) // Limit to 10 results for better performance
+                     .map((user) => (
+                       <button
+                         key={user.id}
+                         type="button"
+                         onClick={() => handleAssigneeSelect(user)}
+                         className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
+                       >
+                         <div className="font-medium">{user.name}</div>
+                         <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
+                       </button>
+                     ))}
+                 </>
+               ) : (
+                 <div className="p-3 text-center text-gray-500">No JIRA users found</div>
+               )}
+             </div>
+           )}
         </div>
         <p className="text-xs text-gray-500 mt-1">
           Search and select from your JIRA users
@@ -772,34 +789,41 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
               ▼
             </button>
           </div>
-          {showReporterDropdown && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-              {loadingJiraUsers ? (
-                <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
-              ) : jiraUsers.length > 0 ? (
-                jiraUsers
-                  .filter(user => 
-                    user.name.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
-                    user.username.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
-                    user.email.toLowerCase().includes(reporterSearchTerm.toLowerCase())
-                  )
-                  .slice(0, 10) // Limit to 10 results for better performance
-                  .map((user) => (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleReporterSelect(user)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
-                    </button>
-                  ))
-              ) : (
-                <div className="p-3 text-center text-gray-500">No JIRA users found</div>
-              )}
-            </div>
-          )}
+                     {showReporterDropdown && (
+             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+               {loadingJiraUsers ? (
+                 <div className="p-3 text-center text-gray-500">Loading JIRA users...</div>
+               ) : jiraUsersError ? (
+                 <div className="p-3 text-center">
+                   <div className="text-orange-600 text-sm mb-2">{jiraUsersError}</div>
+                   <div className="text-gray-500 text-xs">Showing sample data for testing</div>
+                 </div>
+               ) : jiraUsers.length > 0 ? (
+                 <>
+                   {jiraUsers
+                     .filter(user => 
+                       user.name.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
+                       user.username.toLowerCase().includes(reporterSearchTerm.toLowerCase()) ||
+                       user.email.toLowerCase().includes(reporterSearchTerm.toLowerCase())
+                     )
+                     .slice(0, 10) // Limit to 10 results for better performance
+                     .map((user) => (
+                       <button
+                         key={user.id}
+                         type="button"
+                         onClick={() => handleReporterSelect(user)}
+                         className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
+                       >
+                         <div className="font-medium">{user.name}</div>
+                         <div className="text-sm text-gray-500">@{user.username} • {user.email}</div>
+                       </button>
+                     ))}
+                 </>
+               ) : (
+                 <div className="p-3 text-center text-gray-500">No JIRA users found</div>
+               )}
+             </div>
+           )}
         </div>
         <p className="text-xs text-gray-500 mt-1">
           Optional: Search and select JIRA reporter if different from assignee
