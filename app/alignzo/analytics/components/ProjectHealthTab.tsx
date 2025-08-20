@@ -157,7 +157,7 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
 
     return filteredProjects.map(project => {
       const projectLogs = workLogs.filter(log => log.project?.id === project.id);
-      const totalHours = projectLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const fte = totalHours / (standardWorkHoursPerDay * workingDaysInPeriod);
       const effortShare = totalTeamHours > 0 ? (totalHours / totalTeamHours) * 100 : 0;
       const uniqueUsers = new Set(projectLogs.map(log => log.user_email));
@@ -183,9 +183,9 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
 
   const calculateSummaryMetrics = (metrics: ProjectHealthMetrics[]) => {
     const totalProjects = metrics.length;
-    const totalFTE = metrics.reduce((sum, m) => sum + m.fte, 0);
-    const averageEffortShare = metrics.reduce((sum, m) => sum + m.effortShare, 0) / totalProjects;
-    const totalHours = metrics.reduce((sum, m) => sum + m.totalHours, 0);
+    const totalFTE = metrics.reduce((sum: number, m: ProjectHealthMetrics) => sum + m.fte, 0);
+    const averageEffortShare = metrics.reduce((sum: number, m: ProjectHealthMetrics) => sum + m.effortShare, 0) / totalProjects;
+    const totalHours = metrics.reduce((sum: number, m: ProjectHealthMetrics) => sum + m.totalHours, 0);
     const capacityUtilization = totalFTE / totalProjects; // Average FTE per project
 
     // Count projects at/under capacity
@@ -225,7 +225,7 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
       const dateStr = date.toISOString().split('T')[0];
       
       const dayLogs = dailyData[dateStr] || [];
-      const hours = dayLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const utilization = hours / 8 * 100; // Assuming 8-hour workday
       
       result.push({
@@ -250,11 +250,11 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
       const dateStr = date.toISOString().split('T')[0];
       
       const dayLogs = dailyData[dateStr] || [];
-      const hours = dayLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       recentHours.push(hours);
     }
     
-    const avgDailyHours = recentHours.reduce((sum, hours) => sum + hours, 0) / recentHours.length;
+    const avgDailyHours = recentHours.reduce((sum: number, hours: number) => sum + hours, 0) / recentHours.length;
     const forecastDays = 30; // Forecast next 30 days
     const result = [];
     

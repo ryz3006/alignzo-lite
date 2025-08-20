@@ -151,7 +151,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
 
     return filteredUsers.map(user => {
       const userLogs = workLogs.filter(log => log.user_email === user.email);
-      const totalLoggedHours = userLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const totalLoggedHours = userLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const utilizationRate = totalAvailableHours > 0 ? (totalLoggedHours / totalAvailableHours) * 100 : 0;
       const overtimeHours = Math.max(0, totalLoggedHours - totalAvailableHours);
       const idleHours = Math.max(0, totalAvailableHours - totalLoggedHours);
@@ -160,7 +160,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       const projectDistribution: Record<string, number> = {};
       const projectGroups = groupBy(userLogs, 'project.name');
       Object.entries(projectGroups).forEach(([projectName, logs]) => {
-        projectDistribution[projectName] = (logs as any[]).reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+        projectDistribution[projectName] = (logs as any[]).reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       });
 
       // Calculate work type distribution
@@ -194,9 +194,9 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
 
   const calculateSummaryMetrics = (metrics: WorkloadMetrics[]) => {
     const totalUsers = metrics.length;
-    const averageUtilization = metrics.reduce((sum, m) => sum + m.utilizationRate, 0) / totalUsers;
-    const totalOvertime = metrics.reduce((sum, m) => sum + m.overtimeHours, 0);
-    const totalIdleHours = metrics.reduce((sum, m) => sum + m.idleHours, 0);
+    const averageUtilization = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.utilizationRate, 0) / totalUsers;
+    const totalOvertime = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.overtimeHours, 0);
+    const totalIdleHours = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.idleHours, 0);
 
     // Top contributors (highest utilization)
     const topContributors = metrics
@@ -251,7 +251,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       const dateStr = date.toISOString().split('T')[0];
       
       const dayLogs = dailyData[dateStr] || [];
-      const hours = dayLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const utilization = hours / 8 * 100; // Assuming 8-hour workday
       
       result.push({
