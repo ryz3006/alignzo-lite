@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { getJiraCredentials, searchJiraIssues, JiraIssue } from '@/lib/jira';
+import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
 import { supabase } from '@/lib/supabase';
 import { 
   BarChart, 
@@ -228,7 +228,7 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
 
       jql += ' ORDER BY updated DESC';
 
-      const result = await searchJiraIssues(credentials, jql, 1000);
+      const result = await searchAllJiraIssues(credentials, jql);
       
       if (!result.success) {
         setError(result.message);

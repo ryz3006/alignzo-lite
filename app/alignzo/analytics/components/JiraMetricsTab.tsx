@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { getJiraCredentials, searchJiraIssues, JiraIssue } from '@/lib/jira';
+import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
 import { 
   BarChart, 
   Bar, 
@@ -163,7 +163,7 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
       jql += ' ORDER BY updated DESC';
       console.log('Final JQL query:', jql);
 
-      const result = await searchJiraIssues(credentials, jql, 1000);
+      const result = await searchAllJiraIssues(credentials, jql);
       
       if (!result.success) {
         setError(result.message);

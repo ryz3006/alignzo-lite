@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { getJiraCredentials, searchJiraIssues, JiraIssue } from '@/lib/jira';
+import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
 import { supabase } from '@/lib/supabase';
 import { 
   BarChart, 
@@ -160,14 +160,47 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
     try {
       setRefreshing(true);
       setError(null);
+      console.log('Loading JIRA data with complete pagination...');
+
+      // First, get all available JIRA project mappings for the user
+      const allProjectMappings = await getAllJiraProjectMappings();
+      
+      if (allProjectMappings.length === 0) {
+        setError('No JIRA project mappings found. Please configure project mappings first.');
+        setJiraIssues([]);
+        setTicketMetrics(null);
+        return;
+      }
 
       let jql = 'project IS NOT EMPTY';
 
-      // Add project filter if projects are selected
+      // Filter by mapped projects only
+      const availableProjectKeys = allProjectMappings.map(mapping => mapping.jira_project_key);
+      jql = `project in ("${availableProjectKeys.join('", "')}")`;
+
+      // Further filter by selected projects if specified
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
-        const projectKeys = await getJiraProjectKeysForDashboardProjects(filters.selectedProjects);
-        if (projectKeys.length > 0) {
-          jql = `project in ("${projectKeys.join('", "')}")`;
+        const selectedProjectKeys = await getJiraProjectKeysForDashboardProjects(filters.selectedProjects);
+        if (selectedProjectKeys.length > 0) {
+          jql = `project in ("${selectedProjectKeys.join('", "')}")`;
+        } else {
+          // If no selected projects are mapped, show no data
+          setJiraIssues([]);
+          setTicketMetrics(null);
+          return;
+        }
+      }
+
+      // Add user filter if users are selected
+      if (filters?.selectedUsers && filters.selectedUsers.length > 0) {
+        const jiraUserNames = await getJiraUserNamesForDashboardUsers(filters.selectedUsers);
+        if (jiraUserNames.length > 0) {
+          jql += ` AND assignee in ("${jiraUserNames.join('", "')}")`;
+        } else {
+          // If no selected users are mapped, show no data
+          setJiraIssues([]);
+          setTicketMetrics(null);
+          return;
         }
       }
 
@@ -180,21 +213,39 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       jql += ' ORDER BY updated DESC';
 
-      const result = await searchJiraIssues(credentials, jql, 1000);
+      const result = await searchAllJiraIssues(credentials, jql);
       
       if (!result.success) {
         setError(result.message);
         return;
       }
 
-      setJiraIssues(result.issues || []);
-      calculateTicketMetrics(result.issues || []);
+      const issues = result.issues || [];
+      console.log(`Processing ${issues.length} JIRA issues for analytics...`);
+      setJiraIssues(issues);
+      calculateTicketMetrics(issues);
     } catch (error) {
       console.error('Error loading JIRA data:', error);
       setError('Failed to load JIRA data');
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const getAllJiraProjectMappings = async (): Promise<JiraProjectMapping[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      const response = await fetch(`/api/integrations/jira/project-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data.mappings || [];
+      }
+    } catch (error) {
+      console.error('Failed to get all JIRA project mappings:', error);
+    }
+    return [];
   };
 
   const getJiraProjectKeysForDashboardProjects = async (dashboardProjectNames: string[]): Promise<string[]> => {
@@ -217,6 +268,30 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       }
     } catch (error) {
       console.error('Failed to get JIRA project keys:', error);
+    }
+    return [];
+  };
+
+  const getJiraUserNamesForDashboardUsers = async (dashboardUserEmails: string[]): Promise<string[]> => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return [];
+
+      const response = await fetch(`/api/integrations/jira/user-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const userMappings = data.mappings || [];
+        
+        const jiraUserNames = userMappings
+          .filter((mapping: any) => {
+            return dashboardUserEmails.includes(mapping.user?.email || '');
+          })
+          .map((mapping: any) => mapping.jira_username || mapping.jira_display_name);
+        
+        return jiraUserNames.filter(Boolean); // Remove any undefined/null values
+      }
+    } catch (error) {
+      console.error('Failed to get JIRA user names:', error);
     }
     return [];
   };

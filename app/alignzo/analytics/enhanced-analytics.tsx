@@ -252,7 +252,7 @@ export default function EnhancedAnalytics() {
             Apply Filters
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
             <input
@@ -358,6 +358,50 @@ export default function EnhancedAnalytics() {
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-gray-700">{project}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="relative filter-dropdown">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Users</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setFilters(prev => ({ ...prev, showUserDropdown: !prev.showUserDropdown }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+              >
+                <span className="text-sm text-gray-700">
+                  {filters.selectedUsers.length === 0 
+                    ? 'All Users' 
+                    : filters.selectedUsers.length === 1 
+                      ? filters.selectedUsers[0] 
+                      : `${filters.selectedUsers.length} users selected`}
+                </span>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {filters.showUserDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    {availableUsers.map(user => (
+                      <label key={user} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                        <input
+                          type="checkbox"
+                          checked={filters.selectedUsers.includes(user)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFilters(prev => ({ ...prev, selectedUsers: [...prev.selectedUsers, user] }));
+                            } else {
+                              setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== user) }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{user}</span>
                       </label>
                     ))}
                   </div>

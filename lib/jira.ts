@@ -189,6 +189,75 @@ export async function searchJiraIssues(
 }
 
 /**
+ * Search JIRA issues with pagination to get ALL results
+ */
+export async function searchAllJiraIssues(
+  credentials: JiraCredentials, 
+  jql: string
+): Promise<{ success: boolean; issues?: JiraIssue[]; message: string }> {
+  try {
+    const allIssues: JiraIssue[] = [];
+    const maxResultsPerPage = 100; // JIRA's recommended page size
+    let startAt = 0;
+    let total = 0;
+    
+    console.log(`Starting paginated JIRA search with JQL: ${jql}`);
+    
+    do {
+      const response = await fetch('/api/jira/proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail: credentials.user_email_integration,
+          endpoint: 'search',
+          method: 'POST',
+          requestBody: {
+            jql,
+            maxResults: maxResultsPerPage,
+            startAt,
+            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'created', 'updated']
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return {
+          success: false,
+          message: errorData.error || 'Failed to search JIRA issues'
+        };
+      }
+
+      const data = await response.json();
+      total = data.total || 0;
+      const issues = data.issues || [];
+      
+      allIssues.push(...issues);
+      startAt += maxResultsPerPage;
+      
+      console.log(`Fetched ${issues.length} issues (${allIssues.length}/${total} total)`);
+      
+    } while (startAt < total);
+
+    console.log(`Completed JIRA search: Retrieved ${allIssues.length} total issues`);
+    
+    return {
+      success: true,
+      issues: allIssues,
+      message: `Found ${allIssues.length} issues`
+    };
+  } catch (error) {
+    console.error('Error searching JIRA issues:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
  * Get a specific JIRA issue by key
  */
 export async function getJiraIssue(
