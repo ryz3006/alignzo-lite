@@ -52,6 +52,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
   const [jiraProjectMappings, setJiraProjectMappings] = useState<JiraProjectMapping[]>([]);
   const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
   const [ticketSource, setTicketSource] = useState<'custom' | 'jira'>('custom');
+  const [jiraTicketType, setJiraTicketType] = useState<'new' | 'existing'>('new');
   const [selectedJiraProject, setSelectedJiraProject] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<JiraTicket[]>([]);
@@ -62,6 +63,8 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     ticket_id: '',
     task_detail: '',
     time_spent: '',
+    ticket_summary: '',
+    ticket_description: '',
     dynamic_category_selections: {} as Record<string, string>,
   });
   const [loading, setLoading] = useState(false);
@@ -76,6 +79,8 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
           ticket_id: timerData.ticket_id,
           task_detail: timerData.task_detail,
           time_spent: '',
+          ticket_summary: '',
+          ticket_description: '',
           dynamic_category_selections: timerData.dynamic_category_selections || {},
         });
       }
@@ -97,8 +102,27 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       setSelectedJiraProject('');
       setSearchResults([]);
       setShowSearchResults(false);
+      setJiraTicketType('new');
     }
   }, [ticketSource]);
+
+  useEffect(() => {
+    if (jiraTicketType === 'existing') {
+      setFormData(prev => ({ 
+        ...prev, 
+        ticket_summary: '',
+        ticket_description: ''
+      }));
+    } else {
+      setFormData(prev => ({ 
+        ...prev, 
+        ticket_id: '',
+        searchTerm: ''
+      }));
+      setSearchResults([]);
+      setShowSearchResults(false);
+    }
+  }, [jiraTicketType]);
 
   const checkJiraIntegration = async () => {
     try {
@@ -243,8 +267,8 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
   };
 
   const createJiraTicket = async () => {
-    if (!selectedJiraProject || !formData.task_detail.trim()) {
-      toast.error('Please select a JIRA project and enter task details');
+    if (!selectedJiraProject || !formData.ticket_summary.trim()) {
+      toast.error('Please select a JIRA project and enter ticket summary');
       return;
     }
 
@@ -252,6 +276,19 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     try {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
+
+      // Prepare description with category information
+      let description = formData.ticket_description || '';
+      
+      // Add category information to description if any categories are selected
+      const selectedCategories = Object.entries(formData.dynamic_category_selections)
+        .filter(([_, value]) => value && value.trim() !== '')
+        .map(([category, value]) => `${category}: ${value}`);
+
+      if (selectedCategories.length > 0) {
+        const categoryInfo = `\n\n---\n**Categories:**\n${selectedCategories.map(cat => `- ${cat}`).join('\n')}`;
+        description += categoryInfo;
+      }
 
       const response = await fetch('/api/jira/create-ticket', {
         method: 'POST',
@@ -261,8 +298,8 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
         body: JSON.stringify({
           userEmail: currentUser.email,
           projectKey: selectedJiraProject,
-          summary: formData.task_detail,
-          description: formData.task_detail,
+          summary: formData.ticket_summary,
+          description: description,
           issueType: 'Task',
           priority: 'Medium'
         }),
@@ -291,17 +328,22 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     setShowSearchResults(false);
   };
 
-  const handleAddNewTicket = () => {
-    setFormData(prev => ({ ...prev, ticket_id: 'New Ticket' }));
-    setSearchTerm('New Ticket');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedProject) {
       toast.error('Please select a project');
       return;
+    }
+
+    if (ticketSource === 'jira' && jiraTicketType === 'new') {
+      if (!formData.ticket_summary.trim()) {
+        toast.error('Please enter ticket summary');
+        return;
+      }
+      // Create the ticket first
+      await createJiraTicket();
+      return; // The form will be submitted after ticket creation
     }
 
     if (!formData.ticket_id.trim()) {
@@ -317,12 +359,6 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     if (!formData.time_spent.trim()) {
       toast.error('Please enter time spent');
       return;
-    }
-
-    // If it's a new ticket and JIRA is selected, create the ticket first
-    if (ticketSource === 'jira' && formData.ticket_id === 'New Ticket') {
-      await createJiraTicket();
-      return; // The form will be submitted after ticket creation
     }
 
     setLoading(true);
@@ -365,10 +401,13 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
         ticket_id: '',
         task_detail: '',
         time_spent: '',
+        ticket_summary: '',
+        ticket_description: '',
         dynamic_category_selections: {},
       });
       setSelectedProject('');
       setTicketSource('custom');
+      setJiraTicketType('new');
       setSelectedJiraProject('');
       setSearchResults([]);
       setShowSearchResults(false);
@@ -469,6 +508,23 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             </div>
           )}
 
+          {/* JIRA Ticket Type Selection */}
+          {ticketSource === 'jira' && hasJiraIntegration && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                JIRA Ticket Type
+              </label>
+              <select
+                value={jiraTicketType}
+                onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="new">New Ticket</option>
+                <option value="existing">Existing Ticket</option>
+              </select>
+            </div>
+          )}
+
           {/* JIRA Project Selection */}
           {ticketSource === 'jira' && hasJiraIntegration && (
             <div>
@@ -491,80 +547,104 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             </div>
           )}
 
-          {/* Ticket ID with JIRA Integration */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ticket ID *
-            </label>
-            <div className="flex space-x-2">
-              {ticketSource === 'jira' && hasJiraIntegration && (
-                <button
-                  type="button"
-                  onClick={handleAddNewTicket}
-                  className="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add New
-                </button>
-              )}
-              <div className="flex-1 relative">
+          {/* New Ticket Fields */}
+          {ticketSource === 'jira' && jiraTicketType === 'new' && hasJiraIntegration && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ticket Summary *
+                </label>
                 <input
                   type="text"
                   required
-                  value={formData.ticket_id}
-                  onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
-                  placeholder={ticketSource === 'jira' ? "e.g., PROJ-123" : "e.g., TASK-123"}
+                  value={formData.ticket_summary}
+                  onChange={(e) => setFormData({ ...formData, ticket_summary: e.target.value })}
+                  placeholder="Enter ticket summary..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
-                {ticketSource === 'jira' && hasJiraIntegration && selectedJiraProject && (
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ticket Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.ticket_description}
+                  onChange={(e) => setFormData({ ...formData, ticket_description: e.target.value })}
+                  placeholder="Enter ticket description..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Existing Ticket Search */}
+          {ticketSource === 'jira' && jiraTicketType === 'existing' && hasJiraIntegration && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Existing Ticket
+              </label>
+              <div className="flex space-x-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search tickets..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    onKeyPress={(e) => e.key === 'Enter' && searchJiraTickets()}
+                  />
                   <button
                     type="button"
                     onClick={searchJiraTickets}
-                    disabled={isSearching || !searchTerm.trim()}
+                    disabled={isSearching || !searchTerm.trim() || !selectedJiraProject}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
                   >
                     <Search className="h-4 w-4" />
                   </button>
-                )}
+                </div>
               </div>
-            </div>
-            
-            {/* Search Input for JIRA */}
-            {ticketSource === 'jira' && hasJiraIntegration && selectedJiraProject && (
-              <div className="mt-2">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search tickets..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  onKeyPress={(e) => e.key === 'Enter' && searchJiraTickets()}
-                />
-              </div>
-            )}
 
-            {/* Search Results */}
-            {showSearchResults && searchResults.length > 0 && (
-              <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md">
-                {searchResults.map((ticket) => (
-                  <div
-                    key={ticket.key}
-                    onClick={() => selectTicket(ticket)}
-                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-medium text-sm">{ticket.key}</div>
-                        <div className="text-xs text-gray-600 truncate">{ticket.fields.summary}</div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {ticket.fields.status.name}
+              {/* Search Results */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md">
+                  {searchResults.map((ticket) => (
+                    <div
+                      key={ticket.key}
+                      onClick={() => selectTicket(ticket)}
+                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium text-sm">{ticket.key}</div>
+                          <div className="text-xs text-gray-600 truncate">{ticket.fields.summary}</div>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {ticket.fields.status.name}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ticket ID Display/Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ticket ID *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.ticket_id}
+              onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
+              placeholder={ticketSource === 'jira' ? "Will be populated automatically" : "e.g., TASK-123"}
+              disabled={ticketSource === 'jira' && jiraTicketType === 'new'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+            />
           </div>
 
           {/* Task Detail */}

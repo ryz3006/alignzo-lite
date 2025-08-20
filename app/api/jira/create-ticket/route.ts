@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
           name: priority
         },
         assignee: {
-          name: credentials.user_email_integration
+          name: userEmail // Assign to the current user (self)
         }
       }
     };
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
     const authHeader = Buffer.from(authString).toString('base64');
 
-    console.log(`Creating JIRA ticket in project: ${projectKey}`);
+    console.log(`Creating JIRA ticket in project: ${projectKey} assigned to: ${userEmail}`);
 
     // Make the request directly to JIRA
     const response = await fetch(url, {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log(`JIRA ticket created successfully: ${data.key}`);
+    console.log(`JIRA ticket created successfully: ${data.key} assigned to: ${userEmail}`);
     
     return NextResponse.json({
       success: true,

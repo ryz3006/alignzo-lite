@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials, searchJiraIssues } from '@/lib/jira';
+import { getJiraCredentials } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,23 +27,94 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create JQL query with LIKE operator for ticket search
-    const jql = `project = "${projectKey}" AND (key LIKE "${searchTerm}%" OR summary ~ "${searchTerm}") ORDER BY updated DESC`;
+    // Create JQL query with simpler, more compatible syntax
+    // Using 'text ~' for text search which is more reliable
+    const jql = `project = "${projectKey}" AND text ~ "${searchTerm}" ORDER BY updated DESC`;
 
-    // Search for tickets
-    const result = await searchJiraIssues(credentials, jql, maxResults);
+    console.log(`Searching JIRA tickets with JQL: ${jql}`);
 
-    if (!result.success) {
+    // Create the full JIRA API URL
+    const baseUrl = credentials.base_url.endsWith('/') 
+      ? credentials.base_url.slice(0, -1) 
+      : credentials.base_url;
+    const url = `${baseUrl}/rest/api/2/search`;
+
+    // Create Basic Auth header
+    const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
+    const authHeader = Buffer.from(authString).toString('base64');
+
+    // Make the request directly to JIRA
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jql,
+        maxResults,
+        fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'created', 'updated']
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`JIRA search error ${response.status}:`, errorText);
+      
+      // Try a fallback query if the first one fails
+      if (response.status === 400) {
+        console.log('Trying fallback JQL query...');
+        const fallbackJql = `project = "${projectKey}" ORDER BY updated DESC`;
+        
+        const fallbackResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jql: fallbackJql,
+            maxResults,
+            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'created', 'updated']
+          }),
+        });
+
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          // Filter results client-side for the search term
+          const filteredIssues = fallbackData.issues?.filter((issue: any) => 
+            issue.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            issue.fields.summary.toLowerCase().includes(searchTerm.toLowerCase())
+          ) || [];
+
+          console.log(`Fallback search successful: Found ${filteredIssues.length} tickets after filtering`);
+
+          return NextResponse.json({
+            success: true,
+            tickets: filteredIssues,
+            message: `Found ${filteredIssues.length} tickets`
+          });
+        } else {
+          const fallbackErrorText = await fallbackResponse.text();
+          console.error(`Fallback JIRA search error ${fallbackResponse.status}:`, fallbackErrorText);
+        }
+      }
+      
       return NextResponse.json(
-        { error: result.message },
-        { status: 500 }
+        { error: `Failed to search JIRA tickets: ${response.status}`, details: errorText },
+        { status: response.status }
       );
     }
 
+    const data = await response.json();
+    console.log(`JIRA search successful: Found ${data.issues?.length || 0} tickets`);
+
     return NextResponse.json({
       success: true,
-      tickets: result.issues || [],
-      message: `Found ${result.issues?.length || 0} tickets`
+      tickets: data.issues || [],
+      message: `Found ${data.issues?.length || 0} tickets`
     });
 
   } catch (error) {
