@@ -29,6 +29,14 @@ export interface JiraIssue {
       key: string;
       name: string;
     };
+    priority?: {
+      name: string;
+    };
+    issuetype?: {
+      name: string;
+    };
+    customfield_10016?: number; // Story points field
+    [key: string]: any; // Allow additional custom fields
   };
 }
 

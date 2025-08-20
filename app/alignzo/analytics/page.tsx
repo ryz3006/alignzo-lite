@@ -21,7 +21,8 @@ import {
   Layers,
   Calendar,
   FileText,
-  Zap
+  Zap,
+  ExternalLink
 } from 'lucide-react';
 import { formatDuration } from '@/lib/utils';
 import { 
@@ -52,6 +53,7 @@ import ProjectMetricsTab from './components/ProjectMetricsTab';
 import IndividualMetricsTab from './components/IndividualMetricsTab';
 import WorkTypeMetricsTab from './components/WorkTypeMetricsTab';
 import TrendsTab from './components/TrendsTab';
+import JiraMetricsTab from './components/JiraMetricsTab';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
@@ -642,6 +644,9 @@ export default function AnalyticsPage() {
         ].map(row => row.join(',')).join('\n');
         filename = 'worktype-analytics.csv';
         break;
+      case 'jira':
+        // JIRA data export will be handled within the JiraMetricsTab component
+        return;
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -938,7 +943,8 @@ export default function AnalyticsPage() {
               { id: 'project', label: 'Project Metrics', icon: FolderOpen },
               { id: 'individual', label: 'Individual Metrics', icon: UserCheck },
               { id: 'worktypes', label: 'Work Type Analysis', icon: Layers },
-              { id: 'trends', label: 'Trend Analysis', icon: TrendingUp }
+              { id: 'trends', label: 'Trend Analysis', icon: TrendingUp },
+              { id: 'jira', label: 'JIRA Analytics', icon: ExternalLink }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -963,6 +969,7 @@ export default function AnalyticsPage() {
           {activeTab === 'individual' && <IndividualMetricsTab data={individualMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'worktypes' && <WorkTypeMetricsTab data={workTypeMetrics} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
           {activeTab === 'trends' && <TrendsTab data={trendData} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
+          {activeTab === 'jira' && <JiraMetricsTab chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />}
         </div>
       </div>
     </div>
