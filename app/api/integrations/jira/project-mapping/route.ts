@@ -31,8 +31,17 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error);
+      
+      // Check if it's a table not found error
+      if (error.message.includes('relation "jira_project_mappings" does not exist')) {
+        return NextResponse.json(
+          { error: 'Project mapping table not found. Please run the database setup script first.' },
+          { status: 500 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: 'Failed to fetch project mappings' },
+        { error: `Failed to fetch project mappings: ${error.message}` },
         { status: 500 }
       );
     }
@@ -127,8 +136,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error saving project mapping:', error);
+    
+    // Check if it's a table not found error
+    if (error instanceof Error && error.message.includes('relation "jira_project_mappings" does not exist')) {
+      return NextResponse.json(
+        { error: 'Project mapping table not found. Please run the database setup script first.' },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to save project mapping' },
+      { error: `Failed to save project mapping: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
