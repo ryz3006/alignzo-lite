@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     incident_type VARCHAR(255),
     summary TEXT,
     assignee VARCHAR(255),
+    mapped_user_email VARCHAR(255), -- Mapped user email from master mappings or project mappings
     reported_date1 TIMESTAMP WITH TIME ZONE,
     responded_date TIMESTAMP WITH TIME ZONE,
     last_resolved_date TIMESTAMP WITH TIME ZONE,
@@ -128,6 +129,18 @@ CREATE TABLE IF NOT EXISTS upload_sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Master mapping table for centralized user mappings (similar to JIRA integrations)
+CREATE TABLE IF NOT EXISTS ticket_master_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
+    source_assignee_value VARCHAR(500) NOT NULL, -- e.g., "john.doe@company.com"
+    mapped_user_email VARCHAR(255) NOT NULL, -- e.g., "john.doe@alignzo.com"
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(source_id, source_assignee_value)
+);
+
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
@@ -150,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_source_id ON uploaded_tickets(so
 CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_mapping_id ON uploaded_tickets(mapping_id);
 CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_incident_id ON uploaded_tickets(incident_id);
 CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_assignee ON uploaded_tickets(assignee);
+CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_mapped_user_email ON uploaded_tickets(mapped_user_email);
 CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_reported_date ON uploaded_tickets(reported_date1);
 CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_status ON uploaded_tickets(status);
 
@@ -157,6 +171,12 @@ CREATE INDEX IF NOT EXISTS idx_uploaded_tickets_status ON uploaded_tickets(statu
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_user_email ON upload_sessions(user_email);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_status ON upload_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_upload_sessions_created_at ON upload_sessions(created_at);
+
+-- Master mapping indexes
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_source_id ON ticket_master_mappings(source_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_assignee_value ON ticket_master_mappings(source_assignee_value);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_user_email ON ticket_master_mappings(mapped_user_email);
+CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_active ON ticket_master_mappings(is_active);
 
 -- =====================================================
 -- CONSTRAINTS
@@ -184,6 +204,7 @@ CREATE TRIGGER update_ticket_upload_mappings_updated_at BEFORE UPDATE ON ticket_
 CREATE TRIGGER update_ticket_upload_user_mappings_updated_at BEFORE UPDATE ON ticket_upload_user_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_uploaded_tickets_updated_at BEFORE UPDATE ON uploaded_tickets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_upload_sessions_updated_at BEFORE UPDATE ON upload_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ticket_master_mappings_updated_at BEFORE UPDATE ON ticket_master_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
@@ -195,6 +216,7 @@ ALTER TABLE ticket_upload_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ticket_upload_user_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uploaded_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE upload_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_master_mappings ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- RLS POLICIES
@@ -230,6 +252,12 @@ CREATE POLICY "Allow public insert" ON upload_sessions FOR INSERT WITH CHECK (tr
 CREATE POLICY "Allow public update" ON upload_sessions FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON upload_sessions FOR DELETE USING (true);
 
+-- Master mapping policies (public access for now)
+CREATE POLICY "Allow public read access" ON ticket_master_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_master_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_master_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_master_mappings FOR DELETE USING (true);
+
 -- =====================================================
 -- INITIAL DATA
 -- =====================================================
@@ -248,6 +276,7 @@ COMMENT ON TABLE ticket_upload_mappings IS 'Maps source organization fields to d
 COMMENT ON TABLE ticket_upload_user_mappings IS 'Maps source assignee fields to dashboard users';
 COMMENT ON TABLE uploaded_tickets IS 'Uploaded ticket data from external systems';
 COMMENT ON TABLE upload_sessions IS 'Tracks upload progress and status';
+COMMENT ON TABLE ticket_master_mappings IS 'Centralized user mappings for all ticket sources (similar to JIRA integrations)';
 
 -- =====================================================
 -- SCHEMA COMPLETE

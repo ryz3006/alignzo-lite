@@ -13,7 +13,9 @@ import {
   Plus,
   Bell,
   Settings,
-  Upload
+  Upload,
+  Database,
+  Users
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
@@ -69,6 +71,8 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     { name: 'Work Report', href: '/alignzo/reports', icon: Clock },
     { name: 'Analytics', href: '/alignzo/analytics', icon: TrendingUp },
     { name: 'Upload Tickets', href: '/alignzo/upload-tickets', icon: Upload },
+    { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database },
+    { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users },
     { name: 'Integrations', href: '/alignzo/integrations', icon: Settings },
   ];
 

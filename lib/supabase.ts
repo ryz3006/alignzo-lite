@@ -152,6 +152,7 @@ export interface UploadedTicket {
   incident_type?: string;
   summary?: string;
   assignee?: string;
+  mapped_user_email?: string;
   reported_date1?: string;
   responded_date?: string;
   last_resolved_date?: string;
@@ -194,6 +195,16 @@ export interface UploadSession {
   processed_rows: number;
   status: 'processing' | 'completed' | 'failed';
   error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketMasterMapping {
+  id: string;
+  source_id: string;
+  source_assignee_value: string;
+  mapped_user_email: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

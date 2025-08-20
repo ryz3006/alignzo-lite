@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, Project, TicketSource, TicketUploadMapping, TicketUploadUserMapping, UploadSession, UploadedTicket } from '@/lib/supabase';
-import { Upload, Plus, Download, RefreshCw, Eye, Trash2, Check, X, AlertCircle } from 'lucide-react';
+import { supabase, Project, TicketSource, TicketUploadMapping, TicketUploadUserMapping, UploadSession } from '@/lib/supabase';
+import { Upload, Plus, Download, RefreshCw, Eye, Trash2, Check, X, AlertCircle, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProjectWithUsers extends Project {
@@ -21,19 +21,12 @@ export default function UploadTicketsPage() {
   const [projects, setProjects] = useState<ProjectWithUsers[]>([]);
   const [mappings, setMappings] = useState<MappingWithDetails[]>([]);
   const [uploadSessions, setUploadSessions] = useState<UploadSession[]>([]);
-  const [uploadedTickets, setUploadedTickets] = useState<UploadedTicket[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Pagination states for uploaded tickets
-  const [currentPage, setCurrentPage] = useState(1);
-  const [ticketsPerPage] = useState(25);
-  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
-  const [showTicketDetailsModal, setShowTicketDetailsModal] = useState(false);
-  const [selectedTicketDetails, setSelectedTicketDetails] = useState<UploadedTicket | null>(null);
   
   // Modal states
   const [showAddSourceModal, setShowAddSourceModal] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
+  const [showEditMappingModal, setShowEditMappingModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   
@@ -43,6 +36,10 @@ export default function UploadTicketsPage() {
   const [organizationField, setOrganizationField] = useState<string>('Assigned_Support_Organization');
   const [organizationValue, setOrganizationValue] = useState<string>('');
   const [userMappings, setUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
+  
+  // Edit mapping states
+  const [editingMapping, setEditingMapping] = useState<MappingWithDetails | null>(null);
+  const [editingUserMappings, setEditingUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
   
   // Upload states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -59,8 +56,7 @@ export default function UploadTicketsPage() {
         loadSources(),
         loadProjects(),
         loadMappings(),
-        loadUploadSessions(),
-        loadUploadedTickets()
+        loadUploadSessions()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -184,21 +180,7 @@ export default function UploadTicketsPage() {
     setUploadSessions(data || []);
   };
 
-  const loadUploadedTickets = async () => {
-    const { data, error } = await supabase
-      .from('uploaded_tickets')
-      .select(`
-        *,
-        source:ticket_sources(name),
-        mapping:ticket_upload_mappings(
-          project:projects(name)
-        )
-      `)
-      .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    setUploadedTickets(data || []);
-  };
 
   const handleAddSource = async () => {
     if (!selectedSource || !selectedProject || !organizationValue.trim()) {
@@ -248,6 +230,86 @@ export default function UploadTicketsPage() {
   };
 
   const resetMappingForm = () => {
+    setSelectedSource('');
+    setSelectedProject('');
+    setOrganizationValue('');
+    setUserMappings([]);
+  };
+
+  const handleEditMapping = (mapping: MappingWithDetails) => {
+    setEditingMapping(mapping);
+    setSelectedSource(mapping.source_id);
+    setSelectedProject(mapping.project_id);
+    setOrganizationValue(mapping.source_organization_value);
+    
+    // Convert existing user mappings to the format expected by the form
+    const existingUserMappings = mapping.user_mappings.map(um => ({
+      user_email: um.user_email,
+      assignee_value: um.source_assignee_value
+    }));
+    setEditingUserMappings(existingUserMappings);
+    setUserMappings(existingUserMappings);
+    
+    setShowEditMappingModal(true);
+  };
+
+  const handleUpdateMapping = async () => {
+    if (!editingMapping || !selectedSource || !selectedProject || !organizationValue.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      // Update the main mapping
+      const { error: mappingError } = await supabase
+        .from('ticket_upload_mappings')
+        .update({
+          source_id: selectedSource,
+          project_id: selectedProject,
+          source_organization_field: organizationField,
+          source_organization_value: organizationValue.trim()
+        })
+        .eq('id', editingMapping.id);
+
+      if (mappingError) throw mappingError;
+
+      // Delete existing user mappings
+      const { error: deleteError } = await supabase
+        .from('ticket_upload_user_mappings')
+        .delete()
+        .eq('mapping_id', editingMapping.id);
+
+      if (deleteError) throw deleteError;
+
+      // Create new user mappings
+      if (userMappings.length > 0) {
+        const userMappingData = userMappings.map(um => ({
+          mapping_id: editingMapping.id,
+          user_email: um.user_email,
+          source_assignee_field: 'Assignee',
+          source_assignee_value: um.assignee_value.trim()
+        }));
+
+        const { error: userMappingError } = await supabase
+          .from('ticket_upload_user_mappings')
+          .insert(userMappingData);
+
+        if (userMappingError) throw userMappingError;
+      }
+
+      toast.success('Mapping updated successfully');
+      setShowEditMappingModal(false);
+      resetEditMappingForm();
+      loadMappings();
+    } catch (error: any) {
+      console.error('Error updating mapping:', error);
+      toast.error(error.message || 'Failed to update mapping');
+    }
+  };
+
+  const resetEditMappingForm = () => {
+    setEditingMapping(null);
+    setEditingUserMappings([]);
     setSelectedSource('');
     setSelectedProject('');
     setOrganizationValue('');
@@ -365,75 +427,7 @@ export default function UploadTicketsPage() {
     }
   };
 
-  const handleViewTicketDetails = (ticket: UploadedTicket) => {
-    setSelectedTicketDetails(ticket);
-    setShowTicketDetailsModal(true);
-  };
 
-  const handleDeleteTicket = async (ticketId: string) => {
-    if (!confirm('Are you sure you want to delete this ticket?')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('uploaded_tickets')
-        .delete()
-        .eq('id', ticketId);
-
-      if (error) throw error;
-      toast.success('Ticket deleted successfully');
-      loadUploadedTickets();
-    } catch (error: any) {
-      console.error('Error deleting ticket:', error);
-      toast.error(error.message || 'Failed to delete ticket');
-    }
-  };
-
-  const handleDeleteMultipleTickets = async () => {
-    if (selectedTickets.length === 0) {
-      toast.error('Please select tickets to delete');
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to delete ${selectedTickets.length} tickets?`)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('uploaded_tickets')
-        .delete()
-        .in('id', selectedTickets);
-
-      if (error) throw error;
-      toast.success(`${selectedTickets.length} tickets deleted successfully`);
-      setSelectedTickets([]);
-      loadUploadedTickets();
-    } catch (error: any) {
-      console.error('Error deleting tickets:', error);
-      toast.error(error.message || 'Failed to delete tickets');
-    }
-  };
-
-  const handleSelectTicket = (ticketId: string) => {
-    setSelectedTickets(prev => 
-      prev.includes(ticketId) 
-        ? prev.filter(id => id !== ticketId)
-        : [...prev, ticketId]
-    );
-  };
-
-  const handleSelectAllTickets = () => {
-    const currentTickets = uploadedTickets.slice((currentPage - 1) * ticketsPerPage, currentPage * ticketsPerPage);
-    const currentTicketIds = currentTickets.map(ticket => ticket.id);
-    
-    if (selectedTickets.length === currentTicketIds.length) {
-      setSelectedTickets([]);
-    } else {
-      setSelectedTickets(currentTicketIds);
-    }
-  };
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedSource) {
@@ -519,13 +513,20 @@ export default function UploadTicketsPage() {
          return result;
        };
 
-       const totalRows = lines.length - 1; // Exclude header
-       setUploadProgress({ current: 0, total: totalRows, status: 'Processing...' });
+       // Count valid data rows (excluding header and empty lines)
+       let validRowCount = 0;
+       for (let i = 1; i < lines.length; i++) {
+         if (lines[i].trim()) {
+           validRowCount++;
+         }
+       }
+       
+       setUploadProgress({ current: 0, total: validRowCount, status: 'Processing...' });
 
        // Update session with total rows
        await supabase
          .from('upload_sessions')
-         .update({ total_rows: totalRows })
+         .update({ total_rows: validRowCount })
          .eq('id', session.id);
 
        // Process rows in batches
@@ -542,11 +543,67 @@ export default function UploadTicketsPage() {
            const values = parseCSVLine(line);
            const ticket: any = {};
 
-           headers.forEach((header, index) => {
-             const value = values[index] || '';
-             const fieldName = header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-             ticket[fieldName] = value;
-           });
+                       headers.forEach((header, index) => {
+              const value = values[index] || '';
+              // Map headers to exact database field names
+              const fieldMapping: { [key: string]: string } = {
+                'Incident ID': 'incident_id',
+                'Priority': 'priority',
+                'Region': 'region',
+                'Assigned_Support_Organization': 'assigned_support_organization',
+                'Assigned_GROUP': 'assigned_group',
+                'Vertical': 'vertical',
+                'Sub_Vertical': 'sub_vertical',
+                'Owner_Support_Organization': 'owner_support_organization',
+                'Owner_GROUP': 'owner_group',
+                'Owner': 'owner',
+                'Reported_source': 'reported_source',
+                'User Name': 'user_name',
+                'Site_Group': 'site_group',
+                'Operational Category Tier 1': 'operational_category_tier_1',
+                'Operational Category Tier 2': 'operational_category_tier_2',
+                'Operational Category Tier 3': 'operational_category_tier_3',
+                'Product_Name': 'product_name',
+                'Product Categorization Tier 1': 'product_categorization_tier_1',
+                'Product Categorization Tier 2': 'product_categorization_tier_2',
+                'Product Categorization Tier 3': 'product_categorization_tier_3',
+                'Incident Type': 'incident_type',
+                'Summary': 'summary',
+                'Assignee': 'assignee',
+                'Reported_Date1': 'reported_date1',
+                'Responded_Date': 'responded_date',
+                'Last_Resolved_Date': 'last_resolved_date',
+                'Closed_Date': 'closed_date',
+                'Status': 'status',
+                'Status_Reason_Hidden': 'status_reason_hidden',
+                'Pending_Reason': 'pending_reason',
+                'Group_Transfers': 'group_transfers',
+                'Total_Transfers': 'total_transfers',
+                'Department': 'department',
+                'VIP': 'vip',
+                'Company': 'company',
+                'Vendor_Ticket_Number': 'vendor_ticket_number',
+                'Reported_to_Vendor': 'reported_to_vendor',
+                'Resolution': 'resolution',
+                'Resolver Group': 'resolver_group',
+                'Reopen Count': 'reopen_count',
+                'Re Opened Date': 'reopened_date',
+                'Service Desk 1st Assigned Date': 'service_desk_1st_assigned_date',
+                'Service Desk 1st Assigned Group': 'service_desk_1st_assigned_group',
+                'Submitter': 'submitter',
+                'Owner_Login_ID': 'owner_login_id',
+                'Impact': 'impact',
+                'Submit Date': 'submit_date',
+                'Report Date': 'report_date',
+                'VIL_Function': 'vil_function',
+                'IT_Partner': 'it_partner',
+                'MTTR': 'mttr',
+                'MTTI': 'mtti'
+              };
+              
+              const fieldName = fieldMapping[header] || header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+              ticket[fieldName] = value;
+            });
 
                      // Find matching mapping
            const mapping = mappings.find(m => 
@@ -554,37 +611,77 @@ export default function UploadTicketsPage() {
              m.source_organization_value === ticket.assigned_support_organization
            );
 
-           if (mapping) {
-             // Helper function to parse Remedy date format
-             const parseRemedyDate = (dateString: string): string | null => {
-               if (!dateString || dateString.trim() === '') return null;
-               
-               try {
-                 // Handle Remedy format: "08/18/2025, 07:11:50 PM"
-                 if (dateString.includes(',') && (dateString.includes('AM') || dateString.includes('PM'))) {
-                   // Parse US date format with AM/PM
-                   const date = new Date(dateString);
-                   if (!isNaN(date.getTime())) {
-                     return date.toISOString();
-                   }
-                 }
-                 
-                 // Fallback to standard date parsing
-                 const date = new Date(dateString);
-                 if (!isNaN(date.getTime())) {
-                   return date.toISOString();
-                 }
-                 
-                 return null;
-               } catch (error) {
-                 console.warn('Failed to parse date:', dateString, error);
-                 return null;
+                       if (mapping) {
+              // Helper function to parse Remedy date format
+              const parseRemedyDate = (dateString: string): string | null => {
+                if (!dateString || dateString.trim() === '') return null;
+                
+                try {
+                  // Handle Remedy format: "08/18/2025, 07:11:50 PM"
+                  if (dateString.includes(',') && (dateString.includes('AM') || dateString.includes('PM'))) {
+                    // Parse US date format with AM/PM
+                    const date = new Date(dateString);
+                    if (!isNaN(date.getTime())) {
+                      return date.toISOString();
+                    }
+                  }
+                  
+                  // Fallback to standard date parsing
+                  const date = new Date(dateString);
+                  if (!isNaN(date.getTime())) {
+                    return date.toISOString();
+                  }
+                  
+                  return null;
+                } catch (error) {
+                  console.warn('Failed to parse date:', dateString, error);
+                  return null;
+                }
+              };
+
+              // Helper function to get mapped user email from master mappings
+              const getMappedUserEmail = async (assigneeValue: string): Promise<string | null> => {
+                if (!assigneeValue || assigneeValue.trim() === '') return null;
+                
+                try {
+                  const { data: masterMapping, error } = await supabase
+                    .from('ticket_master_mappings')
+                    .select('mapped_user_email')
+                    .eq('source_id', selectedSource)
+                    .eq('source_assignee_value', assigneeValue.trim())
+                    .eq('is_active', true)
+                    .single();
+
+                  if (error || !masterMapping) return null;
+                  return masterMapping.mapped_user_email;
+                } catch (error) {
+                  console.warn('Failed to get master mapping for assignee:', assigneeValue, error);
+                  return null;
+                }
+              };
+
+             // Get mapped user email from master mappings first, then fall back to project-specific mappings
+             let mappedUserEmail = null;
+             
+             // Try master mapping first
+             if (ticket.assignee) {
+               mappedUserEmail = await getMappedUserEmail(ticket.assignee);
+             }
+             
+             // If no master mapping found, try project-specific mapping
+             if (!mappedUserEmail && ticket.assignee) {
+               const userMapping = mapping.user_mappings.find(um => 
+                 um.source_assignee_value === ticket.assignee
+               );
+               if (userMapping) {
+                 mappedUserEmail = userMapping.user_email;
                }
-             };
+             }
 
              tickets.push({
                source_id: selectedSource,
                mapping_id: mapping.id,
+               project_id: mapping.project_id,
                incident_id: ticket.incident_id,
                priority: ticket.priority,
                region: ticket.region,
@@ -608,6 +705,7 @@ export default function UploadTicketsPage() {
                incident_type: ticket.incident_type,
                summary: ticket.summary,
                assignee: ticket.assignee,
+               mapped_user_email: mappedUserEmail, // Add the mapped user email
                reported_date1: parseRemedyDate(ticket.reported_date1),
                responded_date: parseRemedyDate(ticket.responded_date),
                last_resolved_date: parseRemedyDate(ticket.last_resolved_date),
@@ -650,7 +748,7 @@ export default function UploadTicketsPage() {
         }
 
         processedRows += batch.length;
-        setUploadProgress({ current: processedRows, total: totalRows, status: 'Processing...' });
+        setUploadProgress({ current: processedRows, total: validRowCount, status: 'Processing...' });
 
         // Update session progress
         await supabase
@@ -665,7 +763,7 @@ export default function UploadTicketsPage() {
         .update({ status: 'completed' })
         .eq('id', session.id);
 
-      setUploadProgress({ current: totalRows, total: totalRows, status: 'Completed!' });
+      setUploadProgress({ current: validRowCount, total: validRowCount, status: 'Completed!' });
       toast.success(`Successfully uploaded ${processedRows} tickets`);
       
       setTimeout(() => {
@@ -703,11 +801,7 @@ export default function UploadTicketsPage() {
     }
   };
 
-  // Pagination calculations
-  const indexOfLastTicket = currentPage * ticketsPerPage;
-  const indexOfFirstTicket = indexOfLastTicket - ticketsPerPage;
-  const currentTickets = uploadedTickets.slice(indexOfFirstTicket, indexOfLastTicket);
-  const totalPages = Math.ceil(uploadedTickets.length / ticketsPerPage);
+
 
   if (loading) {
     return (
@@ -809,15 +903,22 @@ export default function UploadTicketsPage() {
                       )}
                     </div>
                     
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleDeleteMapping(mapping.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete mapping"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                                         <div className="flex space-x-2">
+                       <button
+                         onClick={() => handleEditMapping(mapping)}
+                         className="text-blue-600 hover:text-blue-900"
+                         title="Edit mapping"
+                       >
+                         <Settings className="h-4 w-4" />
+                       </button>
+                       <button
+                         onClick={() => handleDeleteMapping(mapping.id)}
+                         className="text-red-600 hover:text-red-900"
+                         title="Delete mapping"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </button>
+                     </div>
                   </div>
                 </div>
               ))}
@@ -883,136 +984,7 @@ export default function UploadTicketsPage() {
          </div>
        </div>
 
-       {/* Uploaded Ticket Entries */}
-       <div className="bg-white rounded-lg shadow">
-         <div className="px-6 py-4 border-b border-gray-200">
-           <div className="flex justify-between items-center">
-             <div>
-               <h2 className="text-lg font-medium text-gray-900">Uploaded Ticket Entries</h2>
-               <p className="text-sm text-gray-600">View and manage uploaded ticket data</p>
-             </div>
-             {selectedTickets.length > 0 && (
-               <button
-                 onClick={handleDeleteMultipleTickets}
-                 className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center"
-               >
-                 <Trash2 className="h-4 w-4 mr-2" />
-                 Delete Selected ({selectedTickets.length})
-               </button>
-             )}
-           </div>
-         </div>
-         <div className="p-6">
-           {uploadedTickets.length === 0 ? (
-             <div className="text-center py-8">
-               <Upload className="mx-auto h-12 w-12 text-gray-400" />
-               <h3 className="mt-2 text-sm font-medium text-gray-900">No uploaded tickets</h3>
-               <p className="mt-1 text-sm text-gray-500">Upload your first ticket dump to see entries here.</p>
-             </div>
-           ) : (
-             <div>
-               {/* Table */}
-               <div className="overflow-x-auto">
-                 <table className="min-w-full divide-y divide-gray-200">
-                   <thead className="bg-gray-50">
-                     <tr>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         <input
-                           type="checkbox"
-                           checked={selectedTickets.length === currentTickets.length && currentTickets.length > 0}
-                           onChange={handleSelectAllTickets}
-                           className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                         />
-                       </th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket ID</th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reported By</th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
-                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                     </tr>
-                   </thead>
-                   <tbody className="bg-white divide-y divide-gray-200">
-                     {currentTickets.map((ticket) => (
-                       <tr key={ticket.id} className="hover:bg-gray-50">
-                         <td className="px-6 py-4 whitespace-nowrap">
-                           <input
-                             type="checkbox"
-                             checked={selectedTickets.includes(ticket.id)}
-                             onChange={() => handleSelectTicket(ticket.id)}
-                             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                           />
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                           {(ticket as any).source?.name || 'Remedy'}
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                           {ticket.incident_id}
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                           {new Date(ticket.created_at).toLocaleDateString()}
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                           {ticket.user_name || '-'}
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                           {ticket.assignee || '-'}
-                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                           <div className="flex space-x-2">
-                             <button
-                               onClick={() => handleViewTicketDetails(ticket)}
-                               className="text-blue-600 hover:text-blue-900"
-                               title="View details"
-                             >
-                               <Eye className="h-4 w-4" />
-                             </button>
-                             <button
-                               onClick={() => handleDeleteTicket(ticket.id)}
-                               className="text-red-600 hover:text-red-900"
-                               title="Delete ticket"
-                             >
-                               <Trash2 className="h-4 w-4" />
-                             </button>
-                           </div>
-                         </td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-
-               {/* Pagination */}
-               {totalPages > 1 && (
-                 <div className="flex items-center justify-between mt-6">
-                   <div className="text-sm text-gray-700">
-                     Showing {indexOfFirstTicket + 1} to {Math.min(indexOfLastTicket, uploadedTickets.length)} of {uploadedTickets.length} results
-                   </div>
-                   <div className="flex space-x-2">
-                     <button
-                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                       disabled={currentPage === 1}
-                       className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                     >
-                       Previous
-                     </button>
-                     <span className="px-3 py-2 text-sm font-medium text-gray-700">
-                       Page {currentPage} of {totalPages}
-                     </span>
-                     <button
-                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                       disabled={currentPage === totalPages}
-                       className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                     >
-                       Next
-                     </button>
-                   </div>
-                 </div>
-               )}
-             </div>
-           )}
-         </div>
-       </div>
+       
 
       {/* Add Source Modal */}
       {showAddSourceModal && (
@@ -1075,8 +1047,138 @@ export default function UploadTicketsPage() {
         </div>
       )}
 
-      {/* Mapping Modal */}
-      {showMappingModal && (
+             {/* Edit Mapping Modal */}
+       {showEditMappingModal && editingMapping && (
+         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+           <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+             <div className="mt-3">
+               <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-lg font-medium text-gray-900">Edit Source Mapping</h3>
+                 <button
+                   onClick={() => {
+                     setShowEditMappingModal(false);
+                     resetEditMappingForm();
+                   }}
+                   className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                 >
+                   ×
+                 </button>
+               </div>
+               
+               <div className="space-y-4">
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                     Project
+                   </label>
+                   <select
+                     required
+                     value={selectedProject}
+                     onChange={(e) => setSelectedProject(e.target.value)}
+                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                   >
+                     <option value="">Select Project</option>
+                     {projects.map(project => (
+                       <option key={project.id} value={project.id}>
+                         {project.name}
+                       </option>
+                     ))}
+                   </select>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                     Organization Field Value
+                   </label>
+                   <input
+                     type="text"
+                     required
+                     value={organizationValue}
+                     onChange={(e) => setOrganizationValue(e.target.value)}
+                     placeholder="Enter the value from Assigned_Support_Organization field"
+                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                   />
+                   <p className="text-sm text-gray-500 mt-1">
+                     This value should match what appears in the "Assigned_Support_Organization" column of your CSV file
+                   </p>
+                 </div>
+
+                 {selectedProject && (
+                   <div>
+                     <div className="flex justify-between items-center mb-2">
+                       <label className="block text-sm font-medium text-gray-700">
+                         User Mappings
+                       </label>
+                       <button
+                         type="button"
+                         onClick={addUserMapping}
+                         className="text-sm text-primary-600 hover:text-primary-700"
+                       >
+                         + Add User Mapping
+                       </button>
+                     </div>
+                     
+                     <div className="space-y-3">
+                       {userMappings.map((mapping, index) => (
+                         <div key={index} className="flex space-x-2">
+                           <select
+                             value={mapping.user_email}
+                             onChange={(e) => updateUserMapping(index, 'user_email', e.target.value)}
+                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                           >
+                             <option value="">Select User</option>
+                             {projects.find(p => p.id === selectedProject)?.users
+                               .filter((user, index, arr) => arr.indexOf(user) === index) // Remove duplicates
+                               .map(user => (
+                                 <option key={user} value={user}>
+                                   {user}
+                                 </option>
+                               ))}
+                           </select>
+                           <input
+                             type="text"
+                             value={mapping.assignee_value}
+                             onChange={(e) => updateUserMapping(index, 'assignee_value', e.target.value)}
+                             placeholder="Expected Assignee value"
+                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                           />
+                           <button
+                             type="button"
+                             onClick={() => removeUserMapping(index)}
+                             className="px-3 py-2 text-red-600 hover:text-red-700"
+                           >
+                             <X className="h-4 w-4" />
+                           </button>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+
+                 <div className="flex justify-end space-x-3 pt-4">
+                   <button
+                     onClick={() => {
+                       setShowEditMappingModal(false);
+                       resetEditMappingForm();
+                     }}
+                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                   >
+                     Cancel
+                   </button>
+                   <button
+                     onClick={handleUpdateMapping}
+                     className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                   >
+                     Update Mapping
+                   </button>
+                 </div>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Mapping Modal */}
+       {showMappingModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
@@ -1320,97 +1422,7 @@ export default function UploadTicketsPage() {
         </div>
       )}
 
-      {/* Ticket Details Modal */}
-      {showTicketDetailsModal && selectedTicketDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-4/5 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-medium">Ticket Details</h3>
-              <button
-                onClick={() => setShowTicketDetailsModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Basic Information</h4>
-                <div className="space-y-2">
-                  <div><span className="font-medium">Incident ID:</span> {selectedTicketDetails.incident_id}</div>
-                  <div><span className="font-medium">Priority:</span> {selectedTicketDetails.priority || '-'}</div>
-                  <div><span className="font-medium">Status:</span> {selectedTicketDetails.status || '-'}</div>
-                  <div><span className="font-medium">Region:</span> {selectedTicketDetails.region || '-'}</div>
-                  <div><span className="font-medium">Department:</span> {selectedTicketDetails.department || '-'}</div>
-                  <div><span className="font-medium">Company:</span> {selectedTicketDetails.company || '-'}</div>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Assignment</h4>
-                <div className="space-y-2">
-                  <div><span className="font-medium">Assigned Organization:</span> {selectedTicketDetails.assigned_support_organization || '-'}</div>
-                  <div><span className="font-medium">Assigned Group:</span> {selectedTicketDetails.assigned_group || '-'}</div>
-                  <div><span className="font-medium">Assignee:</span> {selectedTicketDetails.assignee || '-'}</div>
-                  <div><span className="font-medium">Owner:</span> {selectedTicketDetails.owner || '-'}</div>
-                  <div><span className="font-medium">Submitter:</span> {selectedTicketDetails.submitter || '-'}</div>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Timeline</h4>
-                <div className="space-y-2">
-                  <div><span className="font-medium">Reported Date:</span> {selectedTicketDetails.reported_date1 ? new Date(selectedTicketDetails.reported_date1).toLocaleString() : '-'}</div>
-                  <div><span className="font-medium">Responded Date:</span> {selectedTicketDetails.responded_date ? new Date(selectedTicketDetails.responded_date).toLocaleString() : '-'}</div>
-                  <div><span className="font-medium">Resolved Date:</span> {selectedTicketDetails.last_resolved_date ? new Date(selectedTicketDetails.last_resolved_date).toLocaleString() : '-'}</div>
-                  <div><span className="font-medium">Closed Date:</span> {selectedTicketDetails.closed_date ? new Date(selectedTicketDetails.closed_date).toLocaleString() : '-'}</div>
-                  <div><span className="font-medium">Created:</span> {new Date(selectedTicketDetails.created_at).toLocaleString()}</div>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Metrics</h4>
-                <div className="space-y-2">
-                  <div><span className="font-medium">Group Transfers:</span> {selectedTicketDetails.group_transfers || '-'}</div>
-                  <div><span className="font-medium">Total Transfers:</span> {selectedTicketDetails.total_transfers || '-'}</div>
-                  <div><span className="font-medium">Reopen Count:</span> {selectedTicketDetails.reopen_count || '-'}</div>
-                  <div><span className="font-medium">MTTR:</span> {selectedTicketDetails.mttr || '-'}</div>
-                  <div><span className="font-medium">MTTI:</span> {selectedTicketDetails.mtti || '-'}</div>
-                </div>
-              </div>
-              
-              <div className="col-span-2">
-                <h4 className="font-medium text-gray-900 mb-3">Summary</h4>
-                <div className="bg-gray-50 p-3 rounded-md">
-                  {selectedTicketDetails.summary || 'No summary available'}
-                </div>
-              </div>
-              
-              <div className="col-span-2">
-                <h4 className="font-medium text-gray-900 mb-3">Resolution</h4>
-                <div className="bg-gray-50 p-3 rounded-md">
-                  {selectedTicketDetails.resolution || 'No resolution available'}
-                </div>
-              </div>
-              
-              <div className="col-span-2">
-                <h4 className="font-medium text-gray-900 mb-3">Additional Information</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><span className="font-medium">User Name:</span> {selectedTicketDetails.user_name || '-'}</div>
-                  <div><span className="font-medium">Site Group:</span> {selectedTicketDetails.site_group || '-'}</div>
-                  <div><span className="font-medium">Vertical:</span> {selectedTicketDetails.vertical || '-'}</div>
-                  <div><span className="font-medium">Sub Vertical:</span> {selectedTicketDetails.sub_vertical || '-'}</div>
-                  <div><span className="font-medium">Incident Type:</span> {selectedTicketDetails.incident_type || '-'}</div>
-                  <div><span className="font-medium">Impact:</span> {selectedTicketDetails.impact || '-'}</div>
-                  <div><span className="font-medium">VIP:</span> {selectedTicketDetails.vip ? 'Yes' : 'No'}</div>
-                  <div><span className="font-medium">Reported to Vendor:</span> {selectedTicketDetails.reported_to_vendor ? 'Yes' : 'No'}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
