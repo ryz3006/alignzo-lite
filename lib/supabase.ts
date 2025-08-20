@@ -83,3 +83,15 @@ export interface Timer {
   created_at: string;
   updated_at: string;
 }
+
+export interface UserIntegration {
+  id: string;
+  user_email: string;
+  integration_type: string;
+  base_url?: string;
+  user_email_integration?: string;
+  api_token?: string;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}

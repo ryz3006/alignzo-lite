@@ -11,7 +11,8 @@ import {
   TrendingUp, 
   LogOut,
   Plus,
-  Bell
+  Bell,
+  Settings
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import TimerModal from '@/components/TimerModal';
@@ -66,6 +67,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     { name: 'Dashboard', href: '/alignzo', icon: BarChart3 },
     { name: 'Work Report', href: '/alignzo/reports', icon: Clock },
     { name: 'Analytics', href: '/alignzo/analytics', icon: TrendingUp },
+    { name: 'Integrations', href: '/alignzo/integrations', icon: Settings },
   ];
 
   if (loading) {

@@ -90,6 +90,20 @@ CREATE TABLE IF NOT EXISTS timers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- User integrations table
+CREATE TABLE IF NOT EXISTS user_integrations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_email VARCHAR(255) NOT NULL,
+    integration_type VARCHAR(50) NOT NULL, -- 'jira', 'slack', etc.
+    base_url VARCHAR(500),
+    user_email_integration VARCHAR(255),
+    api_token TEXT,
+    is_verified BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_email, integration_type)
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
@@ -102,6 +116,8 @@ CREATE INDEX IF NOT EXISTS idx_work_logs_project_id ON work_logs(project_id);
 CREATE INDEX IF NOT EXISTS idx_work_logs_start_time ON work_logs(start_time);
 CREATE INDEX IF NOT EXISTS idx_timers_user_email ON timers(user_email);
 CREATE INDEX IF NOT EXISTS idx_timers_is_running ON timers(is_running);
+CREATE INDEX IF NOT EXISTS idx_user_integrations_user_email ON user_integrations(user_email);
+CREATE INDEX IF NOT EXISTS idx_user_integrations_type ON user_integrations(integration_type);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -120,6 +136,7 @@ CREATE TRIGGER update_team_project_assignments_updated_at BEFORE UPDATE ON team_
 CREATE TRIGGER update_project_categories_updated_at BEFORE UPDATE ON project_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_work_logs_updated_at BEFORE UPDATE ON work_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_timers_updated_at BEFORE UPDATE ON timers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_integrations_updated_at BEFORE UPDATE ON user_integrations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -130,6 +147,7 @@ ALTER TABLE team_project_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_integrations ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for public read access (for now, we'll handle auth in the app layer)
 CREATE POLICY "Allow public read access" ON users FOR SELECT USING (true);
@@ -140,6 +158,7 @@ CREATE POLICY "Allow public read access" ON team_project_assignments FOR SELECT 
 CREATE POLICY "Allow public read access" ON project_categories FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON work_logs FOR SELECT USING (true);
 CREATE POLICY "Allow public read access" ON timers FOR SELECT USING (true);
+CREATE POLICY "Allow public read access" ON user_integrations FOR SELECT USING (true);
 
 -- Create policies for insert/update/delete (admin only in practice)
 CREATE POLICY "Allow public insert" ON users FOR INSERT WITH CHECK (true);
@@ -150,6 +169,7 @@ CREATE POLICY "Allow public insert" ON team_project_assignments FOR INSERT WITH 
 CREATE POLICY "Allow public insert" ON project_categories FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON work_logs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert" ON timers FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert" ON user_integrations FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Allow public update" ON users FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON teams FOR UPDATE USING (true);
@@ -159,6 +179,7 @@ CREATE POLICY "Allow public update" ON team_project_assignments FOR UPDATE USING
 CREATE POLICY "Allow public update" ON project_categories FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON work_logs FOR UPDATE USING (true);
 CREATE POLICY "Allow public update" ON timers FOR UPDATE USING (true);
+CREATE POLICY "Allow public update" ON user_integrations FOR UPDATE USING (true);
 
 CREATE POLICY "Allow public delete" ON users FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON teams FOR DELETE USING (true);
@@ -168,3 +189,4 @@ CREATE POLICY "Allow public delete" ON team_project_assignments FOR DELETE USING
 CREATE POLICY "Allow public delete" ON project_categories FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON work_logs FOR DELETE USING (true);
 CREATE POLICY "Allow public delete" ON timers FOR DELETE USING (true);
+CREATE POLICY "Allow public delete" ON user_integrations FOR DELETE USING (true);
