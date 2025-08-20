@@ -59,12 +59,13 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [ticketCreated, setTicketCreated] = useState(false);
   const [formData, setFormData] = useState({
     ticket_id: '',
     task_detail: '',
-    time_spent: '',
+    start_datetime: '',
+    end_datetime: '',
     ticket_summary: '',
-    ticket_description: '',
     dynamic_category_selections: {} as Record<string, string>,
   });
   const [loading, setLoading] = useState(false);
@@ -73,16 +74,26 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     if (isOpen) {
       loadProjects();
       checkJiraIntegration();
+      setTicketCreated(false);
+      
+      // Set default datetime values (current time for end, 1 hour ago for start)
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      
+      setFormData(prev => ({
+        ...prev,
+        start_datetime: oneHourAgo.toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:MM
+        end_datetime: now.toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:MM
+      }));
+
       if (timerData) {
         setSelectedProject(timerData.project_id);
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           ticket_id: timerData.ticket_id,
           task_detail: timerData.task_detail,
-          time_spent: '',
-          ticket_summary: '',
-          ticket_description: '',
           dynamic_category_selections: timerData.dynamic_category_selections || {},
-        });
+        }));
       }
     }
   }, [isOpen, timerData]);
@@ -103,6 +114,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       setSearchResults([]);
       setShowSearchResults(false);
       setJiraTicketType('new');
+      setTicketCreated(false);
     }
   }, [ticketSource]);
 
@@ -110,9 +122,9 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     if (jiraTicketType === 'existing') {
       setFormData(prev => ({ 
         ...prev, 
-        ticket_summary: '',
-        ticket_description: ''
+        ticket_summary: ''
       }));
+      setTicketCreated(false);
     } else {
       setFormData(prev => ({ 
         ...prev, 
@@ -278,7 +290,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       if (!currentUser?.email) return;
 
       // Prepare description with category information
-      let description = formData.ticket_description || '';
+      let description = formData.task_detail || '';
       
       // Add category information to description if any categories are selected
       const selectedCategories = Object.entries(formData.dynamic_category_selections)
@@ -309,6 +321,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
         const data = await response.json();
         const ticketKey = data.ticket.key;
         setFormData(prev => ({ ...prev, ticket_id: ticketKey }));
+        setTicketCreated(true);
         toast.success(`JIRA ticket ${ticketKey} created successfully`);
       } else {
         const errorData = await response.json();
@@ -328,6 +341,25 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     setShowSearchResults(false);
   };
 
+  const validateDateTime = () => {
+    const startTime = new Date(formData.start_datetime);
+    const endTime = new Date(formData.end_datetime);
+    
+    if (startTime >= endTime) {
+      toast.error('Start time must be earlier than end time');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const calculateDuration = () => {
+    const startTime = new Date(formData.start_datetime);
+    const endTime = new Date(formData.end_datetime);
+    const durationMs = endTime.getTime() - startTime.getTime();
+    return Math.round(durationMs / 1000); // Convert to seconds
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -336,7 +368,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       return;
     }
 
-    if (ticketSource === 'jira' && jiraTicketType === 'new') {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
       if (!formData.ticket_summary.trim()) {
         toast.error('Please enter ticket summary');
         return;
@@ -356,8 +388,12 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       return;
     }
 
-    if (!formData.time_spent.trim()) {
-      toast.error('Please enter time spent');
+    if (!formData.start_datetime || !formData.end_datetime) {
+      toast.error('Please select both start and end times');
+      return;
+    }
+
+    if (!validateDateTime()) {
       return;
     }
 
@@ -370,12 +406,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
         return;
       }
 
-      // Parse time spent (expecting format like "2h 30m" or "2.5h")
-      const timeSpentHours = parseTimeSpent(formData.time_spent);
-      if (timeSpentHours === null) {
-        toast.error('Invalid time format. Please use format like "2h 30m" or "2.5h"');
-        return;
-      }
+      const durationSeconds = calculateDuration();
 
       // Save work log to database
       const { error } = await supabase
@@ -385,10 +416,10 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
           project_id: selectedProject,
           ticket_id: formData.ticket_id,
           task_detail: formData.task_detail,
-          start_time: new Date().toISOString(),
-          end_time: new Date().toISOString(),
+          start_time: new Date(formData.start_datetime).toISOString(),
+          end_time: new Date(formData.end_datetime).toISOString(),
           total_pause_duration_seconds: 0,
-          logged_duration_seconds: Math.round(timeSpentHours * 3600), // Convert hours to seconds
+          logged_duration_seconds: durationSeconds,
           dynamic_category_selections: formData.dynamic_category_selections
         });
 
@@ -400,9 +431,9 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       setFormData({
         ticket_id: '',
         task_detail: '',
-        time_spent: '',
+        start_datetime: '',
+        end_datetime: '',
         ticket_summary: '',
-        ticket_description: '',
         dynamic_category_selections: {},
       });
       setSelectedProject('');
@@ -411,6 +442,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       setSelectedJiraProject('');
       setSearchResults([]);
       setShowSearchResults(false);
+      setTicketCreated(false);
       onClose();
     } catch (error) {
       console.error('Error saving work log:', error);
@@ -418,31 +450,6 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     } finally {
       setLoading(false);
     }
-  };
-
-  const parseTimeSpent = (timeString: string): number | null => {
-    const trimmed = timeString.trim().toLowerCase();
-    
-    // Handle formats like "2h 30m", "2.5h", "30m", "2h"
-    const hourMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*h/);
-    const minuteMatch = trimmed.match(/(\d+)\s*m/);
-    
-    let hours = 0;
-    let minutes = 0;
-    
-    if (hourMatch) {
-      hours = parseFloat(hourMatch[1]);
-    }
-    
-    if (minuteMatch) {
-      minutes = parseInt(minuteMatch[1]);
-    }
-    
-    if (hours === 0 && minutes === 0) {
-      return null;
-    }
-    
-    return hours + (minutes / 60);
   };
 
   const handleCategoryChange = (categoryName: string, value: string) => {
@@ -453,6 +460,34 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
         [categoryName]: value,
       },
     }));
+  };
+
+  const getButtonText = () => {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
+      return isCreatingTicket ? 'Creating Ticket...' : 'Create Ticket';
+    }
+    return loading ? 'Saving...' : 'Save Work Log';
+  };
+
+  const isButtonDisabled = () => {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
+      return isCreatingTicket || !formData.ticket_summary.trim() || !selectedJiraProject;
+    }
+    return loading || !formData.ticket_id.trim() || !formData.task_detail.trim() || !formData.start_datetime || !formData.end_datetime;
+  };
+
+  const formatDuration = () => {
+    if (!formData.start_datetime || !formData.end_datetime) return '';
+    
+    const durationSeconds = calculateDuration();
+    const hours = Math.floor(durationSeconds / 3600);
+    const minutes = Math.floor((durationSeconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
   };
 
   if (!isOpen) return null;
@@ -547,36 +582,21 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             </div>
           )}
 
-          {/* New Ticket Fields */}
+          {/* New Ticket Summary Field */}
           {ticketSource === 'jira' && jiraTicketType === 'new' && hasJiraIntegration && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticket Summary *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.ticket_summary}
-                  onChange={(e) => setFormData({ ...formData, ticket_summary: e.target.value })}
-                  placeholder="Enter ticket summary..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticket Description
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.ticket_description}
-                  onChange={(e) => setFormData({ ...formData, ticket_description: e.target.value })}
-                  placeholder="Enter ticket description..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ticket Summary *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.ticket_summary}
+                onChange={(e) => setFormData({ ...formData, ticket_summary: e.target.value })}
+                placeholder="Enter ticket summary..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
           )}
 
           {/* Existing Ticket Search */}
@@ -641,7 +661,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
               required
               value={formData.ticket_id}
               onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
-              placeholder={ticketSource === 'jira' ? "Will be populated automatically" : "e.g., TASK-123"}
+              placeholder={ticketSource === 'jira' && jiraTicketType === 'new' ? "Will be populated automatically" : "e.g., TASK-123"}
               disabled={ticketSource === 'jira' && jiraTicketType === 'new'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
             />
@@ -650,7 +670,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
           {/* Task Detail */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Task Detail *
+              {ticketSource === 'jira' && jiraTicketType === 'new' ? 'Task Description' : 'Task Detail'} *
             </label>
             <textarea
               required
@@ -658,7 +678,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
               maxLength={600}
               value={formData.task_detail}
               onChange={(e) => setFormData({ ...formData, task_detail: e.target.value })}
-              placeholder="Describe what you worked on..."
+              placeholder={ticketSource === 'jira' && jiraTicketType === 'new' ? "Describe the task (will be used as ticket description)..." : "Describe what you worked on..."}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <div className="text-xs text-gray-500 mt-1">
@@ -666,23 +686,41 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             </div>
           </div>
 
-          {/* Time Spent */}
+          {/* Start Time */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Time Spent *
+              Start Time *
             </label>
             <input
-              type="text"
+              type="datetime-local"
               required
-              value={formData.time_spent}
-              onChange={(e) => setFormData({ ...formData, time_spent: e.target.value })}
-              placeholder="e.g., 2h 30m or 2.5h"
+              value={formData.start_datetime}
+              onChange={(e) => setFormData({ ...formData, start_datetime: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <div className="text-xs text-gray-500 mt-1">
-              Format: 2h 30m, 2.5h, 30m, etc.
-            </div>
           </div>
+
+          {/* End Time */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              End Time *
+            </label>
+            <input
+              type="datetime-local"
+              required
+              value={formData.end_datetime}
+              onChange={(e) => setFormData({ ...formData, end_datetime: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Duration Display */}
+          {formData.start_datetime && formData.end_datetime && (
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-gray-600">Duration:</div>
+              <div className="text-lg font-medium text-gray-900">{formatDuration()}</div>
+            </div>
+          )}
 
           {/* Dynamic Categories */}
           {projectCategories.length > 0 && (
@@ -725,11 +763,11 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             </button>
             <button
               type="submit"
-              disabled={loading || isCreatingTicket}
+              disabled={isButtonDisabled()}
               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Saving...' : isCreatingTicket ? 'Creating Ticket...' : 'Save Work Log'}
+              {getButtonText()}
             </button>
           </div>
         </form>

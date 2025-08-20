@@ -55,11 +55,11 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [ticketCreated, setTicketCreated] = useState(false);
   const [formData, setFormData] = useState({
     ticket_id: '',
     task_detail: '',
     ticket_summary: '',
-    ticket_description: '',
     dynamic_category_selections: {} as Record<string, string>,
   });
   const [loading, setLoading] = useState(false);
@@ -68,6 +68,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
     if (isOpen) {
       loadProjects();
       checkJiraIntegration();
+      setTicketCreated(false);
     }
   }, [isOpen]);
 
@@ -87,6 +88,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
       setSearchResults([]);
       setShowSearchResults(false);
       setJiraTicketType('new');
+      setTicketCreated(false);
     }
   }, [ticketSource]);
 
@@ -94,9 +96,9 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
     if (jiraTicketType === 'existing') {
       setFormData(prev => ({ 
         ...prev, 
-        ticket_summary: '',
-        ticket_description: ''
+        ticket_summary: ''
       }));
+      setTicketCreated(false);
     } else {
       setFormData(prev => ({ 
         ...prev, 
@@ -262,7 +264,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
       if (!currentUser?.email) return;
 
       // Prepare description with category information
-      let description = formData.ticket_description || '';
+      let description = formData.task_detail || '';
       
       // Add category information to description if any categories are selected
       const selectedCategories = Object.entries(formData.dynamic_category_selections)
@@ -293,6 +295,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         const data = await response.json();
         const ticketKey = data.ticket.key;
         setFormData(prev => ({ ...prev, ticket_id: ticketKey }));
+        setTicketCreated(true);
         toast.success(`JIRA ticket ${ticketKey} created successfully`);
       } else {
         const errorData = await response.json();
@@ -320,7 +323,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
       return;
     }
 
-    if (ticketSource === 'jira' && jiraTicketType === 'new') {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
       if (!formData.ticket_summary.trim()) {
         toast.error('Please enter ticket summary');
         return;
@@ -343,6 +346,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
     setLoading(true);
 
     try {
+      // Start the timer immediately (like legacy timer)
       await startTimer({
         project_id: selectedProject,
         ticket_id: formData.ticket_id,
@@ -355,7 +359,6 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         ticket_id: '',
         task_detail: '',
         ticket_summary: '',
-        ticket_description: '',
         dynamic_category_selections: {},
       });
       setSelectedProject('');
@@ -364,6 +367,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
       setSelectedJiraProject('');
       setSearchResults([]);
       setShowSearchResults(false);
+      setTicketCreated(false);
       onClose();
     } catch (error) {
       console.error('Error starting timer:', error);
@@ -380,6 +384,20 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         [categoryName]: value,
       },
     }));
+  };
+
+  const getButtonText = () => {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
+      return isCreatingTicket ? 'Creating Ticket...' : 'Create Ticket';
+    }
+    return loading ? 'Starting...' : 'Start Timer';
+  };
+
+  const isButtonDisabled = () => {
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
+      return isCreatingTicket || !formData.ticket_summary.trim() || !selectedJiraProject;
+    }
+    return loading || !formData.ticket_id.trim() || !formData.task_detail.trim();
   };
 
   if (!isOpen) return null;
@@ -474,36 +492,21 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
             </div>
           )}
 
-          {/* New Ticket Fields */}
+          {/* New Ticket Summary Field */}
           {ticketSource === 'jira' && jiraTicketType === 'new' && hasJiraIntegration && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticket Summary *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.ticket_summary}
-                  onChange={(e) => setFormData({ ...formData, ticket_summary: e.target.value })}
-                  placeholder="Enter ticket summary..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticket Description
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.ticket_description}
-                  onChange={(e) => setFormData({ ...formData, ticket_description: e.target.value })}
-                  placeholder="Enter ticket description..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ticket Summary *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.ticket_summary}
+                onChange={(e) => setFormData({ ...formData, ticket_summary: e.target.value })}
+                placeholder="Enter ticket summary..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
           )}
 
           {/* Existing Ticket Search */}
@@ -568,7 +571,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
               required
               value={formData.ticket_id}
               onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
-              placeholder={ticketSource === 'jira' ? "Will be populated automatically" : "e.g., TASK-123"}
+              placeholder={ticketSource === 'jira' && jiraTicketType === 'new' ? "Will be populated automatically" : "e.g., TASK-123"}
               disabled={ticketSource === 'jira' && jiraTicketType === 'new'}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
             />
@@ -577,7 +580,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
           {/* Task Detail */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Task Detail *
+              {ticketSource === 'jira' && jiraTicketType === 'new' ? 'Task Description' : 'Task Detail'} *
             </label>
             <textarea
               required
@@ -585,7 +588,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
               maxLength={600}
               value={formData.task_detail}
               onChange={(e) => setFormData({ ...formData, task_detail: e.target.value })}
-              placeholder="Describe what you're working on..."
+              placeholder={ticketSource === 'jira' && jiraTicketType === 'new' ? "Describe the task (will be used as ticket description)..." : "Describe what you're working on..."}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <div className="text-xs text-gray-500 mt-1">
@@ -634,11 +637,11 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
             </button>
             <button
               type="submit"
-              disabled={loading || isCreatingTicket}
+              disabled={isButtonDisabled()}
               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               <Play className="h-4 w-4 mr-2" />
-              {loading ? 'Starting...' : isCreatingTicket ? 'Creating Ticket...' : 'Start Timer'}
+              {getButtonText()}
             </button>
           </div>
         </form>
