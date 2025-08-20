@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS ticket_upload_user_mappings (
     UNIQUE(mapping_id, user_email, source_assignee_value)
 );
 
--- Uploaded tickets table
+-- Uploaded tickets table - UPDATED FOR BETTER CSV HANDLING
 CREATE TABLE IF NOT EXISTS uploaded_tickets (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
@@ -226,16 +226,16 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     status VARCHAR(100),
     status_reason_hidden TEXT,
     pending_reason TEXT,
-    group_transfers VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
-    total_transfers VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
+    group_transfers VARCHAR(50), -- Changed to VARCHAR(50) to handle empty values and larger numbers
+    total_transfers VARCHAR(50), -- Changed to VARCHAR(50) to handle empty values and larger numbers
     department VARCHAR(255),
-    vip VARCHAR(10), -- Changed from BOOLEAN to VARCHAR to handle "Yes"/"No" values
+    vip VARCHAR(10), -- Changed to VARCHAR(10) to handle "Yes"/"No" values and empty strings
     company VARCHAR(255),
     vendor_ticket_number VARCHAR(255),
-    reported_to_vendor VARCHAR(10), -- Changed from BOOLEAN to VARCHAR to handle "Yes"/"No" values
+    reported_to_vendor VARCHAR(10), -- Changed to VARCHAR(10) to handle "Yes"/"No" values and empty strings
     resolution TEXT,
     resolver_group VARCHAR(500),
-    reopen_count VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
+    reopen_count VARCHAR(50), -- Changed to VARCHAR(50) to handle empty values and larger numbers
     reopened_date TIMESTAMP WITH TIME ZONE,
     service_desk_1st_assigned_date TIMESTAMP WITH TIME ZONE,
     service_desk_1st_assigned_group VARCHAR(500),

@@ -456,31 +456,6 @@ export default function UploadTicketsPage() {
       if (sessionError) throw sessionError;
       setCurrentSession(session);
 
-             // Read and process file
-       const text = await selectedFile.text();
-       const lines = text.split('\n');
-       const headers = lines[0].split(',').map(h => h.trim());
-       
-       // Validate headers
-       const requiredHeaders = [
-         'Incident ID', 'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
-         'Vertical', 'Sub_Vertical', 'Owner_Support_Organization', 'Owner_GROUP', 'Owner',
-         'Reported_source', 'User Name', 'Site_Group', 'Operational Category Tier 1',
-         'Operational Category Tier 2', 'Operational Category Tier 3', 'Product_Name',
-         'Product Categorization Tier 1', 'Product Categorization Tier 2', 'Product Categorization Tier 3',
-         'Incident Type', 'Summary', 'Assignee', 'Reported_Date1', 'Responded_Date',
-         'Last_Resolved_Date', 'Closed_Date', 'Status', 'Status_Reason_Hidden', 'Pending_Reason',
-         'Group_Transfers', 'Total_Transfers', 'Department', 'VIP', 'Company', 'Vendor_Ticket_Number',
-         'Reported_to_Vendor', 'Resolution', 'Resolver Group', 'Reopen Count', 'Re Opened Date',
-         'Service Desk 1st Assigned Date', 'Service Desk 1st Assigned Group', 'Submitter',
-         'Owner_Login_ID', 'Impact', 'Submit Date', 'Report Date', 'VIL_Function', 'IT_Partner', 'MTTR', 'MTTI'
-       ];
-
-       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-       if (missingHeaders.length > 0) {
-         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
-       }
-
        // Helper function to parse CSV line with quoted fields
        const parseCSVLine = (line: string): string[] => {
          const result: string[] = [];
@@ -513,10 +488,89 @@ export default function UploadTicketsPage() {
          return result;
        };
 
+       // Enhanced CSV parsing function that handles multi-line fields
+       const parseCSVWithMultiline = (csvText: string): string[][] => {
+         const lines = csvText.split('\n');
+         const result: string[][] = [];
+         let currentLine = '';
+         let inQuotes = false;
+         
+         for (let i = 0; i < lines.length; i++) {
+           const line = lines[i];
+           
+           // Count quotes in the line
+           const quoteCount = (line.match(/"/g) || []).length;
+           
+           if (!inQuotes) {
+             // Not in quotes, check if this line starts a quoted field
+             if (quoteCount % 2 === 1) {
+               // Odd number of quotes, this line starts a quoted field
+               inQuotes = true;
+               currentLine = line;
+             } else {
+               // Even number of quotes, this is a complete line
+               if (line.trim()) {
+                 result.push(parseCSVLine(line));
+               }
+             }
+           } else {
+             // In quotes, append to current line
+             currentLine += '\n' + line;
+             
+             // Check if this line ends the quoted field
+             if (quoteCount % 2 === 1) {
+               // Odd number of quotes, this line ends the quoted field
+               inQuotes = false;
+               if (currentLine.trim()) {
+                 result.push(parseCSVLine(currentLine));
+               }
+               currentLine = '';
+             }
+           }
+         }
+         
+         // Handle any remaining line
+         if (currentLine.trim()) {
+           result.push(parseCSVLine(currentLine));
+         }
+         
+         return result;
+       };
+
+       // Read and process file
+       const text = await selectedFile.text();
+       const parsedLines = parseCSVWithMultiline(text);
+       
+       if (parsedLines.length === 0) {
+         throw new Error('No data found in CSV file');
+       }
+       
+       const headers = parsedLines[0].map(h => h.trim());
+       
+       // Validate headers
+       const requiredHeaders = [
+         'Incident ID', 'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
+         'Vertical', 'Sub_Vertical', 'Owner_Support_Organization', 'Owner_GROUP', 'Owner',
+         'Reported_source', 'User Name', 'Site_Group', 'Operational Category Tier 1',
+         'Operational Category Tier 2', 'Operational Category Tier 3', 'Product_Name',
+         'Product Categorization Tier 1', 'Product Categorization Tier 2', 'Product Categorization Tier 3',
+         'Incident Type', 'Summary', 'Assignee', 'Reported_Date1', 'Responded_Date',
+         'Last_Resolved_Date', 'Closed_Date', 'Status', 'Status_Reason_Hidden', 'Pending_Reason',
+         'Group_Transfers', 'Total_Transfers', 'Department', 'VIP', 'Company', 'Vendor_Ticket_Number',
+         'Reported_to_Vendor', 'Resolution', 'Resolver Group', 'Reopen Count', 'Re Opened Date',
+         'Service Desk 1st Assigned Date', 'Service Desk 1st Assigned Group', 'Submitter',
+         'Owner_Login_ID', 'Impact', 'Submit Date', 'Report Date', 'VIL_Function', 'IT_Partner', 'MTTR', 'MTTI'
+       ];
+
+       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+       if (missingHeaders.length > 0) {
+         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+       }
+
        // Count valid data rows (excluding header and empty lines)
        let validRowCount = 0;
-       for (let i = 1; i < lines.length; i++) {
-         if (lines[i].trim()) {
+       for (let i = 1; i < parsedLines.length; i++) {
+         if (parsedLines[i].length > 0 && parsedLines[i].some(field => field.trim())) {
            validRowCount++;
          }
        }
@@ -533,132 +587,131 @@ export default function UploadTicketsPage() {
        const batchSize = 50;
        let processedRows = 0;
 
-       for (let i = 1; i < lines.length; i += batchSize) {
-         const batch = lines.slice(i, i + batchSize);
+       for (let i = 1; i < parsedLines.length; i += batchSize) {
+         const batch = parsedLines.slice(i, i + batchSize);
          const tickets = [];
 
-         for (const line of batch) {
-           if (!line.trim()) continue;
+         for (const values of batch) {
+           if (values.length === 0 || !values.some(field => field.trim())) continue;
 
-           const values = parseCSVLine(line);
            const ticket: any = {};
 
-                       headers.forEach((header, index) => {
-              const value = values[index] || '';
-              // Map headers to exact database field names
-              const fieldMapping: { [key: string]: string } = {
-                'Incident ID': 'incident_id',
-                'Priority': 'priority',
-                'Region': 'region',
-                'Assigned_Support_Organization': 'assigned_support_organization',
-                'Assigned_GROUP': 'assigned_group',
-                'Vertical': 'vertical',
-                'Sub_Vertical': 'sub_vertical',
-                'Owner_Support_Organization': 'owner_support_organization',
-                'Owner_GROUP': 'owner_group',
-                'Owner': 'owner',
-                'Reported_source': 'reported_source',
-                'User Name': 'user_name',
-                'Site_Group': 'site_group',
-                'Operational Category Tier 1': 'operational_category_tier_1',
-                'Operational Category Tier 2': 'operational_category_tier_2',
-                'Operational Category Tier 3': 'operational_category_tier_3',
-                'Product_Name': 'product_name',
-                'Product Categorization Tier 1': 'product_categorization_tier_1',
-                'Product Categorization Tier 2': 'product_categorization_tier_2',
-                'Product Categorization Tier 3': 'product_categorization_tier_3',
-                'Incident Type': 'incident_type',
-                'Summary': 'summary',
-                'Assignee': 'assignee',
-                'Reported_Date1': 'reported_date1',
-                'Responded_Date': 'responded_date',
-                'Last_Resolved_Date': 'last_resolved_date',
-                'Closed_Date': 'closed_date',
-                'Status': 'status',
-                'Status_Reason_Hidden': 'status_reason_hidden',
-                'Pending_Reason': 'pending_reason',
-                'Group_Transfers': 'group_transfers',
-                'Total_Transfers': 'total_transfers',
-                'Department': 'department',
-                'VIP': 'vip',
-                'Company': 'company',
-                'Vendor_Ticket_Number': 'vendor_ticket_number',
-                'Reported_to_Vendor': 'reported_to_vendor',
-                'Resolution': 'resolution',
-                'Resolver Group': 'resolver_group',
-                'Reopen Count': 'reopen_count',
-                'Re Opened Date': 'reopened_date',
-                'Service Desk 1st Assigned Date': 'service_desk_1st_assigned_date',
-                'Service Desk 1st Assigned Group': 'service_desk_1st_assigned_group',
-                'Submitter': 'submitter',
-                'Owner_Login_ID': 'owner_login_id',
-                'Impact': 'impact',
-                'Submit Date': 'submit_date',
-                'Report Date': 'report_date',
-                'VIL_Function': 'vil_function',
-                'IT_Partner': 'it_partner',
-                'MTTR': 'mttr',
-                'MTTI': 'mtti'
-              };
-              
-              const fieldName = fieldMapping[header] || header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-              ticket[fieldName] = value;
-            });
+           headers.forEach((header, index) => {
+             const value = values[index] || '';
+             // Map headers to exact database field names
+             const fieldMapping: { [key: string]: string } = {
+               'Incident ID': 'incident_id',
+               'Priority': 'priority',
+               'Region': 'region',
+               'Assigned_Support_Organization': 'assigned_support_organization',
+               'Assigned_GROUP': 'assigned_group',
+               'Vertical': 'vertical',
+               'Sub_Vertical': 'sub_vertical',
+               'Owner_Support_Organization': 'owner_support_organization',
+               'Owner_GROUP': 'owner_group',
+               'Owner': 'owner',
+               'Reported_source': 'reported_source',
+               'User Name': 'user_name',
+               'Site_Group': 'site_group',
+               'Operational Category Tier 1': 'operational_category_tier_1',
+               'Operational Category Tier 2': 'operational_category_tier_2',
+               'Operational Category Tier 3': 'operational_category_tier_3',
+               'Product_Name': 'product_name',
+               'Product Categorization Tier 1': 'product_categorization_tier_1',
+               'Product Categorization Tier 2': 'product_categorization_tier_2',
+               'Product Categorization Tier 3': 'product_categorization_tier_3',
+               'Incident Type': 'incident_type',
+               'Summary': 'summary',
+               'Assignee': 'assignee',
+               'Reported_Date1': 'reported_date1',
+               'Responded_Date': 'responded_date',
+               'Last_Resolved_Date': 'last_resolved_date',
+               'Closed_Date': 'closed_date',
+               'Status': 'status',
+               'Status_Reason_Hidden': 'status_reason_hidden',
+               'Pending_Reason': 'pending_reason',
+               'Group_Transfers': 'group_transfers',
+               'Total_Transfers': 'total_transfers',
+               'Department': 'department',
+               'VIP': 'vip',
+               'Company': 'company',
+               'Vendor_Ticket_Number': 'vendor_ticket_number',
+               'Reported_to_Vendor': 'reported_to_vendor',
+               'Resolution': 'resolution',
+               'Resolver Group': 'resolver_group',
+               'Reopen Count': 'reopen_count',
+               'Re Opened Date': 'reopened_date',
+               'Service Desk 1st Assigned Date': 'service_desk_1st_assigned_date',
+               'Service Desk 1st Assigned Group': 'service_desk_1st_assigned_group',
+               'Submitter': 'submitter',
+               'Owner_Login_ID': 'owner_login_id',
+               'Impact': 'impact',
+               'Submit Date': 'submit_date',
+               'Report Date': 'report_date',
+               'VIL_Function': 'vil_function',
+               'IT_Partner': 'it_partner',
+               'MTTR': 'mttr',
+               'MTTI': 'mtti'
+             };
+             
+             const fieldName = fieldMapping[header] || header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+             ticket[fieldName] = value;
+           });
 
-                     // Find matching mapping
+           // Find matching mapping
            const mapping = mappings.find(m => 
              m.source_id === selectedSource && 
              m.source_organization_value === ticket.assigned_support_organization
            );
 
-                       if (mapping) {
-              // Helper function to parse Remedy date format
-              const parseRemedyDate = (dateString: string): string | null => {
-                if (!dateString || dateString.trim() === '') return null;
-                
-                try {
-                  // Handle Remedy format: "08/18/2025, 07:11:50 PM"
-                  if (dateString.includes(',') && (dateString.includes('AM') || dateString.includes('PM'))) {
-                    // Parse US date format with AM/PM
-                    const date = new Date(dateString);
-                    if (!isNaN(date.getTime())) {
-                      return date.toISOString();
-                    }
-                  }
-                  
-                  // Fallback to standard date parsing
-                  const date = new Date(dateString);
-                  if (!isNaN(date.getTime())) {
-                    return date.toISOString();
-                  }
-                  
-                  return null;
-                } catch (error) {
-                  console.warn('Failed to parse date:', dateString, error);
-                  return null;
-                }
-              };
+           if (mapping) {
+             // Helper function to parse Remedy date format
+             const parseRemedyDate = (dateString: string): string | null => {
+               if (!dateString || dateString.trim() === '') return null;
+               
+               try {
+                 // Handle Remedy format: "08/18/2025, 07:11:50 PM"
+                 if (dateString.includes(',') && (dateString.includes('AM') || dateString.includes('PM'))) {
+                   // Parse US date format with AM/PM
+                   const date = new Date(dateString);
+                   if (!isNaN(date.getTime())) {
+                     return date.toISOString();
+                   }
+                 }
+                 
+                 // Fallback to standard date parsing
+                 const date = new Date(dateString);
+                 if (!isNaN(date.getTime())) {
+                   return date.toISOString();
+                 }
+                 
+                 return null;
+               } catch (error) {
+                 console.warn('Failed to parse date:', dateString, error);
+                 return null;
+               }
+             };
 
-              // Helper function to get mapped user email from master mappings
-              const getMappedUserEmail = async (assigneeValue: string): Promise<string | null> => {
-                if (!assigneeValue || assigneeValue.trim() === '') return null;
-                
-                try {
-                  const { data: masterMapping, error } = await supabase
-                    .from('ticket_master_mappings')
-                    .select('mapped_user_email')
-                    .eq('source_id', selectedSource)
-                    .eq('source_assignee_value', assigneeValue.trim())
-                    .eq('is_active', true)
-                    .single();
+             // Helper function to get mapped user email from master mappings
+             const getMappedUserEmail = async (assigneeValue: string): Promise<string | null> => {
+               if (!assigneeValue || assigneeValue.trim() === '') return null;
+               
+               try {
+                 const { data: masterMapping, error } = await supabase
+                   .from('ticket_master_mappings')
+                   .select('mapped_user_email')
+                   .eq('source_id', selectedSource)
+                   .eq('source_assignee_value', assigneeValue.trim())
+                   .eq('is_active', true)
+                   .single();
 
-                  if (error || !masterMapping) return null;
-                  return masterMapping.mapped_user_email;
-                } catch (error) {
-                  console.warn('Failed to get master mapping for assignee:', assigneeValue, error);
-                  return null;
-                }
-              };
+                 if (error || !masterMapping) return null;
+                 return masterMapping.mapped_user_email;
+               } catch (error) {
+                 console.warn('Failed to get master mapping for assignee:', assigneeValue, error);
+                 return null;
+               }
+             };
 
              // Get mapped user email from master mappings first, then fall back to project-specific mappings
              let mappedUserEmail = null;
@@ -713,16 +766,16 @@ export default function UploadTicketsPage() {
                status: ticket.status,
                status_reason_hidden: ticket.status_reason_hidden,
                pending_reason: ticket.pending_reason,
-                               group_transfers: ticket.group_transfers || null, // Keep as string to handle empty values
-                total_transfers: ticket.total_transfers || null, // Keep as string to handle empty values
-                department: ticket.department,
-                vip: ticket.vip || null, // Keep as string to handle "Yes"/"No" values
-                company: ticket.company,
-                vendor_ticket_number: ticket.vendor_ticket_number,
-                reported_to_vendor: ticket.reported_to_vendor || null, // Keep as string to handle "Yes"/"No" values
-                resolution: ticket.resolution,
-                resolver_group: ticket.resolver_group,
-                reopen_count: ticket.reopen_count || null, // Keep as string to handle empty values
+               group_transfers: ticket.group_transfers || null, // Keep as string to handle empty values
+               total_transfers: ticket.total_transfers || null, // Keep as string to handle empty values
+               department: ticket.department,
+               vip: ticket.vip || null, // Keep as string to handle "Yes"/"No" values
+               company: ticket.company,
+               vendor_ticket_number: ticket.vendor_ticket_number,
+               reported_to_vendor: ticket.reported_to_vendor || null, // Keep as string to handle "Yes"/"No" values
+               resolution: ticket.resolution,
+               resolver_group: ticket.resolver_group,
+               reopen_count: ticket.reopen_count || null, // Keep as string to handle empty values
                reopened_date: parseRemedyDate(ticket.reopened_date),
                service_desk_1st_assigned_date: parseRemedyDate(ticket.service_desk_1st_assigned_date),
                service_desk_1st_assigned_group: ticket.service_desk_1st_assigned_group,
