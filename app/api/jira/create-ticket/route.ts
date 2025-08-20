@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials } from '@/lib/jira';
+import { getJiraCredentials, createJiraIssue } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,71 +29,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the ticket data
-    const ticketData = {
-      fields: {
-        project: {
-          key: projectKey
-        },
-        summary: summary,
-        description: description || '',
-        issuetype: {
-          name: issueType
-        },
-        priority: {
-          name: priority
-        },
-        assignee: {
-          name: userEmail // Assign to the current user (self)
-        }
-      }
-    };
+    console.log(`Creating JIRA ticket in project: ${projectKey} assigned to integration user: ${credentials.user_email_integration}`);
 
-    // Create the full JIRA API URL
-    const baseUrl = credentials.base_url.endsWith('/') 
-      ? credentials.base_url.slice(0, -1) 
-      : credentials.base_url;
-    const url = `${baseUrl}/rest/api/2/issue`;
-
-    // Create Basic Auth header
-    const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
-    const authHeader = Buffer.from(authString).toString('base64');
-
-    console.log(`Creating JIRA ticket in project: ${projectKey} assigned to: ${userEmail}`);
-
-    // Make the request directly to JIRA
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(ticketData),
+    // Use enhanced create issue function with integration user as assignee
+    const result = await createJiraIssue(credentials, {
+      projectKey,
+      summary,
+      description,
+      issueType,
+      priority,
+      assignee: credentials.user_email_integration // Use integration user instead of current user
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`JIRA API error ${response.status}:`, errorText);
+    if (!result.success) {
+      console.error('JIRA ticket creation failed:', result.error, result.details);
+      
+      // Provide user-friendly error messages
+      let userMessage = 'Failed to create JIRA ticket';
+      if (result.error?.includes('401')) {
+        userMessage = 'JIRA authentication failed. Please check your credentials.';
+      } else if (result.error?.includes('403')) {
+        userMessage = 'Access denied. Please check your JIRA permissions.';
+      } else if (result.error?.includes('404')) {
+        userMessage = 'JIRA project not found. Please check the project key.';
+      } else if (result.error?.includes('429')) {
+        userMessage = 'JIRA rate limit exceeded. Please try again in a moment.';
+      } else if (result.error?.includes('Network error')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (result.details?.includes('assignee')) {
+        userMessage = 'Failed to assign ticket. Please check if the assignee exists in JIRA.';
+      } else if (result.details?.includes('project')) {
+        userMessage = 'Project not found or access denied. Please check the project key.';
+      }
+
       return NextResponse.json(
-        { error: `Failed to create JIRA ticket: ${response.status}`, details: errorText },
-        { status: response.status }
+        { 
+          error: userMessage,
+          details: result.details,
+          rateLimitInfo: result.rateLimitInfo
+        },
+        { status: 500 }
       );
     }
 
-    const data = await response.json();
-    console.log(`JIRA ticket created successfully: ${data.key} assigned to: ${userEmail}`);
+    const ticket = result.data;
+    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to: ${credentials.user_email_integration}`);
     
     return NextResponse.json({
       success: true,
-      ticket: data,
-      message: 'JIRA ticket created successfully'
+      ticket: {
+        key: ticket?.key,
+        id: ticket?.id
+      },
+      message: `JIRA ticket ${ticket?.key} created successfully! Please update the ticket in JIRA for closure or reassignments.`,
+      rateLimitInfo: result.rateLimitInfo
     });
 
   } catch (error) {
     console.error('JIRA create ticket error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }

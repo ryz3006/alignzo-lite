@@ -231,12 +231,12 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
       const result = await searchAllJiraIssues(credentials, jql);
       
       if (!result.success) {
-        setError(result.message);
+        setError(result.message || 'Failed to load JIRA data');
         return;
       }
 
-      setJiraIssues(result.issues || []);
-      calculateMappedUserMetrics(result.issues || []);
+      setJiraIssues(result.data?.issues || []);
+      calculateMappedUserMetrics(result.data?.issues || []);
     } catch (error) {
       console.error('Error loading JIRA data:', error);
       setError('Failed to load JIRA data');

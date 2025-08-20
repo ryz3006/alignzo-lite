@@ -219,6 +219,9 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
     if (!searchTerm.trim() || !selectedJiraProject) return;
 
     setIsSearching(true);
+    setShowSearchResults(false);
+    setSearchResults([]);
+    
     try {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
@@ -236,17 +239,35 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         setSearchResults(data.tickets || []);
         setShowSearchResults(true);
+        
+        if (data.tickets.length === 0) {
+          toast('No tickets found matching your search term', { icon: '🔍' });
+        } else {
+          toast.success(`Found ${data.tickets.length} tickets`);
+        }
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to search tickets');
+        // Handle JIRA API errors
+        const errorMessage = data.error || 'Failed to search tickets';
+        toast.error(errorMessage);
+        
+        // Log detailed error for debugging
+        if (data.details) {
+          console.error('JIRA search error details:', data.details);
+        }
+        
+        // Show rate limit info if available
+        if (data.rateLimitInfo) {
+          console.log('Rate limit info:', data.rateLimitInfo);
+        }
       }
     } catch (error) {
       console.error('Error searching JIRA tickets:', error);
-      toast.error('Failed to search tickets');
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsSearching(false);
     }
@@ -291,19 +312,31 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         const ticketKey = data.ticket.key;
         setFormData(prev => ({ ...prev, ticket_id: ticketKey }));
         setTicketCreated(true);
-        toast.success(`JIRA ticket ${ticketKey} created successfully`);
+        toast.success(data.message || `JIRA ticket ${ticketKey} created successfully`);
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to create JIRA ticket');
+        // Handle JIRA API errors
+        const errorMessage = data.error || 'Failed to create JIRA ticket';
+        toast.error(errorMessage);
+        
+        // Log detailed error for debugging
+        if (data.details) {
+          console.error('JIRA create ticket error details:', data.details);
+        }
+        
+        // Show rate limit info if available
+        if (data.rateLimitInfo) {
+          console.log('Rate limit info:', data.rateLimitInfo);
+        }
       }
     } catch (error) {
       console.error('Error creating JIRA ticket:', error);
-      toast.error('Failed to create JIRA ticket');
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsCreatingTicket(false);
     }
@@ -537,25 +570,33 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
               </div>
 
               {/* Search Results */}
-              {showSearchResults && searchResults.length > 0 && (
-                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md">
-                  {searchResults.map((ticket) => (
-                    <div
-                      key={ticket.key}
-                      onClick={() => selectTicket(ticket)}
-                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="font-medium text-sm">{ticket.key}</div>
-                          <div className="text-xs text-gray-600 truncate">{ticket.fields.summary}</div>
+              {showSearchResults && (
+                <div className="mt-2">
+                  {searchResults.length > 0 ? (
+                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-md">
+                      {searchResults.map((ticket) => (
+                        <div
+                          key={ticket.key}
+                          onClick={() => selectTicket(ticket)}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="font-medium text-sm">{ticket.key}</div>
+                              <div className="text-xs text-gray-600 truncate">{ticket.fields.summary}</div>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {ticket.fields.status.name}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {ticket.fields.status.name}
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-sm border border-gray-200 rounded-md bg-gray-50">
+                      No tickets found
+                    </div>
+                  )}
                 </div>
               )}
             </div>

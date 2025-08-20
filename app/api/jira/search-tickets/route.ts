@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials } from '@/lib/jira';
+import { getJiraCredentials, searchJiraIssuesEnhanced } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,100 +27,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create JQL query with simpler, more compatible syntax
-    // Using 'text ~' for text search which is more reliable
-    const jql = `project = "${projectKey}" AND text ~ "${searchTerm}" ORDER BY updated DESC`;
+    console.log(`Searching JIRA tickets in project: ${projectKey} with term: "${searchTerm}"`);
 
-    console.log(`Searching JIRA tickets with JQL: ${jql}`);
+    // Use enhanced search function with multiple strategies
+    const result = await searchJiraIssuesEnhanced(credentials, projectKey, searchTerm, maxResults);
 
-    // Create the full JIRA API URL
-    const baseUrl = credentials.base_url.endsWith('/') 
-      ? credentials.base_url.slice(0, -1) 
-      : credentials.base_url;
-    const url = `${baseUrl}/rest/api/2/search`;
-
-    // Create Basic Auth header
-    const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
-    const authHeader = Buffer.from(authString).toString('base64');
-
-    // Make the request directly to JIRA
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jql,
-        maxResults,
-        fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'created', 'updated']
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`JIRA search error ${response.status}:`, errorText);
+    if (!result.success) {
+      console.error('JIRA search failed:', result.error, result.details);
       
-      // Try a fallback query if the first one fails
-      if (response.status === 400) {
-        console.log('Trying fallback JQL query...');
-        const fallbackJql = `project = "${projectKey}" ORDER BY updated DESC`;
-        
-        const fallbackResponse = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${authHeader}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jql: fallbackJql,
-            maxResults,
-            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'created', 'updated']
-          }),
-        });
-
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          // Filter results client-side for the search term
-          const filteredIssues = fallbackData.issues?.filter((issue: any) => 
-            issue.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            issue.fields.summary.toLowerCase().includes(searchTerm.toLowerCase())
-          ) || [];
-
-          console.log(`Fallback search successful: Found ${filteredIssues.length} tickets after filtering`);
-
-          return NextResponse.json({
-            success: true,
-            tickets: filteredIssues,
-            message: `Found ${filteredIssues.length} tickets`
-          });
-        } else {
-          const fallbackErrorText = await fallbackResponse.text();
-          console.error(`Fallback JIRA search error ${fallbackResponse.status}:`, fallbackErrorText);
-        }
+      // Provide user-friendly error messages
+      let userMessage = 'Failed to search JIRA tickets';
+      if (result.error?.includes('401')) {
+        userMessage = 'JIRA authentication failed. Please check your credentials.';
+      } else if (result.error?.includes('403')) {
+        userMessage = 'Access denied. Please check your JIRA permissions.';
+      } else if (result.error?.includes('404')) {
+        userMessage = 'JIRA project not found. Please check the project key.';
+      } else if (result.error?.includes('429')) {
+        userMessage = 'JIRA rate limit exceeded. Please try again in a moment.';
+      } else if (result.error?.includes('Network error')) {
+        userMessage = 'Network error. Please check your connection and try again.';
       }
-      
+
       return NextResponse.json(
-        { error: `Failed to search JIRA tickets: ${response.status}`, details: errorText },
-        { status: response.status }
+        { 
+          error: userMessage,
+          details: result.details,
+          rateLimitInfo: result.rateLimitInfo
+        },
+        { status: 500 }
       );
     }
 
-    const data = await response.json();
-    console.log(`JIRA search successful: Found ${data.issues?.length || 0} tickets`);
+    const tickets = result.data?.issues || [];
+    console.log(`JIRA search successful: Found ${tickets.length} tickets`);
 
     return NextResponse.json({
       success: true,
-      tickets: data.issues || [],
-      message: `Found ${data.issues?.length || 0} tickets`
+      tickets: tickets,
+      message: tickets.length > 0 ? `Found ${tickets.length} tickets` : 'No tickets found',
+      rateLimitInfo: result.rateLimitInfo
     });
 
   } catch (error) {
     console.error('JIRA search tickets error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }

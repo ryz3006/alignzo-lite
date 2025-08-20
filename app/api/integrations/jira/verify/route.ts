@@ -21,16 +21,15 @@ export async function POST(request: NextRequest) {
 
     const result = await verifyJiraCredentials(credentials);
 
-    if (result.success) {
+    if (result) {
       return NextResponse.json({
         success: true,
-        message: result.message,
-        user: result.user
+        message: 'JIRA credentials verified successfully'
       });
     } else {
       return NextResponse.json({
         success: false,
-        message: result.message
+        message: 'Failed to verify JIRA credentials. Please check your URL, email, and API token.'
       }, { status: 400 });
     }
   } catch (error) {

@@ -279,7 +279,7 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
       const result = await searchAllJiraIssues(credentials, jql);
       
       if (result.success) {
-        setJiraIssues(result.issues || []);
+        setJiraIssues(result.data?.issues || []);
       }
     } catch (error) {
       console.error('Error loading JIRA data:', error);
