@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       
       return NextResponse.json({ 
         users: sampleUsers,
-        error: `JIRA API failed: ${jiraError.message}. Showing sample data.`
+        error: `JIRA API failed: ${jiraError instanceof Error ? jiraError.message : 'Unknown error'}. Showing sample data.`
       });
     }
   } catch (error) {
