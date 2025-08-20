@@ -164,9 +164,19 @@ The JIRA User Mapping feature allows users to map their team members' email addr
 - **JIRA User Suggestions**: Dropdown suggestions from actual JIRA users
 - **Enhanced Analytics**: New JIRA Assignee/Reporter analytics tab
 
+### JIRA Project Mapping Feature
+
+The JIRA Project Mapping feature allows users to map their dashboard projects to multiple JIRA projects. This enables comprehensive analytics across multiple JIRA projects that belong to the same internal project.
+
+#### Features
+- **Project Mapping**: Map single dashboard projects to multiple JIRA projects
+- **JIRA Project Suggestions**: Dropdown suggestions from actual JIRA projects
+- **Filtered Analytics**: Analytics respect project mappings when filtering by projects
+- **Comprehensive Coverage**: One dashboard project can include work from multiple JIRA projects
+
 #### Setup Instructions
 
-1. **Database Setup**: You have two options to create the `jira_user_mappings` table:
+1. **User Mapping Database Setup**: You have two options to create the `jira_user_mappings` table:
 
    **Option A: Run the migration script (requires environment variables):**
    ```bash
@@ -179,11 +189,25 @@ The JIRA User Mapping feature allows users to map their team members' email addr
    - Copy and paste the contents of `database/jira_user_mapping.sql`
    - Execute the SQL script
 
-2. **JIRA Integration**: 
+2. **Project Mapping Database Setup**: You have two options to create the `jira_project_mappings` table:
+
+   **Option A: Run the migration script (requires environment variables):**
+   ```bash
+   npm run setup-jira-project-mapping
+   ```
+   
+   **Option B: Manual SQL execution (recommended for quick setup):**
+   - Go to your Supabase dashboard
+   - Navigate to the SQL Editor
+   - Copy and paste the contents of `database/jira_project_mapping.sql`
+   - Execute the SQL script
+
+3. **JIRA Integration**: 
    - Go to `/alignzo/integrations` page
    - Configure your JIRA connection
    - Verify the connection
-   - Use the "User Mapping" button to create mappings
+   - Use the "User Mapping" button to create user mappings
+   - Use the "Project Mapping" button to create project mappings
 
 #### API Endpoints
 
@@ -191,6 +215,10 @@ The JIRA User Mapping feature allows users to map their team members' email addr
 - `POST /api/integrations/jira/user-mapping` - Create/update user mapping
 - `DELETE /api/integrations/jira/user-mapping` - Delete user mapping
 - `GET /api/integrations/jira/users` - Get JIRA users for suggestions
+- `GET /api/integrations/jira/project-mapping` - Get project mappings
+- `POST /api/integrations/jira/project-mapping` - Create/update project mapping
+- `DELETE /api/integrations/jira/project-mapping` - Delete project mapping
+- `GET /api/integrations/jira/projects` - Get JIRA projects for suggestions
 
 ## API Endpoints
 

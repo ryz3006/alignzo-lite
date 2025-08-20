@@ -9,7 +9,8 @@
     "lint": "next lint",
     "vercel-build": "next build",
     "setup-db": "node scripts/create-team-project-table.js",
-    "setup-jira-mapping": "node scripts/create-jira-user-mapping-table.js"
+    "setup-jira-mapping": "node scripts/create-jira-user-mapping-table.js",
+    "setup-jira-project-mapping": "node scripts/create-jira-project-mapping-table.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.5",
