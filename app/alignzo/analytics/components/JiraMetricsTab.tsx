@@ -54,6 +54,12 @@ interface JiraProjectMapping {
   jira_project_key: string;
   jira_project_name?: string;
   integration_user_email: string;
+  project?: {
+    id: string;
+    name: string;
+    product: string;
+    country: string;
+  };
 }
 
 interface JiraProjectMetrics {
@@ -174,7 +180,7 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
     }
   };
 
-  const getJiraProjectKeysForDashboardProjects = async (dashboardProjectIds: string[]): Promise<string[]> => {
+  const getJiraProjectKeysForDashboardProjects = async (dashboardProjectNames: string[]): Promise<string[]> => {
     try {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return [];
@@ -186,9 +192,12 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
         const projectMappings = data.mappings || [];
         console.log('All project mappings:', projectMappings);
         
-        // Filter mappings for selected dashboard projects and extract JIRA project keys
+        // Convert project names to project IDs by matching with the project name in the mapping
         const jiraProjectKeys = projectMappings
-          .filter((mapping: JiraProjectMapping) => dashboardProjectIds.includes(mapping.dashboard_project_id))
+          .filter((mapping: JiraProjectMapping) => {
+            // Check if the mapping's project name matches any of the selected project names
+            return dashboardProjectNames.includes(mapping.project?.name || '');
+          })
           .map((mapping: JiraProjectMapping) => mapping.jira_project_key);
         
         console.log('Filtered JIRA project keys for selected dashboard projects:', jiraProjectKeys);
