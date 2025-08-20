@@ -69,7 +69,7 @@ export async function getJiraCredentials(userEmail: string): Promise<JiraCredent
 }
 
 /**
- * Create Basic Auth header for JIRA API
+ * Create Basic Auth header for JIRA API (used for verification before saving)
  */
 export function createJiraAuthHeader(credentials: JiraCredentials): string {
   const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
@@ -77,7 +77,7 @@ export function createJiraAuthHeader(credentials: JiraCredentials): string {
 }
 
 /**
- * Clean up JIRA base URL
+ * Clean up JIRA base URL (used for verification before saving)
  */
 export function cleanJiraBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -88,6 +88,7 @@ export function cleanJiraBaseUrl(baseUrl: string): string {
  */
 export async function verifyJiraCredentials(credentials: JiraCredentials): Promise<{ success: boolean; user?: JiraUser; message: string }> {
   try {
+    // For verification, we need to make a direct call since the credentials aren't saved yet
     const cleanBaseUrl = cleanJiraBaseUrl(credentials.base_url);
     const authHeader = createJiraAuthHeader(credentials);
 
@@ -144,20 +145,21 @@ export async function searchJiraIssues(
   maxResults: number = 50
 ): Promise<{ success: boolean; issues?: JiraIssue[]; message: string }> {
   try {
-    const cleanBaseUrl = cleanJiraBaseUrl(credentials.base_url);
-    const authHeader = createJiraAuthHeader(credentials);
-
-    const response = await fetch(`${cleanBaseUrl}/rest/api/2/search`, {
+    // Use the proxy API to avoid CORS issues
+    const response = await fetch('/api/jira/proxy', {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        jql,
-        maxResults,
-        fields: ['summary', 'description', 'status', 'assignee', 'project']
+        userEmail: credentials.user_email_integration, // We need the user email for the proxy
+        endpoint: 'search',
+        method: 'POST',
+        requestBody: {
+          jql,
+          maxResults,
+          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016']
+        }
       }),
     });
 
@@ -169,9 +171,10 @@ export async function searchJiraIssues(
         message: `Found ${data.issues.length} issues`
       };
     } else {
+      const errorData = await response.json();
       return {
         success: false,
-        message: `Failed to search issues: ${response.status}`
+        message: errorData.error || `Failed to search issues: ${response.status}`
       };
     }
   } catch (error) {
@@ -191,16 +194,17 @@ export async function getJiraIssue(
   issueKey: string
 ): Promise<{ success: boolean; issue?: JiraIssue; message: string }> {
   try {
-    const cleanBaseUrl = cleanJiraBaseUrl(credentials.base_url);
-    const authHeader = createJiraAuthHeader(credentials);
-
-    const response = await fetch(`${cleanBaseUrl}/rest/api/2/issue/${issueKey}`, {
-      method: 'GET',
+    // Use the proxy API to avoid CORS issues
+    const response = await fetch('/api/jira/proxy', {
+      method: 'POST',
       headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        userEmail: credentials.user_email_integration,
+        endpoint: `issue/${issueKey}`,
+        method: 'GET'
+      }),
     });
 
     if (response.ok) {
@@ -211,9 +215,10 @@ export async function getJiraIssue(
         message: 'Issue retrieved successfully'
       };
     } else {
+      const errorData = await response.json();
       return {
         success: false,
-        message: `Failed to get issue: ${response.status}`
+        message: errorData.error || `Failed to get issue: ${response.status}`
       };
     }
   } catch (error) {

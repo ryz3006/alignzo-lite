@@ -84,7 +84,7 @@ export default function IntegrationsPage() {
     setVerificationMessage('');
 
     try {
-      const response = await fetch('/api/integrations/jira/verify', {
+      const response = await fetch('/api/jira/verify-credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
