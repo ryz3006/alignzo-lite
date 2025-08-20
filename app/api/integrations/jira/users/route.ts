@@ -15,15 +15,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log('Looking for JIRA integration for user:', userEmail);
+
     // Get JIRA integration details for the user
     const { data: integration, error: integrationError } = await supabase
-      .from('jira_integrations')
+      .from('user_integrations')
       .select('base_url, user_email_integration, api_token')
       .eq('user_email', userEmail)
+      .eq('integration_type', 'jira')
       .eq('is_verified', true)
       .single();
 
+    console.log('Integration lookup result:', { integration, error: integrationError });
+
     if (integrationError || !integration) {
+      console.log('Integration not found or error:', integrationError);
       return NextResponse.json(
         { error: 'JIRA integration not found or not verified' },
         { status: 404 }
