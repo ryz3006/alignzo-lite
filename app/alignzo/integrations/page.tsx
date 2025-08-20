@@ -592,7 +592,13 @@ function UserMappingForm({ teamMembers, mapping, onSave, onCancel }: UserMapping
       alert('Please fill in all required fields.');
       return;
     }
-    onSave(formData);
+    // Transform camelCase keys to snake_case to match JiraUserMapping interface
+    onSave({
+      user_email: formData.userEmail,
+      jira_assignee_name: formData.jiraAssigneeName,
+      jira_reporter_name: formData.jiraReporterName,
+      jira_project_key: formData.jiraProjectKey
+    });
   };
 
   return (
