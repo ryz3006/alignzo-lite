@@ -187,7 +187,16 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
       }
 
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
-        query = query.in('project_id', filters.selectedProjects);
+        // Convert project names to UUIDs by looking up the projects table
+        const { data: projectsData } = await supabase
+          .from('projects')
+          .select('id, name')
+          .in('name', filters.selectedProjects);
+        
+        if (projectsData && projectsData.length > 0) {
+          const projectIds = projectsData.map(p => p.id);
+          query = query.in('project_id', projectIds);
+        }
       }
 
       const { data, error } = await query;

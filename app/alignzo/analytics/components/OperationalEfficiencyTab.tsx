@@ -173,7 +173,16 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
       }
 
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
-        query = query.in('project_id', filters.selectedProjects);
+        // Convert project names to UUIDs by looking up the projects table
+        const { data: projectsData } = await supabase
+          .from('projects')
+          .select('id, name')
+          .in('name', filters.selectedProjects);
+        
+        if (projectsData && projectsData.length > 0) {
+          const projectIds = projectsData.map(p => p.id);
+          query = query.in('project_id', projectIds);
+        }
       }
 
       const { data, error } = await query;
@@ -345,8 +354,8 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
     });
 
     const hoursArray = Array.from(userHours.values());
-    const meanHours = hoursArray.reduce((sum, hours) => sum + hours, 0) / hoursArray.length;
-    const variance = hoursArray.reduce((sum, hours) => sum + Math.pow(hours - meanHours, 2), 0) / hoursArray.length;
+    const meanHours = hoursArray.length > 0 ? hoursArray.reduce((sum, hours) => sum + hours, 0) / hoursArray.length : 0;
+    const variance = hoursArray.length > 0 ? hoursArray.reduce((sum, hours) => sum + Math.pow(hours - meanHours, 2), 0) / hoursArray.length : 0;
     const workloadBalanceIndex = meanHours > 0 ? Math.round((1 - Math.sqrt(variance) / meanHours) * 100) : 0;
 
     // Quality metrics (simplified)

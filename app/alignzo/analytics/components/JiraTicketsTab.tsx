@@ -116,6 +116,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
   const [ticketMetrics, setTicketMetrics] = useState<TicketMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
 
   useEffect(() => {
     checkJiraIntegration();
@@ -162,8 +163,16 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       setError(null);
       console.log('Loading JIRA data with complete pagination...');
 
+      // Add timeout protection
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 30000)
+      );
+
       // First, get all available JIRA project mappings for the user
-      const allProjectMappings = await getAllJiraProjectMappings();
+      const allProjectMappings = await Promise.race([
+        getAllJiraProjectMappings(),
+        timeoutPromise
+      ]) as JiraProjectMapping[];
       
       if (allProjectMappings.length === 0) {
         setError('No JIRA project mappings found. Please configure project mappings first.');
@@ -175,7 +184,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       let jql = 'project IS NOT EMPTY';
 
       // Filter by mapped projects only
-      const availableProjectKeys = allProjectMappings.map(mapping => mapping.jira_project_key);
+      const availableProjectKeys = allProjectMappings.map((mapping: JiraProjectMapping) => mapping.jira_project_key);
       jql = `project in ("${availableProjectKeys.join('", "')}")`;
 
       // Further filter by selected projects if specified
@@ -213,7 +222,12 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       jql += ' ORDER BY updated DESC';
 
-      const result = await searchAllJiraIssues(credentials, jql);
+      console.log('Executing JIRA search with JQL:', jql);
+      setLoadingProgress('Fetching JIRA data...');
+      const result = await Promise.race([
+        searchAllJiraIssues(credentials, jql),
+        timeoutPromise
+      ]) as { success: boolean; issues?: JiraIssue[]; message: string };
       
       if (!result.success) {
         setError(result.message);
@@ -222,6 +236,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       const issues = result.issues || [];
       console.log(`Processing ${issues.length} JIRA issues for analytics...`);
+      setLoadingProgress(`Processing ${issues.length} tickets...`);
       setJiraIssues(issues);
       calculateTicketMetrics(issues);
     } catch (error) {
@@ -229,6 +244,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       setError('Failed to load JIRA data');
     } finally {
       setRefreshing(false);
+      setLoadingProgress('');
     }
   };
 
@@ -448,8 +464,11 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mb-4"></div>
+        {loadingProgress && (
+          <p className="text-sm text-gray-600">{loadingProgress}</p>
+        )}
       </div>
     );
   }
@@ -518,7 +537,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+            {refreshing ? (loadingProgress || 'Refreshing...') : 'Refresh Data'}
           </button>
         </div>
       </div>
