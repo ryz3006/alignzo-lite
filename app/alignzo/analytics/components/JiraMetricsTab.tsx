@@ -135,10 +135,15 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
 
       // Add project filter if projects are selected
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
+        console.log('Selected dashboard projects:', filters.selectedProjects);
         // Get JIRA project keys for selected dashboard projects
         const projectKeys = await getJiraProjectKeysForDashboardProjects(filters.selectedProjects);
+        console.log('Found JIRA project keys:', projectKeys);
         if (projectKeys.length > 0) {
           jql = `project in ("${projectKeys.join('", "')}")`;
+          console.log('Updated JQL with project filter:', jql);
+        } else {
+          console.log('No JIRA project mappings found for selected dashboard projects');
         }
       }
 
@@ -150,6 +155,7 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
       }
 
       jql += ' ORDER BY updated DESC';
+      console.log('Final JQL query:', jql);
 
       const result = await searchJiraIssues(credentials, jql, 1000);
       
@@ -173,17 +179,22 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return [];
 
+      console.log('Fetching project mappings for user:', currentUser.email);
       const response = await fetch(`/api/integrations/jira/project-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
       if (response.ok) {
         const data = await response.json();
         const projectMappings = data.mappings || [];
+        console.log('All project mappings:', projectMappings);
         
         // Filter mappings for selected dashboard projects and extract JIRA project keys
         const jiraProjectKeys = projectMappings
           .filter((mapping: JiraProjectMapping) => dashboardProjectIds.includes(mapping.dashboard_project_id))
           .map((mapping: JiraProjectMapping) => mapping.jira_project_key);
         
+        console.log('Filtered JIRA project keys for selected dashboard projects:', jiraProjectKeys);
         return jiraProjectKeys;
+      } else {
+        console.error('Failed to fetch project mappings:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Failed to get JIRA project keys:', error);
