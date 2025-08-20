@@ -49,29 +49,41 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Use the proxy API to create the ticket
-    const response = await fetch('/api/jira/proxy', {
+    // Create the full JIRA API URL
+    const baseUrl = credentials.base_url.endsWith('/') 
+      ? credentials.base_url.slice(0, -1) 
+      : credentials.base_url;
+    const url = `${baseUrl}/rest/api/2/issue`;
+
+    // Create Basic Auth header
+    const authString = `${credentials.user_email_integration}:${credentials.api_token}`;
+    const authHeader = Buffer.from(authString).toString('base64');
+
+    console.log(`Creating JIRA ticket in project: ${projectKey}`);
+
+    // Make the request directly to JIRA
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userEmail: credentials.user_email_integration,
-        endpoint: 'issue',
-        method: 'POST',
-        requestBody: ticketData
-      }),
+      body: JSON.stringify(ticketData),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorText = await response.text();
+      console.error(`JIRA API error ${response.status}:`, errorText);
       return NextResponse.json(
-        { error: errorData.error || `Failed to create ticket: ${response.status}` },
+        { error: `Failed to create JIRA ticket: ${response.status}`, details: errorText },
         { status: response.status }
       );
     }
 
     const data = await response.json();
+    console.log(`JIRA ticket created successfully: ${data.key}`);
+    
     return NextResponse.json({
       success: true,
       ticket: data,

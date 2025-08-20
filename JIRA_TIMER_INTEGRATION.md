@@ -53,6 +53,19 @@ Creates a new JIRA ticket with the specified details.
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "ticket": {
+    "key": "PROJ-123",
+    "id": "12345",
+    "fields": { ... }
+  },
+  "message": "JIRA ticket created successfully"
+}
+```
+
 ### 2. Search JIRA Tickets
 ```
 POST /api/jira/search-tickets
@@ -66,6 +79,23 @@ Searches for existing JIRA tickets using LIKE operator.
   "projectKey": "PROJ",
   "searchTerm": "TASK-123",
   "maxResults": 20
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tickets": [
+    {
+      "key": "PROJ-123",
+      "fields": {
+        "summary": "Task Summary",
+        "status": { "name": "In Progress" }
+      }
+    }
+  ],
+  "message": "Found 1 tickets"
 }
 ```
 
@@ -155,10 +185,31 @@ The system includes comprehensive error handling for:
 
 ## Security
 
-- All JIRA API calls go through the proxy endpoint
+- All JIRA API calls use direct authentication
 - User authentication is verified for all operations
 - Project access is restricted based on team memberships
 - API tokens are stored securely in the database
+
+## Recent Fixes
+
+### API Endpoint Fixes (Latest)
+- **Fixed URL parsing error**: Removed relative URL usage in server-side API routes
+- **Direct JIRA API calls**: All endpoints now call JIRA API directly instead of using proxy
+- **Improved error handling**: Better error messages and logging
+- **Enhanced debugging**: Added console logging for troubleshooting
+
+### Known Issues Resolved
+- ✅ Fixed "Failed to parse URL from /api/jira/proxy" error
+- ✅ Fixed server-side fetch with relative URLs
+- ✅ Improved error handling for JIRA API responses
+- ✅ Added proper authentication headers
+
+## Testing
+
+A test script is available at `test-jira-api.js` to verify API endpoints:
+```bash
+node test-jira-api.js
+```
 
 ## Future Enhancements
 
@@ -183,3 +234,17 @@ Potential future improvements:
 2. Verify JIRA credentials in integration settings
 3. Confirm project mappings are correctly configured
 4. Test JIRA API access directly
+5. Check server logs for detailed error messages
+
+### API Error Codes:
+- **400**: Bad Request - Check request parameters
+- **401**: Unauthorized - Check JIRA credentials
+- **403**: Forbidden - Check JIRA permissions
+- **404**: Not Found - Check project key or issue key
+- **500**: Internal Server Error - Check server logs
+
+### Recent Error Fixes:
+- **URL Parsing Error**: Fixed by removing relative URLs in server-side code
+- **Proxy Issues**: Resolved by direct JIRA API calls
+- **Authentication**: Improved Basic Auth header creation
+- **Error Messages**: Enhanced error reporting and logging

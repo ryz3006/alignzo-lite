@@ -149,21 +149,27 @@ export async function searchJiraIssues(
   maxResults: number = 50
 ): Promise<{ success: boolean; issues?: JiraIssue[]; message: string }> {
   try {
-    // Use the proxy API to avoid CORS issues
-    const response = await fetch('/api/jira/proxy', {
+    // Create the full JIRA API URL
+    const baseUrl = cleanJiraBaseUrl(credentials.base_url);
+    const url = `${baseUrl}/rest/api/2/search`;
+
+    // Create Basic Auth header
+    const authHeader = createJiraAuthHeader(credentials);
+
+    console.log(`Searching JIRA issues with JQL: ${jql}`);
+
+    // Make the request directly to JIRA
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userEmail: credentials.user_email_integration, // We need the user email for the proxy
-        endpoint: 'search',
-        method: 'POST',
-        requestBody: {
-          jql,
-          maxResults,
-          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
-        }
+        jql,
+        maxResults,
+        fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
       }),
     });
 
@@ -175,10 +181,11 @@ export async function searchJiraIssues(
         message: `Found ${data.issues.length} issues`
       };
     } else {
-      const errorData = await response.json();
+      const errorText = await response.text();
+      console.error(`JIRA search error ${response.status}:`, errorText);
       return {
         success: false,
-        message: errorData.error || `Failed to search issues: ${response.status}`
+        message: `Failed to search issues: ${response.status}`
       };
     }
   } catch (error) {
@@ -205,30 +212,35 @@ export async function searchAllJiraIssues(
     
     console.log(`Starting paginated JIRA search with JQL: ${jql}`);
     
+    // Create the full JIRA API URL
+    const baseUrl = cleanJiraBaseUrl(credentials.base_url);
+    const url = `${baseUrl}/rest/api/2/search`;
+
+    // Create Basic Auth header
+    const authHeader = createJiraAuthHeader(credentials);
+    
     do {
-      const response = await fetch('/api/jira/proxy', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
+          'Authorization': `Basic ${authHeader}`,
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userEmail: credentials.user_email_integration,
-          endpoint: 'search',
-          method: 'POST',
-          requestBody: {
-            jql,
-            maxResults: maxResultsPerPage,
-            startAt,
-            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
-          }
+          jql,
+          maxResults: maxResultsPerPage,
+          startAt,
+          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        console.error(`JIRA search error ${response.status}:`, errorText);
         return {
           success: false,
-          message: errorData.error || 'Failed to search JIRA issues'
+          message: `Failed to search JIRA issues: ${response.status}`
         };
       }
 
@@ -267,17 +279,23 @@ export async function getJiraIssue(
   issueKey: string
 ): Promise<{ success: boolean; issue?: JiraIssue; message: string }> {
   try {
-    // Use the proxy API to avoid CORS issues
-    const response = await fetch('/api/jira/proxy', {
-      method: 'POST',
+    // Create the full JIRA API URL
+    const baseUrl = cleanJiraBaseUrl(credentials.base_url);
+    const url = `${baseUrl}/rest/api/2/issue/${issueKey}`;
+
+    // Create Basic Auth header
+    const authHeader = createJiraAuthHeader(credentials);
+
+    console.log(`Getting JIRA issue: ${issueKey}`);
+
+    // Make the request directly to JIRA
+    const response = await fetch(url, {
+      method: 'GET',
       headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userEmail: credentials.user_email_integration,
-        endpoint: `issue/${issueKey}`,
-        method: 'GET'
-      }),
     });
 
     if (response.ok) {
@@ -288,10 +306,11 @@ export async function getJiraIssue(
         message: 'Issue retrieved successfully'
       };
     } else {
-      const errorData = await response.json();
+      const errorText = await response.text();
+      console.error(`JIRA get issue error ${response.status}:`, errorText);
       return {
         success: false,
-        message: errorData.error || `Failed to get issue: ${response.status}`
+        message: `Failed to get issue: ${response.status}`
       };
     }
   } catch (error) {
