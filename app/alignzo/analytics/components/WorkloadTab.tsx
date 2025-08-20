@@ -141,6 +141,60 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     return data || [];
   };
 
+  const calculateWorkingDays = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let workingDays = 0;
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) workingDays++;
+    }
+    
+    return workingDays;
+  };
+
+  const groupBy = (array: any[], key: string) => {
+    return array.reduce((groups: any, item: any) => {
+      const group = key.split('.').reduce((obj: any, k: string) => obj?.[k], item) || 'Unknown';
+      groups[group] = groups[group] || [];
+      groups[group].push(item);
+      return groups;
+    }, {});
+  };
+
+  const groupByDay = (logs: any[]) => {
+    return logs.reduce((groups: any, log: any) => {
+      const date = new Date(log.start_time);
+      const day = date.toISOString().split('T')[0];
+      groups[day] = groups[day] || [];
+      groups[day].push(log);
+      return groups;
+    }, {});
+  };
+
+  const calculateDailyWorkload = (logs: any[], workingDays: number) => {
+    const dailyData = groupByDay(logs);
+    const result = [];
+    
+    for (let i = 0; i < workingDays; i++) {
+      const date = new Date(filters.dateRange.start);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayLogs = dailyData[dateStr] || [];
+      const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+      const utilization = hours / 8 * 100; // Assuming 8-hour workday
+      
+      result.push({
+        date: dateStr,
+        hours: Math.round(hours * 100) / 100,
+        utilization: Math.round(utilization * 100) / 100
+      });
+    }
+    
+    return result;
+  };
+
   const calculateWorkloadMetrics = (workLogs: any[], users: any[]): WorkloadMetrics[] => {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
@@ -221,60 +275,6 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     };
   };
 
-  const calculateWorkingDays = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    let workingDays = 0;
-    
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      if (d.getDay() !== 0 && d.getDay() !== 6) workingDays++;
-    }
-    
-    return workingDays;
-  };
-
-  const groupBy = (array: any[], key: string) => {
-    return array.reduce((groups: any, item: any) => {
-      const group = key.split('.').reduce((obj: any, k: string) => obj?.[k], item) || 'Unknown';
-      groups[group] = groups[group] || [];
-      groups[group].push(item);
-      return groups;
-    }, {});
-  };
-
-  const calculateDailyWorkload = (logs: any[], workingDays: number) => {
-    const dailyData = groupByDay(logs);
-    const result = [];
-    
-    for (let i = 0; i < workingDays; i++) {
-      const date = new Date(filters.dateRange.start);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      const dayLogs = dailyData[dateStr] || [];
-      const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const utilization = hours / 8 * 100; // Assuming 8-hour workday
-      
-      result.push({
-        date: dateStr,
-        hours: Math.round(hours * 100) / 100,
-        utilization: Math.round(utilization * 100) / 100
-      });
-    }
-    
-    return result;
-  };
-
-  const groupByDay = (logs: any[]) => {
-    return logs.reduce((groups: any, log: any) => {
-      const date = new Date(log.start_time);
-      const day = date.toISOString().split('T')[0];
-      groups[day] = groups[day] || [];
-      groups[day].push(log);
-      return groups;
-    }, {});
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -283,7 +283,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     );
   }
 
-  const chartData = workloadMetrics.map(metric => ({
+  const chartData = workloadMetrics.map((metric) => ({
     name: metric.userName,
     utilization: metric.utilizationRate,
     loggedHours: metric.totalLoggedHours,
@@ -363,7 +363,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <div className="font-medium mb-1">Total Overtime</div>
                 <div className="text-gray-300 text-xs">
                   Total hours logged beyond the standard 8-hour workday across all users. 
-                  Calculated as: Sum of (Logged Hours - 8 hours) for each day where logged hours > 8.
+                  Calculated as: Sum of (Logged Hours - 8 hours) for each day where logged hours &gt; 8.
                 </div>
                 <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
               </div>
@@ -388,7 +388,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                 <div className="font-medium mb-1">Idle Hours</div>
                 <div className="text-gray-300 text-xs">
                   Total unlogged hours during working days across all users. 
-                  Calculated as: Sum of (8 hours - Logged Hours) for each day where logged hours < 8.
+                  Calculated as: Sum of (8 hours - Logged Hours) for each day where logged hours &lt; 8.
                   Represents potential capacity that wasn't utilized.
                 </div>
                 <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
