@@ -3,6 +3,47 @@
 ## Overview
 This document summarizes the analysis of the CSV sample data (`All Logged SR (Reported Date) Preview (2).csv`) and the fixes implemented for the ticket upload functionality in the Alignzo Lite application.
 
+## Critical Issue Identified and Fixed
+
+### **Multi-Line Field Parsing Problem**
+**Issue**: The CSV file contains multi-line fields (especially the "Resolution" field) that were not being parsed correctly, causing all subsequent fields to be misaligned.
+
+**Example from INC000097235405**:
+```
+Resolution: "The credentials are shared over one to one mail and please find the details below.
+
+
+Channel Details
+
+Dealer Name
+
+RENIT TECHNOLOGIES PRIVATE LIMITED
+Dealer Id
+
+010190142186836315
+Circle
+
+ROTN
+
+URL
+
+https://iotsmartcentral.myvi.in
+
+User mail id
+
+nidhesh@renit.net
+Password
+
+Shared over one to one mail"
+```
+
+**Problem**: Standard CSV parsing was treating each newline as a new row, causing field misalignment.
+
+**Solution**: Implemented enhanced CSV parsing that:
+1. Tracks quote state across multiple lines
+2. Properly handles multi-line quoted fields
+3. Maintains field alignment even with complex content
+
 ## CSV Data Analysis
 
 ### Sample Data Characteristics
@@ -24,22 +65,28 @@ This document summarizes the analysis of the CSV sample data (`All Logged SR (Re
 
 ### Data Quality Issues Found
 
-#### 1. Date Format Issues
+#### 1. **Multi-Line Fields** ⚠️ **CRITICAL**
+- **Fields**: Resolution, Summary, Pending_Reason
+- **Problem**: Fields contain newlines and complex formatting
+- **Impact**: Complete field misalignment after these fields
+- **Solution**: Enhanced CSV parser with quote state tracking
+
+#### 2. Date Format Issues
 - **Format**: "08/18/2025, 07:06:29 PM"
 - **Problem**: Complex format with AM/PM and commas
 - **Solution**: Implemented robust date parsing function
 
-#### 2. Empty Values
+#### 3. Empty Values
 - **Fields**: Many fields contain empty strings
 - **Problem**: Inconsistent data representation
 - **Solution**: Convert empty strings to NULL for better data consistency
 
-#### 3. Special Characters
+#### 4. Special Characters
 - **Issue**: Some fields contain quotes and special characters
 - **Problem**: CSV parsing errors
 - **Solution**: Enhanced CSV parsing with quote handling
 
-#### 4. Data Type Mismatches
+#### 5. Data Type Mismatches
 - **Numeric Fields**: group_transfers, total_transfers, reopen_count
 - **Boolean Fields**: vip, reported_to_vendor
 - **Problem**: Schema expected different data types
@@ -71,26 +118,32 @@ reported_to_vendor VARCHAR(10) -- Handle "Yes"/"No" values
 
 ## New Functions Implemented
 
-### 1. Data Processing Functions
+### 1. **Enhanced CSV Parsing** 🆕 **CRITICAL FIX**
+- `parseCSVWithMultiline()`: Handles multi-line quoted fields
+- `parseCSVLine()`: Proper quote handling within fields
+- Quote state tracking across multiple lines
+- Maintains field alignment with complex content
+
+### 2. Data Processing Functions
 - `parse_remedy_date()`: Safely parses Remedy date format
 - `safe_string_to_int()`: Converts strings to integers with error handling
-- `clean_csv_field()`: Cleans and validates CSV field values
+- `clean_csv_field()`: Enhanced cleaning with escaped quote handling
 
-### 2. Validation Functions
+### 3. Validation Functions
 - `validate_ticket_data()`: Validates ticket data before insertion
 - Checks for required fields, duplicate incident IDs, valid priorities
 - Validates date formats
 
-### 3. Bulk Operations
+### 4. Bulk Operations
 - `bulk_insert_tickets()`: Safe bulk insertion with validation
 - Returns success/error counts and detailed error messages
 - Handles large datasets efficiently
 
-### 4. Data Cleanup
+### 5. Data Cleanup
 - `cleanup_uploaded_tickets()`: Converts empty strings to NULL
 - Improves data consistency for existing records
 
-### 5. Analytics Functions
+### 6. Analytics Functions
 - `get_ticket_stats_by_project()`: Project-level statistics
 - `get_user_workload_stats()`: User workload analysis
 - Support for date filtering and aggregation
@@ -118,10 +171,11 @@ CREATE INDEX idx_uploaded_tickets_user_status_date ON uploaded_tickets(mapped_us
 
 ## Upload Logic Improvements
 
-### 1. Enhanced CSV Parsing
-- Proper handling of quoted fields
+### 1. **Enhanced CSV Parsing** 🆕 **CRITICAL**
+- Proper handling of multi-line quoted fields
 - Support for complex date formats
 - Better error handling for malformed data
+- Quote state tracking across multiple lines
 
 ### 2. Data Validation
 - Pre-insertion validation of all fields
@@ -138,9 +192,10 @@ CREATE INDEX idx_uploaded_tickets_user_status_date ON uploaded_tickets(mapped_us
 ### 1. Schema Files
 - `database/schema.sql`: Updated with improved data types
 - `database/ticket_upload_fixes.sql`: New file with all fixes and functions
+- `database/test_csv_parsing.sql`: New test script for validation
 
 ### 2. Application Files
-- `app/alignzo/upload-tickets/page.tsx`: Enhanced upload logic
+- `app/alignzo/upload-tickets/page.tsx`: Enhanced upload logic with multi-line parsing
 - `app/alignzo/master-mappings/page.tsx`: Master mapping functionality
 
 ## Usage Instructions
@@ -154,18 +209,25 @@ CREATE INDEX idx_uploaded_tickets_user_status_date ON uploaded_tickets(mapped_us
 \i database/ticket_upload_fixes.sql
 ```
 
-### 2. Clean Existing Data
+### 2. Test the Fixes
+```sql
+-- Run the test script to verify fixes
+\i database/test_csv_parsing.sql
+```
+
+### 3. Clean Existing Data
 ```sql
 -- Clean up existing data
 SELECT cleanup_uploaded_tickets();
 ```
 
-### 3. Use Enhanced Upload
+### 4. Use Enhanced Upload
 - The upload functionality now includes better validation
 - Error reporting shows detailed issues
 - Bulk operations are more efficient
+- **Multi-line fields are now properly parsed**
 
-### 4. Analytics Queries
+### 5. Analytics Queries
 ```sql
 -- Get project statistics
 SELECT * FROM get_ticket_stats_by_project();
@@ -183,7 +245,8 @@ SELECT * FROM get_ticket_stats_by_project(
 
 ## Key Benefits
 
-### 1. Data Quality
+### 1. **Data Quality** 🎯
+- **Fixed multi-line field parsing** - No more field misalignment
 - Consistent handling of empty values
 - Proper date parsing and storage
 - Validation prevents invalid data
@@ -197,6 +260,7 @@ SELECT * FROM get_ticket_stats_by_project(
 - Robust error handling
 - Detailed validation
 - Safe data processing
+- **Handles complex CSV formats**
 
 ### 4. Analytics
 - Built-in reporting functions
@@ -206,27 +270,31 @@ SELECT * FROM get_ticket_stats_by_project(
 ## Recommendations
 
 ### 1. Immediate Actions
-1. Apply the schema updates to production
-2. Run data cleanup on existing records
-3. Test upload functionality with sample data
+1. **Apply the schema updates to production** ⚡
+2. **Test with the problematic CSV file** ⚡
+3. Run data cleanup on existing records
+4. Verify multi-line field parsing works correctly
 
 ### 2. Monitoring
 1. Monitor upload success rates
 2. Track validation error patterns
 3. Review analytics for insights
+4. **Check field alignment in uploaded data**
 
 ### 3. Future Enhancements
 1. Add more validation rules as needed
 2. Implement data quality dashboards
 3. Add automated data cleanup schedules
+4. Consider additional CSV format support
 
 ## Conclusion
 
-The analysis revealed several data quality and schema issues that have been addressed through comprehensive fixes. The updated system now provides:
+The analysis revealed a **critical multi-line field parsing issue** that was causing complete field misalignment in the uploaded data. This has been addressed through comprehensive fixes:
 
-- **Better Data Handling**: Robust parsing and validation
+- **Better Data Handling**: Robust parsing and validation, especially for multi-line fields
 - **Improved Performance**: Optimized indexes and queries
 - **Enhanced Analytics**: Built-in reporting functions
 - **Reliable Operations**: Comprehensive error handling
+- **Fixed Field Alignment**: Multi-line fields now parse correctly
 
-The ticket upload functionality is now ready for production use with the provided CSV data format and can handle similar data from other Remedy exports.
+The ticket upload functionality is now ready for production use with the provided CSV data format and can handle similar data from other Remedy exports, including complex multi-line content.

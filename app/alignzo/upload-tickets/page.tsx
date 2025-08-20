@@ -456,6 +456,54 @@ export default function UploadTicketsPage() {
       if (sessionError) throw sessionError;
       setCurrentSession(session);
 
+       // Helper function to convert time format string to seconds
+       const convertTimeToSeconds = (timeString: string): number | null => {
+         if (!timeString || timeString.trim() === '') return null;
+         
+         try {
+           // Handle format like "02:58:25" (HH:MM:SS)
+           if (timeString.includes(':') && timeString.split(':').length === 3) {
+             const parts = timeString.split(':');
+             const hours = parseInt(parts[0], 10);
+             const minutes = parseInt(parts[1], 10);
+             const seconds = parseInt(parts[2], 10);
+             
+             if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 && seconds >= 0 && seconds <= 59) {
+               return (hours * 3600) + (minutes * 60) + seconds;
+             }
+           }
+           
+           // Handle format like "02:58" (MM:SS)
+           if (timeString.includes(':') && timeString.split(':').length === 2) {
+             const parts = timeString.split(':');
+             const minutes = parseInt(parts[0], 10);
+             const seconds = parseInt(parts[1], 10);
+             
+             if (minutes >= 0 && minutes <= 59 && seconds >= 0 && seconds <= 59) {
+               return (minutes * 60) + seconds;
+             }
+           }
+           
+           // Handle format like "125" (seconds only)
+           const seconds = parseInt(timeString, 10);
+           if (!isNaN(seconds) && seconds >= 0) {
+             return seconds;
+           }
+           
+           return null;
+         } catch (error) {
+           console.warn('Failed to convert time to seconds:', timeString, error);
+           return null;
+         }
+       };
+
+       // Helper function to convert time format string to minutes
+       const convertTimeToMinutes = (timeString: string): number | null => {
+         const seconds = convertTimeToSeconds(timeString);
+         if (seconds === null) return null;
+         return Math.round((seconds / 60) * 100) / 100; // Round to 2 decimal places
+       };
+
        // Helper function to parse CSV line with quoted fields
        const parseCSVLine = (line: string): string[] => {
          const result: string[] = [];
@@ -787,7 +835,11 @@ export default function UploadTicketsPage() {
                vil_function: ticket.vil_function,
                it_partner: ticket.it_partner,
                mttr: ticket.mttr || null, // Keep as string for time format like "02:58:25"
-               mtti: ticket.mtti || null  // Keep as string for time format like "02:58:25"
+               mtti: ticket.mtti || null,  // Keep as string for time format like "02:58:25"
+               mttr_seconds: ticket.mttr ? convertTimeToSeconds(ticket.mttr) : null,
+               mtti_seconds: ticket.mtti ? convertTimeToSeconds(ticket.mtti) : null,
+               mttr_minutes: ticket.mttr ? convertTimeToMinutes(ticket.mttr) : null,
+               mtti_minutes: ticket.mtti ? convertTimeToMinutes(ticket.mtti) : null
              });
            }
         }

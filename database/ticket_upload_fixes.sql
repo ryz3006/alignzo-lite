@@ -242,7 +242,11 @@ BEGIN
                     vil_function,
                     it_partner,
                     mttr,
-                    mtti
+                    mtti,
+                    mttr_seconds,
+                    mtti_seconds,
+                    mttr_minutes,
+                    mtti_minutes
                 ) VALUES (
                     (ticket->>'source_id')::UUID,
                     (ticket->>'mapping_id')::UUID,
@@ -299,7 +303,11 @@ BEGIN
                     clean_csv_field(ticket->>'vil_function'),
                     clean_csv_field(ticket->>'it_partner'),
                     clean_csv_field(ticket->>'mttr'),
-                    clean_csv_field(ticket->>'mtti')
+                    clean_csv_field(ticket->>'mtti'),
+                    time_string_to_seconds(clean_csv_field(ticket->>'mttr')),
+                    time_string_to_seconds(clean_csv_field(ticket->>'mtti')),
+                    time_string_to_minutes(clean_csv_field(ticket->>'mttr')),
+                    time_string_to_minutes(clean_csv_field(ticket->>'mtti'))
                 );
                 
                 success_counter := success_counter + 1;
@@ -591,6 +599,171 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Enhanced analytics functions with MTTR/MTTI calculations
+-- Function to get MTTR and MTTI statistics by project
+CREATE OR REPLACE FUNCTION get_mttr_mtti_stats_by_project(
+    p_project_id UUID DEFAULT NULL,
+    p_start_date TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    p_end_date TIMESTAMP WITH TIME ZONE DEFAULT NULL
+)
+RETURNS TABLE(
+    project_name TEXT,
+    total_tickets BIGINT,
+    avg_mttr_seconds INTEGER,
+    avg_mttr_minutes DECIMAL(10,2),
+    avg_mtti_seconds INTEGER,
+    avg_mtti_minutes DECIMAL(10,2),
+    min_mttr_minutes DECIMAL(10,2),
+    max_mttr_minutes DECIMAL(10,2),
+    min_mtti_minutes DECIMAL(10,2),
+    max_mtti_minutes DECIMAL(10,2)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.name as project_name,
+        COUNT(*) as total_tickets,
+        AVG(ut.mttr_seconds)::INTEGER as avg_mttr_seconds,
+        AVG(ut.mttr_minutes) as avg_mttr_minutes,
+        AVG(ut.mtti_seconds)::INTEGER as avg_mtti_seconds,
+        AVG(ut.mtti_minutes) as avg_mtti_minutes,
+        MIN(ut.mttr_minutes) as min_mttr_minutes,
+        MAX(ut.mttr_minutes) as max_mttr_minutes,
+        MIN(ut.mtti_minutes) as min_mtti_minutes,
+        MAX(ut.mtti_minutes) as max_mtti_minutes
+    FROM uploaded_tickets ut
+    JOIN projects p ON ut.project_id = p.id
+    WHERE (p_project_id IS NULL OR ut.project_id = p_project_id)
+        AND (p_start_date IS NULL OR ut.reported_date1 >= p_start_date)
+        AND (p_end_date IS NULL OR ut.reported_date1 <= p_end_date)
+        AND (ut.mttr_seconds IS NOT NULL OR ut.mtti_seconds IS NOT NULL)
+    GROUP BY p.id, p.name;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get MTTR and MTTI statistics by user
+CREATE OR REPLACE FUNCTION get_mttr_mtti_stats_by_user(
+    p_start_date TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    p_end_date TIMESTAMP WITH TIME ZONE DEFAULT NULL
+)
+RETURNS TABLE(
+    user_email TEXT,
+    total_tickets BIGINT,
+    avg_mttr_minutes DECIMAL(10,2),
+    avg_mtti_minutes DECIMAL(10,2),
+    total_mttr_minutes DECIMAL(10,2),
+    total_mtti_minutes DECIMAL(10,2),
+    efficiency_score DECIMAL(5,2)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        COALESCE(ut.mapped_user_email, ut.assignee) as user_email,
+        COUNT(*) as total_tickets,
+        AVG(ut.mttr_minutes) as avg_mttr_minutes,
+        AVG(ut.mtti_minutes) as avg_mtti_minutes,
+        SUM(ut.mttr_minutes) as total_mttr_minutes,
+        SUM(ut.mtti_minutes) as total_mtti_minutes,
+        CASE 
+            WHEN AVG(ut.mttr_minutes) > 0 THEN 
+                ROUND((100 - (AVG(ut.mttr_minutes) / 60))::DECIMAL, 2) -- Efficiency score based on MTTR
+            ELSE 100 
+        END as efficiency_score
+    FROM uploaded_tickets ut
+    WHERE (p_start_date IS NULL OR ut.reported_date1 >= p_start_date)
+        AND (p_end_date IS NULL OR ut.reported_date1 <= p_end_date)
+        AND (ut.mapped_user_email IS NOT NULL OR ut.assignee IS NOT NULL)
+        AND (ut.mttr_seconds IS NOT NULL OR ut.mtti_seconds IS NOT NULL)
+    GROUP BY COALESCE(ut.mapped_user_email, ut.assignee);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get MTTR and MTTI trends over time
+CREATE OR REPLACE FUNCTION get_mttr_mtti_trends(
+    p_project_id UUID DEFAULT NULL,
+    p_days INTEGER DEFAULT 30
+)
+RETURNS TABLE(
+    date DATE,
+    avg_mttr_minutes DECIMAL(10,2),
+    avg_mtti_minutes DECIMAL(10,2),
+    ticket_count BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        DATE(ut.reported_date1) as date,
+        AVG(ut.mttr_minutes) as avg_mttr_minutes,
+        AVG(ut.mtti_minutes) as avg_mtti_minutes,
+        COUNT(*) as ticket_count
+    FROM uploaded_tickets ut
+    WHERE (p_project_id IS NULL OR ut.project_id = p_project_id)
+        AND ut.reported_date1 >= CURRENT_DATE - INTERVAL '1 day' * p_days
+        AND (ut.mttr_seconds IS NOT NULL OR ut.mtti_seconds IS NOT NULL)
+    GROUP BY DATE(ut.reported_date1)
+    ORDER BY date;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get performance benchmarks
+CREATE OR REPLACE FUNCTION get_performance_benchmarks(
+    p_project_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    metric_name TEXT,
+    current_avg DECIMAL(10,2),
+    target_value DECIMAL(10,2),
+    performance_percentage DECIMAL(5,2),
+    status TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH current_stats AS (
+        SELECT 
+            AVG(ut.mttr_minutes) as avg_mttr,
+            AVG(ut.mtti_minutes) as avg_mtti
+        FROM uploaded_tickets ut
+        WHERE (p_project_id IS NULL OR ut.project_id = p_project_id)
+            AND (ut.mttr_seconds IS NOT NULL OR ut.mtti_seconds IS NOT NULL)
+    )
+    SELECT 
+        'MTTR (Minutes)' as metric_name,
+        cs.avg_mttr as current_avg,
+        30.0 as target_value, -- 30 minutes target
+        CASE 
+            WHEN cs.avg_mttr > 0 THEN 
+                ROUND(((30.0 / cs.avg_mttr) * 100)::DECIMAL, 2)
+            ELSE 0 
+        END as performance_percentage,
+        CASE 
+            WHEN cs.avg_mttr <= 30.0 THEN 'Excellent'
+            WHEN cs.avg_mttr <= 60.0 THEN 'Good'
+            WHEN cs.avg_mttr <= 120.0 THEN 'Fair'
+            ELSE 'Needs Improvement'
+        END as status
+    FROM current_stats cs
+    
+    UNION ALL
+    
+    SELECT 
+        'MTTI (Minutes)' as metric_name,
+        cs.avg_mtti as current_avg,
+        15.0 as target_value, -- 15 minutes target
+        CASE 
+            WHEN cs.avg_mtti > 0 THEN 
+                ROUND(((15.0 / cs.avg_mtti) * 100)::DECIMAL, 2)
+            ELSE 0 
+        END as performance_percentage,
+        CASE 
+            WHEN cs.avg_mtti <= 15.0 THEN 'Excellent'
+            WHEN cs.avg_mtti <= 30.0 THEN 'Good'
+            WHEN cs.avg_mtti <= 60.0 THEN 'Fair'
+            ELSE 'Needs Improvement'
+        END as status
+    FROM current_stats cs;
+END;
+$$ LANGUAGE plpgsql;
+
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
@@ -619,6 +792,10 @@ COMMENT ON FUNCTION bulk_insert_tickets(JSONB) IS 'Bulk inserts tickets with val
 COMMENT ON FUNCTION cleanup_uploaded_tickets() IS 'Cleans existing data by converting empty strings to NULL';
 COMMENT ON FUNCTION get_ticket_stats_by_project(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets ticket statistics by project with date filtering';
 COMMENT ON FUNCTION get_user_workload_stats(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets user workload statistics with date filtering';
+COMMENT ON FUNCTION get_mttr_mtti_stats_by_project(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets MTTR/MTTI statistics by project with date filtering';
+COMMENT ON FUNCTION get_mttr_mtti_stats_by_user(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets MTTR/MTTI statistics by user with date filtering';
+COMMENT ON FUNCTION get_mttr_mtti_trends(INTEGER, INTEGER) IS 'Gets MTTR/MTTI trends over time with date filtering';
+COMMENT ON FUNCTION get_performance_benchmarks(UUID) IS 'Gets performance benchmarks for MTTR and MTTI';
 
 -- =====================================================
 -- FIXES COMPLETE
@@ -639,3 +816,108 @@ COMMENT ON FUNCTION get_user_workload_stats(TIMESTAMP WITH TIME ZONE, TIMESTAMP 
 -- 2. Use bulk_insert_tickets() for safe bulk data insertion
 -- 3. Use cleanup_uploaded_tickets() to clean existing data
 -- 4. Use analytics functions for reporting and insights
+
+-- Function to convert time format string to seconds
+CREATE OR REPLACE FUNCTION time_string_to_seconds(time_string TEXT)
+RETURNS INTEGER AS $$
+DECLARE
+    parts TEXT[];
+    hours INTEGER := 0;
+    minutes INTEGER := 0;
+    seconds INTEGER := 0;
+BEGIN
+    -- Return NULL for empty or null strings
+    IF time_string IS NULL OR TRIM(time_string) = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Handle format like "02:58:25" (HH:MM:SS)
+    IF time_string LIKE '%:%:%' THEN
+        parts := string_to_array(time_string, ':');
+        
+        IF array_length(parts, 1) = 3 THEN
+            BEGIN
+                hours := parts[1]::INTEGER;
+                minutes := parts[2]::INTEGER;
+                seconds := parts[3]::INTEGER;
+                
+                -- Validate time components
+                IF hours >= 0 AND hours <= 23 AND 
+                   minutes >= 0 AND minutes <= 59 AND 
+                   seconds >= 0 AND seconds <= 59 THEN
+                    RETURN (hours * 3600) + (minutes * 60) + seconds;
+                ELSE
+                    RETURN NULL;
+                END IF;
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RETURN NULL;
+            END;
+        END IF;
+    END IF;
+    
+    -- Handle format like "02:58" (MM:SS)
+    IF time_string LIKE '%:%' AND array_length(string_to_array(time_string, ':'), 1) = 2 THEN
+        parts := string_to_array(time_string, ':');
+        BEGIN
+            minutes := parts[1]::INTEGER;
+            seconds := parts[2]::INTEGER;
+            
+            IF minutes >= 0 AND minutes <= 59 AND seconds >= 0 AND seconds <= 59 THEN
+                RETURN (minutes * 60) + seconds;
+            ELSE
+                RETURN NULL;
+            END IF;
+        EXCEPTION
+            WHEN OTHERS THEN
+                RETURN NULL;
+        END;
+    END IF;
+    
+    -- Handle format like "125" (seconds only)
+    BEGIN
+        RETURN time_string::INTEGER;
+    EXCEPTION
+        WHEN OTHERS THEN
+            RETURN NULL;
+    END;
+    
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to convert time format string to minutes
+CREATE OR REPLACE FUNCTION time_string_to_minutes(time_string TEXT)
+RETURNS DECIMAL(10,2) AS $$
+DECLARE
+    seconds INTEGER;
+BEGIN
+    seconds := time_string_to_seconds(time_string);
+    
+    IF seconds IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    RETURN ROUND((seconds::DECIMAL / 60), 2);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update MTTR and MTTI mathematical values for existing records
+CREATE OR REPLACE FUNCTION update_mttr_mtti_calculations()
+RETURNS INTEGER AS $$
+DECLARE
+    updated_count INTEGER := 0;
+BEGIN
+    UPDATE uploaded_tickets 
+    SET 
+        mttr_seconds = time_string_to_seconds(mttr),
+        mtti_seconds = time_string_to_seconds(mtti),
+        mttr_minutes = time_string_to_minutes(mttr),
+        mtti_minutes = time_string_to_minutes(mtti),
+        updated_at = NOW()
+    WHERE mttr IS NOT NULL OR mtti IS NOT NULL;
+    
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+    RETURN updated_count;
+END;
+$$ LANGUAGE plpgsql;

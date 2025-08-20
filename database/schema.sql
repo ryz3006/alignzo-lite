@@ -246,8 +246,12 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     report_date TIMESTAMP WITH TIME ZONE,
     vil_function VARCHAR(255),
     it_partner VARCHAR(255),
-    mttr VARCHAR(50), -- Time format like "02:58:25"
-    mtti VARCHAR(50), -- Time format like "02:58:25"
+    mttr VARCHAR(50), -- Time format like "02:58:25" - keep original format
+    mtti VARCHAR(50), -- Time format like "02:58:25" - keep original format
+    mttr_seconds INTEGER, -- Converted to seconds for calculations
+    mtti_seconds INTEGER, -- Converted to seconds for calculations
+    mttr_minutes DECIMAL(10,2), -- Converted to minutes for reporting
+    mtti_minutes DECIMAL(10,2), -- Converted to minutes for reporting
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
