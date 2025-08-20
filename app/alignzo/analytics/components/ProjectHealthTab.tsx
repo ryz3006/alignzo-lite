@@ -26,7 +26,8 @@ import {
   Users,
   Download,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  HelpCircle
 } from 'lucide-react';
 
 interface ProjectHealthMetrics {
@@ -307,49 +308,102 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Target className="w-6 h-6 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Target className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Projects</p>
+                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalProjects}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Projects</p>
-              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalProjects}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Users className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total FTE</p>
-              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalFTE}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Clock className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalHours}h</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Total Projects</div>
+                <div className="text-gray-300 text-xs">
+                  Number of projects that have work hours logged during the selected period. 
+                  Calculated by counting unique projects from work logs.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-orange-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Users className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total FTE</p>
+                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalFTE}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Effort Share</p>
-              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.averageEffortShare}%</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Total FTE</div>
+                <div className="text-gray-300 text-xs">
+                  Total Full-Time Equivalent across all projects. 
+                  Calculated as: Sum of (Project Hours ÷ Standard FTE Hours) for each project.
+                  Standard FTE = 8 hours × working days in period.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Clock className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Hours</p>
+                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalHours}h</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Total Hours</div>
+                <div className="text-gray-300 text-xs">
+                  Total hours logged across all projects during the selected period. 
+                  Calculated by summing all logged duration from work logs.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Avg Effort Share</p>
+                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.averageEffortShare}%</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Average Effort Share</div>
+                <div className="text-gray-300 text-xs">
+                  Average percentage of total team effort allocated to each project. 
+                  Calculated as: Average of (Project Hours ÷ Total Hours) × 100 across all projects.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>

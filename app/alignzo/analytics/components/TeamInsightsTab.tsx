@@ -43,7 +43,8 @@ import {
   Calendar,
   UserCheck,
   UserX,
-  Loader2
+  Loader2,
+  HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -581,61 +582,127 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
       {/* Team Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Members</p>
+                <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.totalMembers}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Members</p>
-              <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.totalMembers}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <UserCheck className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Members</p>
-              <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.activeMembers}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Overloaded</p>
-              <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.overloadedMembers}</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Total Members</div>
+                <div className="text-gray-300 text-xs">
+                  Total number of team members who have logged work hours during the selected period. 
+                  Includes all users with activity in the system.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <UserX className="w-6 h-6 text-yellow-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <UserCheck className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active Members</p>
+                <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.activeMembers}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Underutilized</p>
-              <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.underutilizedMembers}</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Active Members</div>
+                <div className="text-gray-300 text-xs">
+                  Number of team members with optimal utilization (70-90% of available hours). 
+                  These members are working efficiently without being overloaded.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Gauge className="w-6 h-6 text-purple-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Overloaded</p>
+                <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.overloadedMembers}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Utilization</p>
-              <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.averageUtilization}%</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Overloaded Members</div>
+                <div className="text-gray-300 text-xs">
+                  Number of team members with utilization above 90% of available hours. 
+                  These members may be at risk of burnout and need workload redistribution.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <UserX className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Underutilized</p>
+                <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.underutilizedMembers}</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Underutilized Members</div>
+                <div className="text-gray-300 text-xs">
+                  Number of team members with utilization below 70% of available hours. 
+                  These members have capacity for additional work or may need skill development.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Gauge className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Avg Utilization</p>
+                <p className="text-2xl font-bold text-gray-900">{teamInsights.teamOverview.averageUtilization}%</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Average Utilization</div>
+                <div className="text-gray-300 text-xs">
+                  Average percentage of available work hours that team members have logged. 
+                  Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
+                  Optimal range is 70-90%.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>

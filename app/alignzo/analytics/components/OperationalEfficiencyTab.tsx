@@ -42,7 +42,8 @@ import {
   BarChart3,
   Gauge,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -581,49 +582,105 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <TrendingUp className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Effort/Output Ratio</p>
+                <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.effortOutputRatio}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Effort/Output Ratio</p>
-              <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.effortOutputRatio}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Award className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Productivity Index</p>
-              <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.productivityIndex}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Workload Balance</p>
-              <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.workloadBalanceIndex}%</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Effort/Output Ratio</div>
+                <div className="text-gray-300 text-xs">
+                  Average hours logged per ticket closed. 
+                  Calculated as: Total Hours Logged ÷ Total Tickets Closed.
+                  Lower values indicate higher efficiency.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Target className="w-6 h-6 text-orange-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Award className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Productivity Index</p>
+                <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.productivityIndex}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Quality Score</p>
-              <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.qualityScore}%</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Productivity Index</div>
+                <div className="text-gray-300 text-xs">
+                  Tickets closed per hour logged, weighted by priority. 
+                  Calculated as: (Tickets Closed × Priority Weight) ÷ Hours Logged.
+                  Higher values indicate better productivity.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Workload Balance</p>
+                <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.workloadBalanceIndex}%</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Workload Balance</div>
+                <div className="text-gray-300 text-xs">
+                  Measure of how evenly work is distributed across team members. 
+                  Calculated as: (1 - Standard Deviation of Hours ÷ Mean Hours) × 100.
+                  Higher percentage indicates better workload distribution.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Target className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Quality Score</p>
+                <p className="text-2xl font-bold text-gray-900">{efficiencyMetrics.qualityScore}%</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Quality Score</div>
+                <div className="text-gray-300 text-xs">
+                  Combined score based on productivity and efficiency metrics. 
+                  Calculated as: (Productivity Index × 0.6) + (Efficiency Factor × 0.4).
+                  Higher percentage indicates better overall quality.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>

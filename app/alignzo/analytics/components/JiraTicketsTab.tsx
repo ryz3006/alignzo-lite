@@ -36,7 +36,8 @@ import {
   Calendar,
   Target,
   Zap,
-  Activity
+  Activity,
+  HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -90,12 +91,35 @@ interface TicketMetrics {
     closedTickets: number;
     avgResolutionTime: number;
     slaComplianceRate: number;
+    otherStatusCount: number;
+    otherStatusTickets: string[];
   }>;
   dailyTrends: Array<{
     date: string;
     created: number;
     resolved: number;
     open: number;
+  }>;
+  assigneeStatusCount: Array<{
+    assignee: string;
+    open: number;
+    inProgress: number;
+    closed: number;
+    other: number;
+  }>;
+  projectStatusCount: Array<{
+    project: string;
+    open: number;
+    inProgress: number;
+    closed: number;
+    other: number;
+  }>;
+  timeSpentData: Array<{
+    user: string;
+    project: string;
+    ticketId: string;
+    timeSpent: number;
+    timeSpentHours: number;
   }>;
 }
 
@@ -117,6 +141,9 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<string>('');
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [selectedTickets, setSelectedTickets] = useState<JiraIssue[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>('');
 
   useEffect(() => {
     checkJiraIntegration();
@@ -347,6 +374,10 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
     const now = new Date();
     const userPerformanceMap = new Map<string, any>();
     const dailyData: Record<string, { created: number; resolved: number; open: number }> = {};
+    const assigneeStatusMap = new Map<string, { open: number; inProgress: number; closed: number; other: number }>();
+    const projectStatusMap = new Map<string, { open: number; inProgress: number; closed: number; other: number }>();
+    const timeSpentData: Array<{ user: string; project: string; ticketId: string; timeSpent: number; timeSpentHours: number }> = [];
+    
     let totalTickets = issues.length;
     let openTickets = 0;
     let closedTickets = 0;
@@ -361,6 +392,8 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       const status = issue.fields.status.name.toLowerCase();
       const priority = issue.fields.priority?.name || 'No Priority';
       const assignee = issue.fields.assignee?.displayName || 'Unassigned';
+      const project = issue.fields.project.name;
+      const timeSpent = issue.fields.timespent || 0;
       
       // Safely handle date parsing
       const createdDateStr = issue.fields.created;
@@ -375,6 +408,21 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       
       const daysSinceUpdate = isValidUpdatedDate ? 
         Math.floor((now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+      // Aging tickets calculation - use created date for aging
+      const daysSinceCreated = isValidCreatedDate ? 
+        Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+      // Collect time spent data if available
+      if (timeSpent > 0) {
+        timeSpentData.push({
+          user: assignee,
+          project: project,
+          ticketId: issue.key,
+          timeSpent: timeSpent,
+          timeSpentHours: Math.round((timeSpent / 3600) * 100) / 100 // Convert seconds to hours
+        });
+      }
 
       // Count by status
       if (status.includes('open') || status.includes('to do')) {
@@ -397,14 +445,46 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         inProgressTickets++;
       }
 
+      // Track status by assignee
+      if (!assigneeStatusMap.has(assignee)) {
+        assigneeStatusMap.set(assignee, { open: 0, inProgress: 0, closed: 0, other: 0 });
+      }
+      const assigneeStatus = assigneeStatusMap.get(assignee)!;
+      
+      if (status.includes('open') || status.includes('to do')) {
+        assigneeStatus.open++;
+      } else if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
+        assigneeStatus.closed++;
+      } else if (status.includes('progress') || status.includes('development')) {
+        assigneeStatus.inProgress++;
+      } else {
+        assigneeStatus.other++;
+      }
+
+      // Track status by project
+      if (!projectStatusMap.has(project)) {
+        projectStatusMap.set(project, { open: 0, inProgress: 0, closed: 0, other: 0 });
+      }
+      const projectStatus = projectStatusMap.get(project)!;
+      
+      if (status.includes('open') || status.includes('to do')) {
+        projectStatus.open++;
+      } else if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
+        projectStatus.closed++;
+      } else if (status.includes('progress') || status.includes('development')) {
+        projectStatus.inProgress++;
+      } else {
+        projectStatus.other++;
+      }
+
       // Priority distribution
       priorityDistribution[priority] = (priorityDistribution[priority] || 0) + 1;
 
-      // Aging tickets
-      if (daysSinceUpdate >= 60) agingTickets['60+ days']++;
-      else if (daysSinceUpdate >= 30) agingTickets['30+ days']++;
-      else if (daysSinceUpdate >= 14) agingTickets['14+ days']++;
-      else if (daysSinceUpdate >= 7) agingTickets['7+ days']++;
+      // Aging tickets - use created date for aging calculation
+      if (daysSinceCreated >= 60) agingTickets['60+ days']++;
+      else if (daysSinceCreated >= 30) agingTickets['30+ days']++;
+      else if (daysSinceCreated >= 14) agingTickets['14+ days']++;
+      else if (daysSinceCreated >= 7) agingTickets['7+ days']++;
 
       // User performance tracking
       if (!userPerformanceMap.has(assignee)) {
@@ -413,7 +493,8 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
           assignedTickets: 0,
           closedTickets: 0,
           totalResolutionTime: 0,
-          slaCompliantTickets: 0
+          slaCompliantTickets: 0,
+          otherStatusTickets: []
         });
       }
       
@@ -431,20 +512,30 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
             userPerf.slaCompliantTickets++;
           }
         }
+      } else if (!status.includes('open') && !status.includes('to do') && !status.includes('progress') && !status.includes('development')) {
+        // Track tickets in other statuses
+        userPerf.otherStatusTickets.push(issue.key);
       }
 
-      // Daily trends (simplified - using updated date)
-      // Only process daily trends if we have a valid updated date
+      // Daily trends - track both created and resolved dates
+      if (isValidCreatedDate) {
+        const createdDateStr = createdDate.toISOString().split('T')[0];
+        if (!dailyData[createdDateStr]) {
+          dailyData[createdDateStr] = { created: 0, resolved: 0, open: 0 };
+        }
+        dailyData[createdDateStr].created++;
+      }
+      
       if (isValidUpdatedDate) {
-        const dateStr = updatedDate.toISOString().split('T')[0];
-        if (!dailyData[dateStr]) {
-          dailyData[dateStr] = { created: 0, resolved: 0, open: 0 };
+        const updatedDateStr = updatedDate.toISOString().split('T')[0];
+        if (!dailyData[updatedDateStr]) {
+          dailyData[updatedDateStr] = { created: 0, resolved: 0, open: 0 };
         }
         
         if (status.includes('closed') || status.includes('done') || status.includes('resolved')) {
-          dailyData[dateStr].resolved++;
+          dailyData[updatedDateStr].resolved++;
         } else {
-          dailyData[dateStr].open++;
+          dailyData[updatedDateStr].open++;
         }
       }
     });
@@ -455,7 +546,9 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       assignedTickets: user.assignedTickets,
       closedTickets: user.closedTickets,
       avgResolutionTime: user.closedTickets > 0 ? Math.round(user.totalResolutionTime / user.closedTickets) : 0,
-      slaComplianceRate: user.closedTickets > 0 ? Math.round((user.slaCompliantTickets / user.closedTickets) * 100) : 0
+      slaComplianceRate: user.closedTickets > 0 ? Math.round((user.slaCompliantTickets / user.closedTickets) * 100) : 0,
+      otherStatusCount: user.otherStatusTickets.length,
+      otherStatusTickets: user.otherStatusTickets
     }));
 
     // Convert daily data to array and sort
@@ -467,6 +560,18 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         open: data.open
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Convert assignee status map to array
+    const assigneeStatusCount = Array.from(assigneeStatusMap.entries()).map(([assignee, status]) => ({
+      assignee,
+      ...status
+    }));
+
+    // Convert project status map to array
+    const projectStatusCount = Array.from(projectStatusMap.entries()).map(([project, status]) => ({
+      project,
+      ...status
+    }));
 
     const metrics: TicketMetrics = {
       totalTickets,
@@ -481,7 +586,10 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       agingTickets,
       priorityDistribution,
       userPerformance,
-      dailyTrends
+      dailyTrends,
+      assigneeStatusCount,
+      projectStatusCount,
+      timeSpentData
     };
 
     setTicketMetrics(metrics);
@@ -491,6 +599,19 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
     if (jiraCredentials) {
       loadJiraData(jiraCredentials);
     }
+  };
+
+  const handleViewTickets = (user: string, ticketIds: string[]) => {
+    const tickets = jiraIssues.filter(issue => ticketIds.includes(issue.key));
+    setSelectedTickets(tickets);
+    setSelectedUser(user);
+    setShowTicketModal(true);
+  };
+
+  const closeModal = () => {
+    setShowTicketModal(false);
+    setSelectedTickets([]);
+    setSelectedUser('');
   };
 
   if (loading) {
@@ -576,49 +697,104 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <ExternalLink className="w-6 h-6 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <ExternalLink className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Tickets</p>
+                <p className="text-2xl font-bold text-gray-900">{ticketMetrics.totalTickets}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Tickets</p>
-              <p className="text-2xl font-bold text-gray-900">{ticketMetrics.totalTickets}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Backlog Size</p>
-              <p className="text-2xl font-bold text-gray-900">{ticketMetrics.backlogSize}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Target className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">SLA Compliance</p>
-              <p className="text-2xl font-bold text-gray-900">{ticketMetrics.slaComplianceRate}%</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Total Tickets</div>
+                <div className="text-gray-300 text-xs">
+                  Total number of JIRA tickets found in the selected projects and date range. 
+                  Includes all ticket statuses (open, closed, in progress).
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Clock className="w-6 h-6 text-purple-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Backlog Size</p>
+                <p className="text-2xl font-bold text-gray-900">{ticketMetrics.backlogSize}</p>
+              </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Resolution</p>
-              <p className="text-2xl font-bold text-gray-900">{ticketMetrics.averageResolutionTime}d</p>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Backlog Size</div>
+                <div className="text-gray-300 text-xs">
+                  Number of tickets that are open or in progress (not closed/resolved). 
+                  Calculated as: Open Tickets + In Progress Tickets.
+                  Represents current workload and pending work.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Target className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">SLA Compliance</p>
+                <p className="text-2xl font-bold text-gray-900">{ticketMetrics.slaComplianceRate}%</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">SLA Compliance</div>
+                <div className="text-gray-300 text-xs">
+                  Percentage of resolved tickets that met the SLA target (7 days). 
+                  Calculated as: (SLA Compliant Tickets ÷ Total Resolved Tickets) × 100.
+                  Higher percentage indicates better service quality.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Clock className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Avg Resolution</p>
+                <p className="text-2xl font-bold text-gray-900">{ticketMetrics.averageResolutionTime}d</p>
+              </div>
+            </div>
+            <div className="relative group">
+              <HelpCircle className="w-5 h-5 text-gray-400 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <div className="font-medium mb-1">Average Resolution Time</div>
+                <div className="text-gray-300 text-xs">
+                  Average number of days to resolve tickets from creation to closure. 
+                  Calculated as: Sum of (Resolution Date - Creation Date) ÷ Number of Resolved Tickets.
+                  Lower values indicate faster ticket resolution.
+                </div>
+                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -688,6 +864,150 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         </div>
       </div>
 
+      {/* Time Spent Analysis */}
+      {ticketMetrics.timeSpentData.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-medium text-gray-900">Time Spent Analysis</h3>
+            <button
+              onClick={() => downloadChartAsImage('time-spent', 'time-spent-analysis')}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+          <div ref={(el) => { chartRefs.current['time-spent'] = el; }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={ticketMetrics.timeSpentData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="user" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`${value} hours`, 'Time Spent']} />
+                <Bar dataKey="timeSpentHours" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Assignee vs Status Count Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Assignee vs Status Count</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Assignee
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Open
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  In Progress
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Closed
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Other
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {ticketMetrics.assigneeStatusCount.map((item) => (
+                <tr key={item.assignee} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{item.assignee}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {item.open}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      {item.inProgress}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {item.closed}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {item.other}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Project vs Status Count Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Project vs Status Count</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Project
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Open
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  In Progress
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Closed
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Other
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {ticketMetrics.projectStatusCount.map((item) => (
+                <tr key={item.project} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{item.project}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {item.open}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      {item.inProgress}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {item.closed}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {item.other}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Aging Tickets Analysis */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
@@ -739,6 +1059,12 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   SLA Compliance %
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Other Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -767,12 +1093,103 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                       {user.slaComplianceRate}%
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {user.otherStatusCount}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {user.otherStatusCount > 0 && (
+                      <button
+                        onClick={() => handleViewTickets(user.user, user.otherStatusTickets)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        View
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Ticket Details Modal */}
+      {showTicketModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Tickets in Other Status - {selectedUser}
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="max-h-96 overflow-y-auto">
+                {selectedTickets.map((ticket) => (
+                  <div key={ticket.key} className="border rounded-lg p-4 mb-3 bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-2">
+                          {ticket.key} - {ticket.fields.summary}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                          <div>
+                            <span className="font-medium">Status:</span> {ticket.fields.status.name}
+                          </div>
+                          <div>
+                            <span className="font-medium">Priority:</span> {ticket.fields.priority?.name || 'No Priority'}
+                          </div>
+                          <div>
+                            <span className="font-medium">Project:</span> {ticket.fields.project.name}
+                          </div>
+                          <div>
+                            <span className="font-medium">Assignee:</span> {ticket.fields.assignee?.displayName || 'Unassigned'}
+                          </div>
+                          {ticket.fields.timespent && (
+                            <div>
+                              <span className="font-medium">Time Spent:</span> {Math.round((ticket.fields.timespent / 3600) * 100) / 100} hours
+                            </div>
+                          )}
+                          {ticket.fields.created && (
+                            <div>
+                              <span className="font-medium">Created:</span> {new Date(ticket.fields.created).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        {ticket.fields.description && (
+                          <div className="mt-2">
+                            <span className="font-medium text-sm">Description:</span>
+                            <p className="text-sm text-gray-600 mt-1 overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                              {ticket.fields.description.replace(/<[^>]*>/g, '')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

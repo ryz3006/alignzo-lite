@@ -36,6 +36,8 @@ export interface JiraIssue {
       name: string;
     };
     customfield_10016?: number; // Story points field
+    timespent?: number; // Time spent in seconds
+    timeestimate?: number; // Time estimate in seconds
     created?: string; // ISO date string
     updated?: string; // ISO date string
     [key: string]: any; // Allow additional custom fields
@@ -160,7 +162,7 @@ export async function searchJiraIssues(
         requestBody: {
           jql,
           maxResults,
-          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'created', 'updated']
+          fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
         }
       }),
     });
@@ -217,7 +219,7 @@ export async function searchAllJiraIssues(
             jql,
             maxResults: maxResultsPerPage,
             startAt,
-            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'created', 'updated']
+            fields: ['summary', 'description', 'status', 'assignee', 'project', 'priority', 'issuetype', 'customfield_10016', 'timespent', 'timeestimate', 'created', 'updated']
           }
         }),
       });
