@@ -121,6 +121,7 @@ interface TicketMetrics {
     timeSpent: number;
     timeSpentHours: number;
   }>;
+  timeSpentGroupedData: Array<{ assignee: string; [key: string]: any }>;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
@@ -446,6 +447,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
     const assigneeStatusMap = new Map<string, { open: number; inProgress: number; closed: number; other: number }>();
     const projectStatusMap = new Map<string, { open: number; inProgress: number; closed: number; other: number }>();
     const timeSpentData: Array<{ user: string; project: string; ticketId: string; timeSpent: number; timeSpentHours: number }> = [];
+    const timeSpentGroupedData: Array<{ assignee: string; [key: string]: any }> = [];
     
     let totalTickets = issues.length;
     let openTickets = 0;
@@ -530,7 +532,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         assigneeStatus.other++;
       }
 
-      // Track status by project
+            // Track status by project
       if (!projectStatusMap.has(project)) {
         projectStatusMap.set(project, { open: 0, inProgress: 0, closed: 0, other: 0 });
       }
@@ -609,6 +611,26 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       }
     });
 
+    // Create stacked bar chart data for time spent analysis
+    const assigneeTicketMap = new Map<string, Map<string, number>>();
+    
+    timeSpentData.forEach(item => {
+      if (!assigneeTicketMap.has(item.user)) {
+        assigneeTicketMap.set(item.user, new Map());
+      }
+      const ticketMap = assigneeTicketMap.get(item.user)!;
+      ticketMap.set(item.ticketId, item.timeSpentHours);
+    });
+
+    // Convert to chart data format
+    assigneeTicketMap.forEach((ticketMap, assignee) => {
+      const chartData: { assignee: string; [key: string]: any } = { assignee };
+      ticketMap.forEach((hours, ticketId) => {
+        chartData[ticketId] = hours;
+      });
+      timeSpentGroupedData.push(chartData);
+    });
+
     // Calculate user performance metrics
     const userPerformance = Array.from(userPerformanceMap.values()).map(user => ({
       user: user.user,
@@ -658,7 +680,8 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       dailyTrends,
       assigneeStatusCount,
       projectStatusCount,
-      timeSpentData
+      timeSpentData,
+      timeSpentGroupedData
     };
 
     setTicketMetrics(metrics);
@@ -893,7 +916,27 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Ticket Inflow vs Outflow</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-medium text-gray-900">Ticket Inflow vs Outflow</h3>
+              <div className="relative tooltip-container ml-2">
+                <HelpCircle 
+                  className="w-5 h-5 text-gray-400 cursor-pointer" 
+                  onClick={() => setActiveTooltip(activeTooltip === 'ticketFlow' ? null : 'ticketFlow')}
+                />
+                {activeTooltip === 'ticketFlow' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                    <div className="font-medium mb-1">Ticket Inflow vs Outflow</div>
+                    <div className="text-gray-300 text-xs">
+                      Daily trend showing tickets created vs resolved over time. 
+                      Created: New tickets added each day.
+                      Resolved: Tickets closed/completed each day.
+                      Helps identify workload patterns and resolution efficiency.
+                    </div>
+                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               onClick={() => downloadChartAsImage('ticket-flow', 'ticket-inflow-outflow')}
               className="text-gray-600 hover:text-gray-800"
@@ -918,7 +961,26 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Priority Distribution</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-medium text-gray-900">Priority Distribution</h3>
+              <div className="relative tooltip-container ml-2">
+                <HelpCircle 
+                  className="w-5 h-5 text-gray-400 cursor-pointer" 
+                  onClick={() => setActiveTooltip(activeTooltip === 'priorityDistribution' ? null : 'priorityDistribution')}
+                />
+                {activeTooltip === 'priorityDistribution' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                    <div className="font-medium mb-1">Priority Distribution</div>
+                    <div className="text-gray-300 text-xs">
+                      Distribution of tickets by priority level (Highest, High, Medium, Low, Lowest). 
+                      Shows the proportion of high-priority vs low-priority work.
+                      Helps identify workload urgency and resource allocation needs.
+                    </div>
+                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               onClick={() => downloadChartAsImage('priority-distribution', 'ticket-priority-distribution')}
               className="text-gray-600 hover:text-gray-800"
@@ -957,7 +1019,26 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       {ticketMetrics.timeSpentData.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Time Spent Analysis</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-medium text-gray-900">Time Spent Analysis</h3>
+              <div className="relative tooltip-container ml-2">
+                <HelpCircle 
+                  className="w-5 h-5 text-gray-400 cursor-pointer" 
+                  onClick={() => setActiveTooltip(activeTooltip === 'timeSpentAnalysis' ? null : 'timeSpentAnalysis')}
+                />
+                {activeTooltip === 'timeSpentAnalysis' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                    <div className="font-medium mb-1">Time Spent Analysis</div>
+                    <div className="text-gray-300 text-xs">
+                      Stacked bar chart showing time spent by assignee, grouped by ticket ID. 
+                      Each bar represents an assignee, with different colors for different tickets.
+                      Shows workload distribution and time allocation across team members.
+                    </div>
+                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               onClick={() => downloadChartAsImage('time-spent', 'time-spent-analysis')}
               className="text-gray-600 hover:text-gray-800"
@@ -967,12 +1048,25 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
           </div>
           <div ref={(el) => { chartRefs.current['time-spent'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={ticketMetrics.timeSpentData}>
+              <BarChart data={ticketMetrics.timeSpentGroupedData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="user" />
+                <XAxis dataKey="assignee" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`${value} hours`, 'Time Spent']} />
-                <Bar dataKey="timeSpentHours" fill="#8884d8" />
+                <Tooltip formatter={(value, name) => [`${value} hours`, `Ticket: ${name}`]} />
+                <Legend />
+                {ticketMetrics.timeSpentGroupedData.length > 0 && 
+                  Object.keys(ticketMetrics.timeSpentGroupedData[0])
+                    .filter(key => key !== 'assignee')
+                    .map((ticketId, index) => (
+                      <Bar 
+                        key={ticketId} 
+                        dataKey={ticketId} 
+                        stackId="a" 
+                        fill={COLORS[index % COLORS.length]}
+                        name={`Ticket: ${ticketId}`}
+                      />
+                    ))
+                }
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1100,7 +1194,26 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       {/* Aging Tickets Analysis */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-medium text-gray-900">Aging Tickets Analysis</h3>
+          <div className="flex items-center">
+            <h3 className="text-lg font-medium text-gray-900">Aging Tickets Analysis</h3>
+            <div className="relative tooltip-container ml-2">
+              <HelpCircle 
+                className="w-5 h-5 text-gray-400 cursor-pointer" 
+                onClick={() => setActiveTooltip(activeTooltip === 'agingTickets' ? null : 'agingTickets')}
+              />
+              {activeTooltip === 'agingTickets' && (
+                <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
+                  <div className="font-medium mb-1">Aging Tickets Analysis</div>
+                  <div className="text-gray-300 text-xs">
+                    Distribution of tickets by age (days since creation). 
+                    Shows how long tickets have been pending: 7+ days, 14+ days, 30+ days, 60+ days.
+                    Helps identify bottlenecks and tickets that need attention.
+                  </div>
+                  <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                </div>
+              )}
+            </div>
+          </div>
           <button
             onClick={() => downloadChartAsImage('aging-tickets', 'aging-tickets-analysis')}
             className="text-gray-600 hover:text-gray-800"

@@ -101,13 +101,15 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
     try {
       setLoading(true);
       
-      const [workLogs, projects, users] = await Promise.all([
+      const [workLogs, projects, users, teamProjectAssignments, teamMembers] = await Promise.all([
         loadWorkLogs(),
         loadProjects(),
-        loadUsers()
+        loadUsers(),
+        loadTeamProjectAssignments(),
+        loadTeamMembers()
       ]);
 
-      const metrics = calculateProjectHealthMetrics(workLogs, projects, users);
+      const metrics = calculateProjectHealthMetrics(workLogs, projects, users, teamProjectAssignments, teamMembers);
       setProjectMetrics(metrics);
       
       const summary = calculateSummaryMetrics(metrics);
@@ -162,10 +164,51 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
     return data || [];
   };
 
-  const calculateProjectHealthMetrics = (workLogs: any[], projects: any[], users: any[]): ProjectHealthMetrics[] => {
+  const loadTeamProjectAssignments = async () => {
+    const { data, error } = await supabase
+      .from('team_project_assignments')
+      .select(`
+        *,
+        team:teams(*),
+        project:projects(*)
+      `);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const loadTeamMembers = async () => {
+    const { data, error } = await supabase
+      .from('team_members')
+      .select(`
+        *,
+        team:teams(*),
+        user:users(*)
+      `);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const calculateProjectHealthMetrics = (workLogs: any[], projects: any[], users: any[], teamProjectAssignments: any[], teamMembers: any[]): ProjectHealthMetrics[] => {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
-    const totalTeamHours = users.length * standardWorkHoursPerDay * workingDaysInPeriod;
+    
+    // Calculate total team hours based on users who are actually assigned to projects via teams
+    const projectAssignedUsers = new Set<string>();
+    
+    // Get all users assigned to projects through team assignments
+    teamProjectAssignments.forEach(assignment => {
+      const teamId = assignment.team_id;
+      const projectId = assignment.project_id;
+      
+      // Find all team members for this team
+      teamMembers.forEach(member => {
+        if (member.team_id === teamId) {
+          projectAssignedUsers.add(member.user.email);
+        }
+      });
+    });
+    
+    const totalTeamHours = projectAssignedUsers.size * standardWorkHoursPerDay * workingDaysInPeriod;
 
     const filteredProjects = filters.selectedProjects.length > 0 
       ? projects.filter(project => filters.selectedProjects.includes(project.name))
@@ -174,7 +217,24 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
     return filteredProjects.map(project => {
       const projectLogs = workLogs.filter(log => log.project?.id === project.id);
       const totalHours = projectLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const fte = totalHours / (standardWorkHoursPerDay * workingDaysInPeriod);
+      
+      // Calculate FTE based on team assignments for this project
+      const projectAssignedUsers = new Set<string>();
+      
+      // Get users assigned to this project through team assignments
+      teamProjectAssignments.forEach(assignment => {
+        if (assignment.project_id === project.id) {
+          const teamId = assignment.team_id;
+          teamMembers.forEach(member => {
+            if (member.team_id === teamId) {
+              projectAssignedUsers.add(member.user.email);
+            }
+          });
+        }
+      });
+      
+      const projectTeamSize = projectAssignedUsers.size;
+      const fte = projectTeamSize > 0 ? totalHours / (standardWorkHoursPerDay * workingDaysInPeriod * projectTeamSize) : 0;
       const effortShare = totalTeamHours > 0 ? (totalHours / totalTeamHours) * 100 : 0;
       const uniqueUsers = new Set(projectLogs.map(log => log.user_email));
 
@@ -189,7 +249,7 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
         totalHours: Math.round(totalHours * 100) / 100,
         fte: Math.round(fte * 100) / 100,
         effortShare: Math.round(effortShare * 100) / 100,
-        userCount: uniqueUsers.size,
+        userCount: projectTeamSize,
         averageHoursPerUser: uniqueUsers.size > 0 ? Math.round((totalHours / uniqueUsers.size) * 100) / 100 : 0,
         utilizationTrend,
         capacityForecast

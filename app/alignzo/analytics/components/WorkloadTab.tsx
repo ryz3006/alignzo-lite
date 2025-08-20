@@ -71,8 +71,8 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     averageUtilization: 0,
     totalOvertime: 0,
     totalIdleHours: 0,
-    topContributors: [] as string[],
-    underutilizedMembers: [] as string[]
+    topContributors: [] as { name: string; hours: number }[],
+    underutilizedMembers: [] as { name: string; hours: number; hasWorkLogs: boolean }[]
   });
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
@@ -268,17 +268,22 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     const totalOvertime = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.overtimeHours, 0);
     const totalIdleHours = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.idleHours, 0);
 
-    // Top contributors (highest utilization)
+    // Top contributors (highest utilization) - only include users with work logs
     const topContributors = metrics
+      .filter(m => m.totalLoggedHours > 0) // Only include users with work logs
       .sort((a, b) => b.utilizationRate - a.utilizationRate)
       .slice(0, 5)
-      .map(m => m.userName);
+      .map(m => ({ name: m.userName, hours: m.totalLoggedHours }));
 
-    // Underutilized members (lowest utilization)
+    // Underutilized members - show users with work logs in yellow, no work logs in red
     const underutilizedMembers = metrics
       .sort((a, b) => a.utilizationRate - b.utilizationRate)
       .slice(0, 5)
-      .map(m => m.userName);
+      .map(m => ({ 
+        name: m.userName, 
+        hours: m.totalLoggedHours,
+        hasWorkLogs: m.totalLoggedHours > 0 
+      }));
 
     return {
       totalUsers,
@@ -515,12 +520,15 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <h3 className="text-lg font-medium text-gray-900 mb-4">Top Contributors</h3>
           <div className="space-y-3">
             {summaryMetrics.topContributors.map((contributor, index) => (
-              <div key={contributor} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div key={contributor.name} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                 <div className="flex items-center">
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                     <span className="text-sm font-medium text-green-600">{index + 1}</span>
                   </div>
-                  <span className="ml-3 text-sm font-medium text-gray-900">{contributor}</span>
+                  <div className="ml-3">
+                    <span className="text-sm font-medium text-gray-900">{contributor.name}</span>
+                    <div className="text-xs text-gray-500">{contributor.hours}h logged</div>
+                  </div>
                 </div>
                 <CheckCircle className="w-5 h-5 text-green-600" />
               </div>
@@ -532,14 +540,25 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <h3 className="text-lg font-medium text-gray-900 mb-4">Underutilized Members</h3>
           <div className="space-y-3">
             {summaryMetrics.underutilizedMembers.map((member, index) => (
-              <div key={member} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+              <div key={member.name} className={`flex items-center justify-between p-3 rounded-lg ${
+                member.hasWorkLogs ? 'bg-yellow-50' : 'bg-red-50'
+              }`}>
                 <div className="flex items-center">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-red-600">{index + 1}</span>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    member.hasWorkLogs ? 'bg-yellow-100' : 'bg-red-100'
+                  }`}>
+                    <span className={`text-sm font-medium ${
+                      member.hasWorkLogs ? 'text-yellow-600' : 'text-red-600'
+                    }`}>{index + 1}</span>
                   </div>
-                  <span className="ml-3 text-sm font-medium text-gray-900">{member}</span>
+                  <div className="ml-3">
+                    <span className="text-sm font-medium text-gray-900">{member.name}</span>
+                    <div className="text-xs text-gray-500">{member.hours}h logged</div>
+                  </div>
                 </div>
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <AlertTriangle className={`w-5 h-5 ${
+                  member.hasWorkLogs ? 'text-yellow-600' : 'text-red-600'
+                }`} />
               </div>
             ))}
           </div>
