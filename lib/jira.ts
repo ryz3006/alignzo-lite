@@ -197,7 +197,7 @@ export async function searchAllJiraIssues(
 ): Promise<{ success: boolean; issues?: JiraIssue[]; message: string }> {
   try {
     const allIssues: JiraIssue[] = [];
-    const maxResultsPerPage = 100; // JIRA's recommended page size
+    const maxResultsPerPage = 500; // Increased page size for better performance
     let startAt = 0;
     let total = 0;
     
