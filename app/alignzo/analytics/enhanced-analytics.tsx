@@ -48,8 +48,8 @@ export default function EnhancedAnalytics() {
   
   const [filters, setFilters] = useState<FilterState>({
     dateRange: {
-      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      end: new Date().toISOString().split('T')[0]
+      start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Yesterday
+      end: new Date().toISOString().split('T')[0] // Today
     },
     selectedTeams: [],
     selectedProjects: [],
