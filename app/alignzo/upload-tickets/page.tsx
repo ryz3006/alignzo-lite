@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, Project, TicketSource, TicketUploadMapping, TicketUploadUserMapping, UploadSession } from '@/lib/supabase';
+import { supabase, Project, TicketSource, TicketUploadMapping, TicketUploadUserMapping, UploadSession, UploadedTicket } from '@/lib/supabase';
 import { Upload, Plus, Download, RefreshCw, Eye, Trash2, Check, X, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,7 +21,15 @@ export default function UploadTicketsPage() {
   const [projects, setProjects] = useState<ProjectWithUsers[]>([]);
   const [mappings, setMappings] = useState<MappingWithDetails[]>([]);
   const [uploadSessions, setUploadSessions] = useState<UploadSession[]>([]);
+  const [uploadedTickets, setUploadedTickets] = useState<UploadedTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Pagination states for uploaded tickets
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ticketsPerPage] = useState(25);
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [showTicketDetailsModal, setShowTicketDetailsModal] = useState(false);
+  const [selectedTicketDetails, setSelectedTicketDetails] = useState<UploadedTicket | null>(null);
   
   // Modal states
   const [showAddSourceModal, setShowAddSourceModal] = useState(false);
@@ -51,7 +59,8 @@ export default function UploadTicketsPage() {
         loadSources(),
         loadProjects(),
         loadMappings(),
-        loadUploadSessions()
+        loadUploadSessions(),
+        loadUploadedTickets()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -175,6 +184,22 @@ export default function UploadTicketsPage() {
     setUploadSessions(data || []);
   };
 
+  const loadUploadedTickets = async () => {
+    const { data, error } = await supabase
+      .from('uploaded_tickets')
+      .select(`
+        *,
+        source:ticket_sources(name),
+        mapping:ticket_upload_mappings(
+          project:projects(name)
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    setUploadedTickets(data || []);
+  };
+
   const handleAddSource = async () => {
     if (!selectedSource || !selectedProject || !organizationValue.trim()) {
       toast.error('Please fill in all required fields');
@@ -245,16 +270,16 @@ export default function UploadTicketsPage() {
     ];
 
          const sampleData = [
-       'INC001', 'High', 'North', 'IT Support Team A', 'Network Support',
-       'Telecom', 'Mobile', 'IT Support Team A', 'Network Support', 'John Doe',
-       'Email', 'jane.smith@company.com', 'HQ', 'Infrastructure', 'Network', 'Connectivity',
-       'Mobile App', 'Software', 'Application', 'Mobile', 'Network Issue',
-       'User cannot connect to mobile network', 'john.doe@company.com', '01/15/2024, 09:00:00 AM',
-       '01/15/2024, 09:15:00 AM', '01/15/2024, 11:30:00 AM', '01/15/2024, 12:00:00 PM', 'Resolved',
-       'Issue resolved', '', 2, 2, 'IT', 'No', 'Company Inc', 'VND001',
-       'Yes', 'Network configuration updated', 'Network Support', 0, '', '01/15/2024, 09:00:00 AM',
-       'Network Support', 'jane.smith@company.com', 'john.doe', 'High', '01/15/2024, 09:00:00 AM',
-       '01/15/2024, 09:00:00 AM', 'Network', 'Internal', 2.5, 0.25
+       'INC000097247868', 'SR', 'VF Idea SharedService Ltd', 'VIL', '6D CMP Operations Support',
+       'Application Operation', 'Enterprise Business operations', 'Kyndryl - Service Desk', 'Kyndryl - Service Desk', 'Mahesh Sabale',
+       'Email', 'Chetankumar Rathod', 'Ahmedabad', 'Central Application - cPOS', 'OTHERS', 'Bulk',
+       '6D CMP', '6D CMP', 'All Enterprises', 'Service Request',
+       'CMP_APN_WISE_TREND_AUG_25', 'Ganesh Zambre', '08/18/2025, 07:06:29 PM',
+       '08/18/2025, 07:11:50 PM', '08/19/2025, 10:08:19 PM', '', 'Resolved',
+       'No Further Action Required', 'Will check and update', 2, 3, 'Finance', 'No', 'VIL', '',
+       'We have reviewed and confirmed that the trends we are sharing are accurate, as the data trends we are obtaining from our source OCS match the data provided in the sheet. Here isnt isnt Spike/Dip in the trends AS per our source OCS.', 'NON IBM', 0, '', '08/18/2025, 07:07:17 PM',
+       'CIT-CPOS-CPOSSUPPORT', 'Remedy Application Service', 'cit3361872', '4-Minor/Localized', '08/18/2025, 07:06:29 PM',
+       '08/18/2025, 07:06:29 PM', 'IT', '6D CMP', '02:58:25', '02:58:25'
      ];
 
     const csvContent = [headers.join(','), sampleData.join(',')].join('\n');
@@ -340,6 +365,76 @@ export default function UploadTicketsPage() {
     }
   };
 
+  const handleViewTicketDetails = (ticket: UploadedTicket) => {
+    setSelectedTicketDetails(ticket);
+    setShowTicketDetailsModal(true);
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!confirm('Are you sure you want to delete this ticket?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('uploaded_tickets')
+        .delete()
+        .eq('id', ticketId);
+
+      if (error) throw error;
+      toast.success('Ticket deleted successfully');
+      loadUploadedTickets();
+    } catch (error: any) {
+      console.error('Error deleting ticket:', error);
+      toast.error(error.message || 'Failed to delete ticket');
+    }
+  };
+
+  const handleDeleteMultipleTickets = async () => {
+    if (selectedTickets.length === 0) {
+      toast.error('Please select tickets to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedTickets.length} tickets?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('uploaded_tickets')
+        .delete()
+        .in('id', selectedTickets);
+
+      if (error) throw error;
+      toast.success(`${selectedTickets.length} tickets deleted successfully`);
+      setSelectedTickets([]);
+      loadUploadedTickets();
+    } catch (error: any) {
+      console.error('Error deleting tickets:', error);
+      toast.error(error.message || 'Failed to delete tickets');
+    }
+  };
+
+  const handleSelectTicket = (ticketId: string) => {
+    setSelectedTickets(prev => 
+      prev.includes(ticketId) 
+        ? prev.filter(id => id !== ticketId)
+        : [...prev, ticketId]
+    );
+  };
+
+  const handleSelectAllTickets = () => {
+    const currentTickets = uploadedTickets.slice((currentPage - 1) * ticketsPerPage, currentPage * ticketsPerPage);
+    const currentTicketIds = currentTickets.map(ticket => ticket.id);
+    
+    if (selectedTickets.length === currentTicketIds.length) {
+      setSelectedTickets([]);
+    } else {
+      setSelectedTickets(currentTicketIds);
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || !selectedSource) {
       toast.error('Please select a file and source');
@@ -367,59 +462,91 @@ export default function UploadTicketsPage() {
       if (sessionError) throw sessionError;
       setCurrentSession(session);
 
-      // Read and process file
-      const text = await selectedFile.text();
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim());
-      
-      // Validate headers
-      const requiredHeaders = [
-        'Incident ID', 'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
-        'Vertical', 'Sub_Vertical', 'Owner_Support_Organization', 'Owner_GROUP', 'Owner',
-        'Reported_source', 'User Name', 'Site_Group', 'Operational Category Tier 1',
-        'Operational Category Tier 2', 'Operational Category Tier 3', 'Product_Name',
-        'Product Categorization Tier 1', 'Product Categorization Tier 2', 'Product Categorization Tier 3',
-        'Incident Type', 'Summary', 'Assignee', 'Reported_Date1', 'Responded_Date',
-        'Last_Resolved_Date', 'Closed_Date', 'Status', 'Status_Reason_Hidden', 'Pending_Reason',
-        'Group_Transfers', 'Total_Transfers', 'Department', 'VIP', 'Company', 'Vendor_Ticket_Number',
-        'Reported_to_Vendor', 'Resolution', 'Resolver Group', 'Reopen Count', 'Re Opened Date',
-        'Service Desk 1st Assigned Date', 'Service Desk 1st Assigned Group', 'Submitter',
-        'Owner_Login_ID', 'Impact', 'Submit Date', 'Report Date', 'VIL_Function', 'IT_Partner', 'MTTR', 'MTTI'
-      ];
+             // Read and process file
+       const text = await selectedFile.text();
+       const lines = text.split('\n');
+       const headers = lines[0].split(',').map(h => h.trim());
+       
+       // Validate headers
+       const requiredHeaders = [
+         'Incident ID', 'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
+         'Vertical', 'Sub_Vertical', 'Owner_Support_Organization', 'Owner_GROUP', 'Owner',
+         'Reported_source', 'User Name', 'Site_Group', 'Operational Category Tier 1',
+         'Operational Category Tier 2', 'Operational Category Tier 3', 'Product_Name',
+         'Product Categorization Tier 1', 'Product Categorization Tier 2', 'Product Categorization Tier 3',
+         'Incident Type', 'Summary', 'Assignee', 'Reported_Date1', 'Responded_Date',
+         'Last_Resolved_Date', 'Closed_Date', 'Status', 'Status_Reason_Hidden', 'Pending_Reason',
+         'Group_Transfers', 'Total_Transfers', 'Department', 'VIP', 'Company', 'Vendor_Ticket_Number',
+         'Reported_to_Vendor', 'Resolution', 'Resolver Group', 'Reopen Count', 'Re Opened Date',
+         'Service Desk 1st Assigned Date', 'Service Desk 1st Assigned Group', 'Submitter',
+         'Owner_Login_ID', 'Impact', 'Submit Date', 'Report Date', 'VIL_Function', 'IT_Partner', 'MTTR', 'MTTI'
+       ];
 
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-      if (missingHeaders.length > 0) {
-        throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
-      }
+       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+       if (missingHeaders.length > 0) {
+         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+       }
 
-      const totalRows = lines.length - 1; // Exclude header
-      setUploadProgress({ current: 0, total: totalRows, status: 'Processing...' });
+       // Helper function to parse CSV line with quoted fields
+       const parseCSVLine = (line: string): string[] => {
+         const result: string[] = [];
+         let current = '';
+         let inQuotes = false;
+         
+         for (let i = 0; i < line.length; i++) {
+           const char = line[i];
+           
+           if (char === '"') {
+             if (inQuotes && line[i + 1] === '"') {
+               // Escaped quote
+               current += '"';
+               i++; // Skip next quote
+             } else {
+               // Toggle quote state
+               inQuotes = !inQuotes;
+             }
+           } else if (char === ',' && !inQuotes) {
+             // End of field
+             result.push(current.trim());
+             current = '';
+           } else {
+             current += char;
+           }
+         }
+         
+         // Add the last field
+         result.push(current.trim());
+         return result;
+       };
 
-      // Update session with total rows
-      await supabase
-        .from('upload_sessions')
-        .update({ total_rows: totalRows })
-        .eq('id', session.id);
+       const totalRows = lines.length - 1; // Exclude header
+       setUploadProgress({ current: 0, total: totalRows, status: 'Processing...' });
 
-      // Process rows in batches
-      const batchSize = 50;
-      let processedRows = 0;
+       // Update session with total rows
+       await supabase
+         .from('upload_sessions')
+         .update({ total_rows: totalRows })
+         .eq('id', session.id);
 
-      for (let i = 1; i < lines.length; i += batchSize) {
-        const batch = lines.slice(i, i + batchSize);
-        const tickets = [];
+       // Process rows in batches
+       const batchSize = 50;
+       let processedRows = 0;
 
-        for (const line of batch) {
-          if (!line.trim()) continue;
+       for (let i = 1; i < lines.length; i += batchSize) {
+         const batch = lines.slice(i, i + batchSize);
+         const tickets = [];
 
-          const values = line.split(',').map(v => v.trim());
-          const ticket: any = {};
+         for (const line of batch) {
+           if (!line.trim()) continue;
 
-          headers.forEach((header, index) => {
-            const value = values[index] || '';
-            const fieldName = header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-            ticket[fieldName] = value;
-          });
+           const values = parseCSVLine(line);
+           const ticket: any = {};
+
+           headers.forEach((header, index) => {
+             const value = values[index] || '';
+             const fieldName = header.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+             ticket[fieldName] = value;
+           });
 
                      // Find matching mapping
            const mapping = mappings.find(m => 
@@ -576,6 +703,12 @@ export default function UploadTicketsPage() {
     }
   };
 
+  // Pagination calculations
+  const indexOfLastTicket = currentPage * ticketsPerPage;
+  const indexOfFirstTicket = indexOfLastTicket - ticketsPerPage;
+  const currentTickets = uploadedTickets.slice(indexOfFirstTicket, indexOfLastTicket);
+  const totalPages = Math.ceil(uploadedTickets.length / ticketsPerPage);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -693,62 +826,193 @@ export default function UploadTicketsPage() {
         </div>
       </div>
 
-      {/* Upload Sessions */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Upload History</h2>
-          <p className="text-sm text-gray-600">Recent upload sessions and their status</p>
-        </div>
-        <div className="p-6">
-          {uploadSessions.length === 0 ? (
-            <div className="text-center py-8">
-              <Upload className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No upload sessions</h3>
-              <p className="mt-1 text-sm text-gray-500">Upload your first ticket dump to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {uploadSessions.map((session) => (
-                <div key={session.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-900">{session.file_name}</h3>
-                      <p className="text-sm text-gray-600">
-                        {session.processed_rows} / {session.total_rows} rows processed
-                      </p>
-                      <div className="flex items-center space-x-4 mt-2">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          session.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          session.status === 'failed' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {session.status}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          {new Date(session.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      {session.error_message && (
-                        <p className="text-sm text-red-600 mt-1">{session.error_message}</p>
-                      )}
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleDeleteSession(session.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete session"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+             {/* Upload Sessions */}
+       <div className="bg-white rounded-lg shadow">
+         <div className="px-6 py-4 border-b border-gray-200">
+           <h2 className="text-lg font-medium text-gray-900">Upload History</h2>
+           <p className="text-sm text-gray-600">Recent upload sessions and their status</p>
+         </div>
+         <div className="p-6">
+           {uploadSessions.length === 0 ? (
+             <div className="text-center py-8">
+               <Upload className="mx-auto h-12 w-12 text-gray-400" />
+               <h3 className="mt-2 text-sm font-medium text-gray-900">No upload sessions</h3>
+               <p className="mt-1 text-sm text-gray-500">Upload your first ticket dump to get started.</p>
+             </div>
+           ) : (
+             <div className="space-y-4">
+               {uploadSessions.map((session) => (
+                 <div key={session.id} className="border border-gray-200 rounded-lg p-4">
+                   <div className="flex justify-between items-center">
+                     <div className="flex-1">
+                       <h3 className="text-lg font-medium text-gray-900">{session.file_name}</h3>
+                       <p className="text-sm text-gray-600">
+                         {session.processed_rows} / {session.total_rows} rows processed
+                       </p>
+                       <div className="flex items-center space-x-4 mt-2">
+                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                           session.status === 'completed' ? 'bg-green-100 text-green-800' :
+                           session.status === 'failed' ? 'bg-red-100 text-red-800' :
+                           'bg-yellow-100 text-yellow-800'
+                         }`}>
+                           {session.status}
+                         </span>
+                         <span className="text-sm text-gray-500">
+                           {new Date(session.created_at).toLocaleString()}
+                         </span>
+                       </div>
+                       {session.error_message && (
+                         <p className="text-sm text-red-600 mt-1">{session.error_message}</p>
+                       )}
+                     </div>
+                     
+                     <div className="flex space-x-2">
+                       <button
+                         onClick={() => handleDeleteSession(session.id)}
+                         className="text-red-600 hover:text-red-900"
+                         title="Delete session"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </button>
+                     </div>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           )}
+         </div>
+       </div>
+
+       {/* Uploaded Ticket Entries */}
+       <div className="bg-white rounded-lg shadow">
+         <div className="px-6 py-4 border-b border-gray-200">
+           <div className="flex justify-between items-center">
+             <div>
+               <h2 className="text-lg font-medium text-gray-900">Uploaded Ticket Entries</h2>
+               <p className="text-sm text-gray-600">View and manage uploaded ticket data</p>
+             </div>
+             {selectedTickets.length > 0 && (
+               <button
+                 onClick={handleDeleteMultipleTickets}
+                 className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center"
+               >
+                 <Trash2 className="h-4 w-4 mr-2" />
+                 Delete Selected ({selectedTickets.length})
+               </button>
+             )}
+           </div>
+         </div>
+         <div className="p-6">
+           {uploadedTickets.length === 0 ? (
+             <div className="text-center py-8">
+               <Upload className="mx-auto h-12 w-12 text-gray-400" />
+               <h3 className="mt-2 text-sm font-medium text-gray-900">No uploaded tickets</h3>
+               <p className="mt-1 text-sm text-gray-500">Upload your first ticket dump to see entries here.</p>
+             </div>
+           ) : (
+             <div>
+               {/* Table */}
+               <div className="overflow-x-auto">
+                 <table className="min-w-full divide-y divide-gray-200">
+                   <thead className="bg-gray-50">
+                     <tr>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         <input
+                           type="checkbox"
+                           checked={selectedTickets.length === currentTickets.length && currentTickets.length > 0}
+                           onChange={handleSelectAllTickets}
+                           className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                         />
+                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket ID</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reported By</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                     </tr>
+                   </thead>
+                   <tbody className="bg-white divide-y divide-gray-200">
+                     {currentTickets.map((ticket) => (
+                       <tr key={ticket.id} className="hover:bg-gray-50">
+                         <td className="px-6 py-4 whitespace-nowrap">
+                           <input
+                             type="checkbox"
+                             checked={selectedTickets.includes(ticket.id)}
+                             onChange={() => handleSelectTicket(ticket.id)}
+                             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                           />
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                           {(ticket as any).source?.name || 'Remedy'}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                           {ticket.incident_id}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                           {new Date(ticket.created_at).toLocaleDateString()}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                           {ticket.user_name || '-'}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                           {ticket.assignee || '-'}
+                         </td>
+                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                           <div className="flex space-x-2">
+                             <button
+                               onClick={() => handleViewTicketDetails(ticket)}
+                               className="text-blue-600 hover:text-blue-900"
+                               title="View details"
+                             >
+                               <Eye className="h-4 w-4" />
+                             </button>
+                             <button
+                               onClick={() => handleDeleteTicket(ticket.id)}
+                               className="text-red-600 hover:text-red-900"
+                               title="Delete ticket"
+                             >
+                               <Trash2 className="h-4 w-4" />
+                             </button>
+                           </div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+
+               {/* Pagination */}
+               {totalPages > 1 && (
+                 <div className="flex items-center justify-between mt-6">
+                   <div className="text-sm text-gray-700">
+                     Showing {indexOfFirstTicket + 1} to {Math.min(indexOfLastTicket, uploadedTickets.length)} of {uploadedTickets.length} results
+                   </div>
+                   <div className="flex space-x-2">
+                     <button
+                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                       disabled={currentPage === 1}
+                       className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                     >
+                       Previous
+                     </button>
+                     <span className="px-3 py-2 text-sm font-medium text-gray-700">
+                       Page {currentPage} of {totalPages}
+                     </span>
+                     <button
+                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                       disabled={currentPage === totalPages}
+                       className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                     >
+                       Next
+                     </button>
+                   </div>
+                 </div>
+               )}
+             </div>
+           )}
+         </div>
+       </div>
 
       {/* Add Source Modal */}
       {showAddSourceModal && (
@@ -884,18 +1148,20 @@ export default function UploadTicketsPage() {
                     <div className="space-y-3">
                       {userMappings.map((mapping, index) => (
                         <div key={index} className="flex space-x-2">
-                          <select
-                            value={mapping.user_email}
-                            onChange={(e) => updateUserMapping(index, 'user_email', e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          >
-                            <option value="">Select User</option>
-                            {projects.find(p => p.id === selectedProject)?.users.map(user => (
-                              <option key={user} value={user}>
-                                {user}
-                              </option>
-                            ))}
-                          </select>
+                                                     <select
+                             value={mapping.user_email}
+                             onChange={(e) => updateUserMapping(index, 'user_email', e.target.value)}
+                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                           >
+                             <option value="">Select User</option>
+                             {projects.find(p => p.id === selectedProject)?.users
+                               .filter((user, index, arr) => arr.indexOf(user) === index) // Remove duplicates
+                               .map(user => (
+                                 <option key={user} value={user}>
+                                   {user}
+                                 </option>
+                               ))}
+                           </select>
                           <input
                             type="text"
                             value={mapping.assignee_value}
@@ -1048,6 +1314,98 @@ export default function UploadTicketsPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Details Modal */}
+      {showTicketDetailsModal && selectedTicketDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-4/5 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-medium">Ticket Details</h3>
+              <button
+                onClick={() => setShowTicketDetailsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Basic Information</h4>
+                <div className="space-y-2">
+                  <div><span className="font-medium">Incident ID:</span> {selectedTicketDetails.incident_id}</div>
+                  <div><span className="font-medium">Priority:</span> {selectedTicketDetails.priority || '-'}</div>
+                  <div><span className="font-medium">Status:</span> {selectedTicketDetails.status || '-'}</div>
+                  <div><span className="font-medium">Region:</span> {selectedTicketDetails.region || '-'}</div>
+                  <div><span className="font-medium">Department:</span> {selectedTicketDetails.department || '-'}</div>
+                  <div><span className="font-medium">Company:</span> {selectedTicketDetails.company || '-'}</div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Assignment</h4>
+                <div className="space-y-2">
+                  <div><span className="font-medium">Assigned Organization:</span> {selectedTicketDetails.assigned_support_organization || '-'}</div>
+                  <div><span className="font-medium">Assigned Group:</span> {selectedTicketDetails.assigned_group || '-'}</div>
+                  <div><span className="font-medium">Assignee:</span> {selectedTicketDetails.assignee || '-'}</div>
+                  <div><span className="font-medium">Owner:</span> {selectedTicketDetails.owner || '-'}</div>
+                  <div><span className="font-medium">Submitter:</span> {selectedTicketDetails.submitter || '-'}</div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Timeline</h4>
+                <div className="space-y-2">
+                  <div><span className="font-medium">Reported Date:</span> {selectedTicketDetails.reported_date1 ? new Date(selectedTicketDetails.reported_date1).toLocaleString() : '-'}</div>
+                  <div><span className="font-medium">Responded Date:</span> {selectedTicketDetails.responded_date ? new Date(selectedTicketDetails.responded_date).toLocaleString() : '-'}</div>
+                  <div><span className="font-medium">Resolved Date:</span> {selectedTicketDetails.last_resolved_date ? new Date(selectedTicketDetails.last_resolved_date).toLocaleString() : '-'}</div>
+                  <div><span className="font-medium">Closed Date:</span> {selectedTicketDetails.closed_date ? new Date(selectedTicketDetails.closed_date).toLocaleString() : '-'}</div>
+                  <div><span className="font-medium">Created:</span> {new Date(selectedTicketDetails.created_at).toLocaleString()}</div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Metrics</h4>
+                <div className="space-y-2">
+                  <div><span className="font-medium">Group Transfers:</span> {selectedTicketDetails.group_transfers || '-'}</div>
+                  <div><span className="font-medium">Total Transfers:</span> {selectedTicketDetails.total_transfers || '-'}</div>
+                  <div><span className="font-medium">Reopen Count:</span> {selectedTicketDetails.reopen_count || '-'}</div>
+                  <div><span className="font-medium">MTTR:</span> {selectedTicketDetails.mttr || '-'}</div>
+                  <div><span className="font-medium">MTTI:</span> {selectedTicketDetails.mtti || '-'}</div>
+                </div>
+              </div>
+              
+              <div className="col-span-2">
+                <h4 className="font-medium text-gray-900 mb-3">Summary</h4>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  {selectedTicketDetails.summary || 'No summary available'}
+                </div>
+              </div>
+              
+              <div className="col-span-2">
+                <h4 className="font-medium text-gray-900 mb-3">Resolution</h4>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  {selectedTicketDetails.resolution || 'No resolution available'}
+                </div>
+              </div>
+              
+              <div className="col-span-2">
+                <h4 className="font-medium text-gray-900 mb-3">Additional Information</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><span className="font-medium">User Name:</span> {selectedTicketDetails.user_name || '-'}</div>
+                  <div><span className="font-medium">Site Group:</span> {selectedTicketDetails.site_group || '-'}</div>
+                  <div><span className="font-medium">Vertical:</span> {selectedTicketDetails.vertical || '-'}</div>
+                  <div><span className="font-medium">Sub Vertical:</span> {selectedTicketDetails.sub_vertical || '-'}</div>
+                  <div><span className="font-medium">Incident Type:</span> {selectedTicketDetails.incident_type || '-'}</div>
+                  <div><span className="font-medium">Impact:</span> {selectedTicketDetails.impact || '-'}</div>
+                  <div><span className="font-medium">VIP:</span> {selectedTicketDetails.vip ? 'Yes' : 'No'}</div>
+                  <div><span className="font-medium">Reported to Vendor:</span> {selectedTicketDetails.reported_to_vendor ? 'Yes' : 'No'}</div>
+                </div>
               </div>
             </div>
           </div>

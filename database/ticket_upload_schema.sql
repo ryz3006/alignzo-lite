@@ -2,6 +2,16 @@
 -- TICKET UPLOAD SCHEMA
 -- =====================================================
 -- This file contains the database schema for ticket upload functionality
+-- 
+-- IMPORTANT: This schema is designed for FIRST-TIME INSTALLATIONS only.
+-- If you need to update an existing database, use the migration scripts instead.
+-- 
+-- This schema will:
+-- 1. Create all necessary tables with proper indexes and constraints
+-- 2. Set up Row Level Security (RLS) policies
+-- 3. Create triggers for automatic timestamp updates
+-- 4. Insert initial ticket source data
+-- 5. Add table comments for documentation
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -191,89 +201,34 @@ ALTER TABLE upload_sessions ENABLE ROW LEVEL SECURITY;
 -- =====================================================
 
 -- Ticket sources policies (public access)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_sources' AND policyname = 'Allow public read access') THEN
-        CREATE POLICY "Allow public read access" ON ticket_sources FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_sources' AND policyname = 'Allow public insert') THEN
-        CREATE POLICY "Allow public insert" ON ticket_sources FOR INSERT WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_sources' AND policyname = 'Allow public update') THEN
-        CREATE POLICY "Allow public update" ON ticket_sources FOR UPDATE USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_sources' AND policyname = 'Allow public delete') THEN
-        CREATE POLICY "Allow public delete" ON ticket_sources FOR DELETE USING (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read access" ON ticket_sources FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_sources FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_sources FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_sources FOR DELETE USING (true);
 
 -- Mapping policies (public access for now)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_mappings' AND policyname = 'Allow public read access') THEN
-        CREATE POLICY "Allow public read access" ON ticket_upload_mappings FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_mappings' AND policyname = 'Allow public insert') THEN
-        CREATE POLICY "Allow public insert" ON ticket_upload_mappings FOR INSERT WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_mappings' AND policyname = 'Allow public update') THEN
-        CREATE POLICY "Allow public update" ON ticket_upload_mappings FOR UPDATE USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_mappings' AND policyname = 'Allow public delete') THEN
-        CREATE POLICY "Allow public delete" ON ticket_upload_mappings FOR DELETE USING (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read access" ON ticket_upload_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_upload_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_upload_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_upload_mappings FOR DELETE USING (true);
 
 -- User mapping policies (public access for now)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_user_mappings' AND policyname = 'Allow public read access') THEN
-        CREATE POLICY "Allow public read access" ON ticket_upload_user_mappings FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_user_mappings' AND policyname = 'Allow public insert') THEN
-        CREATE POLICY "Allow public insert" ON ticket_upload_user_mappings FOR INSERT WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_user_mappings' AND policyname = 'Allow public update') THEN
-        CREATE POLICY "Allow public update" ON ticket_upload_user_mappings FOR UPDATE USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'ticket_upload_user_mappings' AND policyname = 'Allow public delete') THEN
-        CREATE POLICY "Allow public delete" ON ticket_upload_user_mappings FOR DELETE USING (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read access" ON ticket_upload_user_mappings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON ticket_upload_user_mappings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON ticket_upload_user_mappings FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON ticket_upload_user_mappings FOR DELETE USING (true);
 
 -- Uploaded tickets policies (public access for now)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'uploaded_tickets' AND policyname = 'Allow public read access') THEN
-        CREATE POLICY "Allow public read access" ON uploaded_tickets FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'uploaded_tickets' AND policyname = 'Allow public insert') THEN
-        CREATE POLICY "Allow public insert" ON uploaded_tickets FOR INSERT WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'uploaded_tickets' AND policyname = 'Allow public update') THEN
-        CREATE POLICY "Allow public update" ON uploaded_tickets FOR UPDATE USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'uploaded_tickets' AND policyname = 'Allow public delete') THEN
-        CREATE POLICY "Allow public delete" ON uploaded_tickets FOR DELETE USING (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read access" ON uploaded_tickets FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON uploaded_tickets FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON uploaded_tickets FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON uploaded_tickets FOR DELETE USING (true);
 
 -- Upload sessions policies (public access for now)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'upload_sessions' AND policyname = 'Allow public read access') THEN
-        CREATE POLICY "Allow public read access" ON upload_sessions FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'upload_sessions' AND policyname = 'Allow public insert') THEN
-        CREATE POLICY "Allow public insert" ON upload_sessions FOR INSERT WITH CHECK (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'upload_sessions' AND policyname = 'Allow public update') THEN
-        CREATE POLICY "Allow public update" ON upload_sessions FOR UPDATE USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'upload_sessions' AND policyname = 'Allow public delete') THEN
-        CREATE POLICY "Allow public delete" ON upload_sessions FOR DELETE USING (true);
-    END IF;
-END $$;
+CREATE POLICY "Allow public read access" ON upload_sessions FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON upload_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON upload_sessions FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON upload_sessions FOR DELETE USING (true);
 
 -- =====================================================
 -- INITIAL DATA
@@ -281,10 +236,7 @@ END $$;
 
 -- Insert default ticket sources
 INSERT INTO ticket_sources (name, description) VALUES 
-('Remedy', 'BMC Remedy ITSM ticketing system'),
-('ServiceNow', 'ServiceNow ITSM platform'),
-('Jira', 'Atlassian Jira issue tracking'),
-('Zendesk', 'Zendesk support ticketing system')
+('Remedy', 'BMC Remedy ITSM ticketing system')
 ON CONFLICT (name) DO NOTHING;
 
 -- =====================================================
@@ -302,3 +254,9 @@ COMMENT ON TABLE upload_sessions IS 'Tracks upload progress and status';
 -- =====================================================
 -- All tables, indexes, constraints, triggers, and RLS policies have been created
 -- The database is now ready for ticket upload functionality
+-- 
+-- NEXT STEPS:
+-- 1. Access the upload page at /alignzo/upload-tickets
+-- 2. Configure your first source mapping
+-- 3. Upload your first ticket dump file
+-- 4. Monitor upload progress and review results
