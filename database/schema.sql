@@ -226,16 +226,16 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     status VARCHAR(100),
     status_reason_hidden TEXT,
     pending_reason TEXT,
-    group_transfers INTEGER,
-    total_transfers INTEGER,
+    group_transfers VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
+    total_transfers VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
     department VARCHAR(255),
-    vip BOOLEAN,
+    vip VARCHAR(10), -- Changed from BOOLEAN to VARCHAR to handle "Yes"/"No" values
     company VARCHAR(255),
     vendor_ticket_number VARCHAR(255),
-    reported_to_vendor BOOLEAN,
+    reported_to_vendor VARCHAR(10), -- Changed from BOOLEAN to VARCHAR to handle "Yes"/"No" values
     resolution TEXT,
     resolver_group VARCHAR(500),
-    reopen_count INTEGER,
+    reopen_count VARCHAR(10), -- Changed from INTEGER to VARCHAR to handle empty values
     reopened_date TIMESTAMP WITH TIME ZONE,
     service_desk_1st_assigned_date TIMESTAMP WITH TIME ZONE,
     service_desk_1st_assigned_group VARCHAR(500),
@@ -246,8 +246,8 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     report_date TIMESTAMP WITH TIME ZONE,
     vil_function VARCHAR(255),
     it_partner VARCHAR(255),
-    mttr DECIMAL(10,2),
-    mtti DECIMAL(10,2),
+    mttr VARCHAR(50), -- Time format like "02:58:25"
+    mtti VARCHAR(50), -- Time format like "02:58:25"
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

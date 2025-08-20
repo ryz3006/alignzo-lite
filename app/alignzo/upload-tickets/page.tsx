@@ -713,16 +713,16 @@ export default function UploadTicketsPage() {
                status: ticket.status,
                status_reason_hidden: ticket.status_reason_hidden,
                pending_reason: ticket.pending_reason,
-               group_transfers: ticket.group_transfers ? parseInt(ticket.group_transfers) : null,
-               total_transfers: ticket.total_transfers ? parseInt(ticket.total_transfers) : null,
-               department: ticket.department,
-               vip: ticket.vip === 'Yes',
-               company: ticket.company,
-               vendor_ticket_number: ticket.vendor_ticket_number,
-               reported_to_vendor: ticket.reported_to_vendor === 'Yes',
-               resolution: ticket.resolution,
-               resolver_group: ticket.resolver_group,
-               reopen_count: ticket.reopen_count ? parseInt(ticket.reopen_count) : null,
+                               group_transfers: ticket.group_transfers || null, // Keep as string to handle empty values
+                total_transfers: ticket.total_transfers || null, // Keep as string to handle empty values
+                department: ticket.department,
+                vip: ticket.vip || null, // Keep as string to handle "Yes"/"No" values
+                company: ticket.company,
+                vendor_ticket_number: ticket.vendor_ticket_number,
+                reported_to_vendor: ticket.reported_to_vendor || null, // Keep as string to handle "Yes"/"No" values
+                resolution: ticket.resolution,
+                resolver_group: ticket.resolver_group,
+                reopen_count: ticket.reopen_count || null, // Keep as string to handle empty values
                reopened_date: parseRemedyDate(ticket.reopened_date),
                service_desk_1st_assigned_date: parseRemedyDate(ticket.service_desk_1st_assigned_date),
                service_desk_1st_assigned_group: ticket.service_desk_1st_assigned_group,
@@ -733,8 +733,8 @@ export default function UploadTicketsPage() {
                report_date: parseRemedyDate(ticket.report_date),
                vil_function: ticket.vil_function,
                it_partner: ticket.it_partner,
-               mttr: ticket.mttr ? parseFloat(ticket.mttr) : null,
-               mtti: ticket.mtti ? parseFloat(ticket.mtti) : null
+               mttr: ticket.mttr || null, // Keep as string for time format like "02:58:25"
+               mtti: ticket.mtti || null  // Keep as string for time format like "02:58:25"
              });
            }
         }
