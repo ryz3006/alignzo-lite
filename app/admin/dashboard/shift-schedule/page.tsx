@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
-import { Calendar, Download, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Download, Save, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface TeamMember {
@@ -37,6 +37,7 @@ export default function ShiftSchedulePage() {
   const [shiftData, setShiftData] = useState<ShiftScheduleData[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -257,17 +258,13 @@ export default function ShiftSchedulePage() {
       return `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
     });
 
-    // Create CSV header
-    const header = ['User Email', 'Full Name', ...dates.map(date => {
-      const day = new Date(date).getDate();
-      const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
-      return `${day}(${dayName})`;
-    })].join(',');
+    // Create CSV header in the same format as the sample file
+    const header = ['Email', ...Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString())].join(',');
 
     // Create CSV rows
     const rows = shiftData.map(user => {
       const shiftValues = dates.map(date => user.shifts[date] || 'G');
-      return [user.user_email, user.full_name, ...shiftValues].join(',');
+      return [user.user_email, ...shiftValues].join(',');
     });
 
     const csvContent = [header, ...rows].join('\n');
@@ -282,6 +279,134 @@ export default function ShiftSchedulePage() {
     window.URL.revokeObjectURL(url);
 
     toast.success('CSV downloaded successfully!');
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    if (!selectedProject || !selectedTeam) {
+      toast.error('Please select a project and team first');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csvData = e.target?.result as string;
+      processCSVUpload(csvData);
+    };
+    reader.readAsText(file);
+
+    // Reset file input
+    event.target.value = '';
+  };
+
+  const processCSVUpload = async (csvData: string) => {
+    try {
+      setUploading(true);
+      
+      const lines = csvData.trim().split('\n');
+      if (lines.length < 2) {
+        toast.error('CSV file must have at least a header and one data row');
+        return;
+      }
+
+      // Parse header to get day numbers
+      const header = lines[0].split(',');
+      if (header[0].toLowerCase() !== 'email') {
+        toast.error('CSV file must have "Email" as the first column');
+        return;
+      }
+
+      const dayNumbers = header.slice(1).map(day => parseInt(day.trim()));
+      const validDays = dayNumbers.filter(day => day >= 1 && day <= 31);
+
+      if (validDays.length === 0) {
+        toast.error('CSV file must have valid day numbers (1-31) in the header');
+        return;
+      }
+
+      // Process each data row
+      const updatesCount = { updated: 0, skipped: 0 };
+      
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i].trim();
+        if (!row) continue;
+
+        const columns = row.split(',');
+        const email = columns[0]?.trim();
+        
+        if (!email) {
+          console.warn(`Skipping row ${i + 1}: No email found`);
+          updatesCount.skipped++;
+          continue;
+        }
+
+        // Check if this user exists in current team members
+        const userExists = teamMembers.some(member => member.user_email === email);
+        if (!userExists) {
+          console.warn(`Skipping user ${email}: Not found in selected team`);
+          updatesCount.skipped++;
+          continue;
+        }
+
+        // Process shifts for this user
+        for (let dayIndex = 0; dayIndex < validDays.length; dayIndex++) {
+          const day = validDays[dayIndex];
+          const shiftValue = columns[dayIndex + 1]?.trim().toUpperCase();
+          
+          // Skip if day is not valid for the selected month
+          const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+          if (day > daysInMonth) continue;
+
+          // Validate shift type
+          if (shiftValue && !Object.keys(SHIFT_TYPES).includes(shiftValue as ShiftType)) {
+            console.warn(`Invalid shift type "${shiftValue}" for ${email} on day ${day}`);
+            continue;
+          }
+
+          if (shiftValue) {
+            const date = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            
+            // Update local state
+            setShiftData(prev => 
+              prev.map(user => 
+                user.user_email === email 
+                  ? { ...user, shifts: { ...user.shifts, [date]: shiftValue as ShiftType } }
+                  : user
+              )
+            );
+
+            // Save to database
+            await supabase.rpc('upsert_shift_schedules', {
+              p_project_id: selectedProject,
+              p_team_id: selectedTeam,
+              p_user_email: email,
+              p_shift_date: date,
+              p_shift_type: shiftValue as ShiftType
+            });
+
+            updatesCount.updated++;
+          }
+        }
+      }
+
+      toast.success(`CSV uploaded successfully! Updated ${updatesCount.updated} shifts. Skipped ${updatesCount.skipped} invalid entries.`);
+      
+      // Reload the schedule to reflect changes
+      await loadShiftSchedule();
+      
+    } catch (error) {
+      console.error('Error processing CSV upload:', error);
+      toast.error('Failed to process CSV upload');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const getDaysInMonth = () => {
@@ -435,6 +560,17 @@ export default function ShiftSchedulePage() {
               Shift Schedule - {monthNames[selectedMonth - 1]} {selectedYear}
             </h2>
             <div className="flex items-center space-x-2">
+              <label className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 cursor-pointer disabled:opacity-50">
+                <Upload className="h-4 w-4 mr-1" />
+                {uploading ? 'Uploading...' : 'Upload CSV'}
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  disabled={uploading || !selectedProject || !selectedTeam}
+                  className="hidden"
+                />
+              </label>
               <button
                 onClick={downloadCSV}
                 disabled={!shiftData.length}
@@ -502,17 +638,17 @@ export default function ShiftSchedulePage() {
                         return (
                           <td
                             key={day}
-                            className={`px-2 py-2 text-center ${
+                            className={`px-3 py-3 text-center ${
                               isWeekend(day) ? 'bg-gray-50' : ''
                             }`}
                           >
                             <select
                               value={currentShift}
                               onChange={(e) => updateShift(user.user_email, date, e.target.value as ShiftType)}
-                              className={`w-full px-2 py-1 text-xs font-medium rounded border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer ${shiftConfig.bgColor} ${shiftConfig.color}`}
+                              className={`w-full min-w-[50px] px-3 py-2 text-sm font-bold rounded border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer ${shiftConfig.bgColor} ${shiftConfig.color}`}
                             >
                               {Object.entries(SHIFT_TYPES).map(([key, config]) => (
-                                <option key={key} value={key} className={`${config.bgColor} ${config.color}`}>
+                                <option key={key} value={key} className={`${config.bgColor} ${config.color} font-bold`}>
                                   {key}
                                 </option>
                               ))}
@@ -529,18 +665,33 @@ export default function ShiftSchedulePage() {
         </div>
       )}
 
-      {/* Shift Type Legend */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">Shift Types</h3>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-          {Object.entries(SHIFT_TYPES).map(([key, config]) => (
-            <div key={key} className="flex items-center space-x-2">
-              <div className={`w-4 h-4 rounded ${config.bgColor} border border-gray-300`}></div>
-              <span className="text-sm text-gray-700">
-                <span className="font-medium">{key}:</span> {config.label}
-              </span>
+      {/* Shift Type Legend and CSV Upload Info */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Shift Types</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {Object.entries(SHIFT_TYPES).map(([key, config]) => (
+              <div key={key} className="flex items-center space-x-2">
+                <div className={`w-4 h-4 rounded ${config.bgColor} border border-gray-300`}></div>
+                <span className="text-sm text-gray-700">
+                  <span className="font-medium">{key}:</span> {config.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">CSV Upload Format</h3>
+          <div className="text-sm text-gray-600 space-y-2">
+            <p><span className="font-medium">Header:</span> Email,1,2,3,4,5,...,31</p>
+            <p><span className="font-medium">Data:</span> user@example.com,G,M,A,N,H,L,...</p>
+            <div className="mt-2 text-xs">
+              <p className="text-gray-500">• Only updates specified users and dates</p>
+              <p className="text-gray-500">• Preserves existing shifts for unmentioned users/dates</p>
+              <p className="text-gray-500">• Users must be members of the selected team</p>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>
