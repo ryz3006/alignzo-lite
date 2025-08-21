@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/verify-dependencies.js && next build",
     "start": "next start",
     "lint": "next lint",
-    "vercel-build": "next build",
+    "vercel-build": "node scripts/verify-dependencies.js && next build",
     "setup-db": "node scripts/create-team-project-table.js",
     "setup-jira-mapping": "node scripts/create-jira-user-mapping-table.js",
-    "setup-jira-project-mapping": "node scripts/create-jira-project-mapping-table.js"
+    "setup-jira-project-mapping": "node scripts/create-jira-project-mapping-table.js",
+    "install:retry": "node scripts/install-with-retry.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.5",
@@ -45,5 +46,9 @@
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
