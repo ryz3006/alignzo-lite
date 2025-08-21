@@ -78,11 +78,29 @@ export default function AuditTrailPage() {
         ),
       });
 
+      // Get admin session for authentication
+      const adminSession = localStorage.getItem('admin_session');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (adminSession) {
+        try {
+          const session = JSON.parse(adminSession);
+          headers['X-Admin-Email'] = session.email;
+        } catch (error) {
+          console.error('Error parsing admin session:', error);
+        }
+      }
+
       const endpoint = activeTab === 'audit' ? '/api/admin/audit-trail' : '/api/admin/security-alerts';
-      const response = await fetch(`${endpoint}?${params}`);
+      const response = await fetch(`${endpoint}?${params}`, {
+        headers
+      });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch data');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch data');
       }
 
       const data = await response.json();

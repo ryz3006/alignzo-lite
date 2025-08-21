@@ -1,13 +1,33 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Get environment variables with runtime checks
+function getSupabaseConfig() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  
+  // In production, these should be set. In build time, use placeholders.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found, using placeholders');
+    return {
+      url: 'https://placeholder.supabase.co',
+      key: 'placeholder-key'
+    };
+  }
+  
+  return {
+    url: supabaseUrl,
+    key: supabaseAnonKey
+  };
+}
 
-// Create a client with fallback values for build time
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
+const config = getSupabaseConfig();
+
+// Create a client with proper error handling
+export const supabase = createClient(config.url, config.key, {
+  auth: {
+    persistSession: false // For server-side usage
+  }
+});
 
 // Database types
 export interface User {

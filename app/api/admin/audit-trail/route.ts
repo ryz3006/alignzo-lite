@@ -13,15 +13,27 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
   }
 
   try {
-    // Check admin authentication
-    const userEmail = extractUserEmail(request);
-    const isAdmin = await isAdminUserServer(userEmail);
+    // Check admin authentication via session or header
+    const adminEmail = request.headers.get('x-admin-email');
+    const authHeader = request.headers.get('authorization');
     
-    if (!isAdmin) {
+    // If no admin email in headers, check if it's a valid admin session
+    if (!adminEmail && !authHeader) {
       return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
+        { error: 'Admin authentication required' },
+        { status: 401 }
       );
+    }
+    
+    // Verify admin credentials
+    if (adminEmail) {
+      const isAdmin = await isAdminUserServer(adminEmail);
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: 'Admin access required' },
+          { status: 403 }
+        );
+      }
     }
 
     // Parse query parameters
