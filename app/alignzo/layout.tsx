@@ -56,6 +56,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
       // Get user access controls
       const accessControls = await getUserAccessControls(currentUser.email!);
+      console.log('User access controls loaded:', accessControls);
       setUserAccess(accessControls);
 
       setLoading(false);
@@ -87,8 +88,12 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   // Filter navigation based on user access
   const filteredNavigation = navigation.filter(item => {
     if (!userAccess) return item.accessKey === 'access_dashboard'; // Only show dashboard if no access data
-    return userAccess[item.accessKey];
+    const hasAccess = userAccess[item.accessKey];
+    console.log(`Access check for ${item.name} (${item.accessKey}):`, hasAccess);
+    return hasAccess;
   });
+  
+  console.log('Filtered navigation:', filteredNavigation.map(item => item.name));
 
   if (loading) {
     return (
