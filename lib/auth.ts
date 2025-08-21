@@ -197,8 +197,18 @@ export function isAdminUser(user?: FirebaseUser | null): boolean {
     if (adminSession) {
       try {
         const session = JSON.parse(adminSession);
-        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
-        return session.isAdmin && session.email === adminEmail;
+        // Check if session is valid and not expired
+        if (session.isAdmin && session.email && session.loginTime) {
+          const sessionAge = Date.now() - session.loginTime;
+          const maxSessionAge = 24 * 60 * 60 * 1000; // 24 hours
+          
+          if (sessionAge < maxSessionAge) {
+            return true;
+          } else {
+            // Session expired, remove it
+            localStorage.removeItem('admin_session');
+          }
+        }
       } catch (error) {
         console.error('Error parsing admin session:', error);
         localStorage.removeItem('admin_session');
@@ -206,15 +216,17 @@ export function isAdminUser(user?: FirebaseUser | null): boolean {
     }
   }
   
-  // Fallback to Firebase user check
+  // Fallback to Firebase user check (this would only work if admin email is in Firebase)
   if (!user) return false;
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
-  return user.email === adminEmail;
+  
+  // For now, we'll rely on the admin session check above
+  // If you want to support Firebase admin users, you'd need to add them to Firebase Auth
+  return false;
 }
 
 // Server-side version for API routes
 export async function isAdminUserServer(userEmail: string): Promise<boolean> {
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+  const adminEmail = process.env.ADMIN_EMAIL;
   return userEmail === adminEmail;
 }
 
@@ -238,10 +250,20 @@ export function getCurrentAdmin() {
     if (!adminSession) return null;
     
     const session = JSON.parse(adminSession);
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
     
-    if (session.isAdmin && session.email === adminEmail) {
-      return session;
+    // Check if session is valid (has required fields and is recent)
+    if (session.isAdmin && session.email && session.loginTime) {
+      // Check if session is not expired (24 hours)
+      const sessionAge = Date.now() - session.loginTime;
+      const maxSessionAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      if (sessionAge < maxSessionAge) {
+        return session;
+      } else {
+        // Session expired, remove it
+        localStorage.removeItem('admin_session');
+        return null;
+      }
     }
     
     return null;
