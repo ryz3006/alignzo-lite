@@ -25,6 +25,7 @@ import ProjectHealthTab from './components/ProjectHealthTab';
 import JiraTicketsTab from './components/JiraTicketsTab';
 import OperationalEfficiencyTab from './components/OperationalEfficiencyTab';
 import TeamInsightsTab from './components/TeamInsightsTab';
+import RemedyDashboardTab from './components/RemedyDashboardTab';
 
 interface FilterState {
   dateRange: {
@@ -422,7 +423,8 @@ export default function AnalyticsPage() {
                 { id: 'project-health', label: 'Project Health & FTE', icon: Target },
                 { id: 'jira-tickets', label: 'Tickets & Issues', icon: FileText, requiresJira: true },
                 { id: 'operational-efficiency', label: 'Operational Efficiency', icon: Zap },
-                { id: 'team-insights', label: 'Team Insights', icon: Activity }
+                { id: 'team-insights', label: 'Team Insights', icon: Activity },
+                { id: 'remedy-dashboard', label: 'Remedy Dashboard', icon: AlertTriangle }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -467,6 +469,9 @@ export default function AnalyticsPage() {
           )}
           {activeTab === 'team-insights' && (
             <TeamInsightsTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
+          )}
+          {activeTab === 'remedy-dashboard' && (
+            <RemedyDashboardTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
         </div>
       </div>
