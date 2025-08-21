@@ -21,3 +21,6 @@ WHERE color IS NULL;
 
 -- Add comment for the new column
 COMMENT ON COLUMN custom_shift_enums.color IS 'Hex color code for the shift type display';
+
+-- Enable RLS on custom_shift_enums table (if not already enabled)
+ALTER TABLE custom_shift_enums ENABLE ROW LEVEL SECURITY;
