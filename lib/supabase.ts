@@ -232,6 +232,7 @@ export interface CustomShiftEnum {
   start_time: string;
   end_time: string;
   is_default: boolean;
+  color: string;
   created_at: string;
   updated_at: string;
 }

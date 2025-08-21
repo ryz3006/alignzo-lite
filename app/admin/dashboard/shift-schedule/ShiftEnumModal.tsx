@@ -21,6 +21,7 @@ interface ShiftEnumForm {
   start_time: string;
   end_time: string;
   is_default: boolean;
+  color: string;
 }
 
 export default function ShiftEnumModal({
@@ -41,7 +42,8 @@ export default function ShiftEnumModal({
     shift_name: '',
     start_time: '',
     end_time: '',
-    is_default: false
+    is_default: false,
+    color: '#3B82F6' // Default blue color
   });
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -101,14 +103,16 @@ export default function ShiftEnumModal({
           shift_name: 'Holiday',
           start_time: '00:00',
           end_time: '23:59',
-          is_default: false
+          is_default: false,
+          color: '#EF4444' // Red for Holiday
         },
         {
           shift_identifier: 'G',
           shift_name: 'General',
           start_time: '09:00',
           end_time: '17:00',
-          is_default: true
+          is_default: true,
+          color: '#10B981' // Green for General
         }
       ];
 
@@ -168,7 +172,8 @@ export default function ShiftEnumModal({
             shift_name: formData.shift_name,
             start_time: formData.start_time,
             end_time: formData.end_time,
-            is_default: formData.is_default
+            is_default: formData.is_default,
+            color: formData.color
           })
           .eq('id', editingId);
 
@@ -185,7 +190,8 @@ export default function ShiftEnumModal({
             shift_name: formData.shift_name,
             start_time: formData.start_time,
             end_time: formData.end_time,
-            is_default: formData.is_default
+            is_default: formData.is_default,
+            color: formData.color
           });
 
         if (error) throw error;
@@ -244,7 +250,8 @@ export default function ShiftEnumModal({
       shift_name: shiftEnum.shift_name,
       start_time: shiftEnum.start_time,
       end_time: shiftEnum.end_time,
-      is_default: shiftEnum.is_default
+      is_default: shiftEnum.is_default,
+      color: shiftEnum.color || '#3B82F6'
     });
     setEditingId(shiftEnum.id);
     setShowForm(true);
@@ -260,7 +267,8 @@ export default function ShiftEnumModal({
       shift_name: '',
       start_time: '',
       end_time: '',
-      is_default: false
+      is_default: false,
+      color: '#3B82F6'
     });
     setEditingId(null);
     setShowForm(false);
@@ -401,6 +409,32 @@ export default function ShiftEnumModal({
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Shift Color *
+                    </label>
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="color"
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-12 h-10 border border-gray-300 rounded-md cursor-pointer"
+                        title="Choose shift color"
+                      />
+                      <input
+                        type="text"
+                        value={formData.color}
+                        onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        placeholder="#3B82F6"
+                        pattern="^#[0-9A-Fa-f]{6}$"
+                        title="Hex color code (e.g., #3B82F6)"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Choose a color to represent this shift type in the schedule
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center">
                   <input
@@ -468,6 +502,11 @@ export default function ShiftEnumModal({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
+                          <div 
+                            className="w-4 h-4 rounded border border-gray-300"
+                            style={{ backgroundColor: shiftEnum.color || '#3B82F6' }}
+                            title={`Color: ${shiftEnum.color || '#3B82F6'}`}
+                          ></div>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             isMandatoryEnum(shiftEnum.shift_identifier)
                               ? 'bg-orange-100 text-orange-800'

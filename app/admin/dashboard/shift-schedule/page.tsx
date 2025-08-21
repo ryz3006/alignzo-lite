@@ -502,12 +502,20 @@ export default function ShiftSchedulePage() {
   const getShiftTypes = () => {
     if (customShiftEnums.length > 0) {
       // Use custom shift enums
-      const shiftTypes: { [key: string]: { label: string; color: string; bgColor: string } } = {};
+      const shiftTypes: { [key: string]: { label: string; color: string; bgColor: string; customColor?: string; customBgColor?: string; customTextColor?: string } } = {};
       customShiftEnums.forEach(enum_ => {
+        const hexColor = enum_.color || '#3B82F6';
+        const rgbColor = hexToRgb(hexColor);
+        const bgColor = rgbColor ? `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, 0.1)` : 'rgba(59, 130, 246, 0.1)';
+        const textColor = rgbColor ? `rgb(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b})` : 'rgb(59, 130, 246)';
+        
         shiftTypes[enum_.shift_identifier] = {
           label: enum_.shift_name,
           color: 'text-gray-700',
-          bgColor: 'bg-blue-100'
+          bgColor: 'bg-blue-100',
+          customColor: hexColor,
+          customBgColor: bgColor,
+          customTextColor: textColor
         };
       });
       return shiftTypes;
@@ -515,6 +523,16 @@ export default function ShiftSchedulePage() {
       // Use default shift types
       return SHIFT_TYPES;
     }
+  };
+
+  // Helper function to convert hex to RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
   };
 
   const currentShiftTypes = getShiftTypes();
@@ -732,11 +750,16 @@ export default function ShiftSchedulePage() {
                               isWeekend(day) ? 'bg-red-50 border-red-100' : 'bg-white'
                             } border border-gray-200`}
                           >
-                            <select
-                              value={currentShift}
-                              onChange={(e) => updateShift(user.user_email, date, e.target.value as ShiftType)}
-                              className={`w-full min-w-[60px] px-4 py-3 text-base font-bold rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none cursor-pointer transition-all ${shiftConfig.bgColor} ${shiftConfig.color}`}
-                            >
+                                                          <select
+                                value={currentShift}
+                                onChange={(e) => updateShift(user.user_email, date, e.target.value as ShiftType)}
+                                className={`w-full min-w-[60px] px-4 py-3 text-base font-bold rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none cursor-pointer transition-all appearance-none bg-no-repeat bg-right`}
+                                style={{ 
+                                  backgroundImage: 'none',
+                                  backgroundColor: (shiftConfig as any).customBgColor || shiftConfig.bgColor,
+                                  color: (shiftConfig as any).customTextColor || undefined
+                                }}
+                              >
                               {Object.entries(currentShiftTypes).map(([key, config]) => (
                                 <option key={key} value={key} className={`${config.bgColor} ${config.color} font-bold text-base`}>
                                   {key}
@@ -761,16 +784,21 @@ export default function ShiftSchedulePage() {
           <h3 className="text-sm font-medium text-gray-900 mb-3">
             {customShiftEnums.length > 0 ? 'Custom Shift Types' : 'Default Shift Types'}
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {Object.entries(currentShiftTypes).map(([key, config]) => (
-              <div key={key} className="flex items-center space-x-2">
-                <div className={`w-4 h-4 rounded ${config.bgColor} border border-gray-300`}></div>
-                <span className="text-sm text-gray-700">
-                  <span className="font-medium">{key}:</span> {config.label}
-                </span>
-              </div>
-            ))}
-          </div>
+                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+             {Object.entries(currentShiftTypes).map(([key, config]) => (
+               <div key={key} className="flex items-center space-x-2">
+                                   <div 
+                    className="w-4 h-4 rounded border border-gray-300"
+                    style={{ 
+                      backgroundColor: (config as any).customBgColor || config.bgColor 
+                    }}
+                  ></div>
+                 <span className="text-sm text-gray-700">
+                   <span className="font-medium">{key}:</span> {config.label}
+                 </span>
+               </div>
+             ))}
+           </div>
           {customShiftEnums.length === 0 && (
             <p className="text-xs text-gray-500 mt-2">
               Click "Manage Shifts" to create custom shift types for this project-team combination.
