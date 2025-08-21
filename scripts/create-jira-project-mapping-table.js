@@ -4,12 +4,12 @@ const path = require('path');
 
 // Note: For local development, you'll need to set up your Supabase credentials
 // This script is designed to be run in an environment where Supabase is properly configured
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'your-supabase-url';
+const supabaseUrl = process.env.SUPABASE_URL || 'your-supabase-url';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'your-service-role-key';
 
 if (!supabaseUrl || !supabaseServiceKey || supabaseUrl === 'your-supabase-url') {
   console.error('❌ Please set up your Supabase credentials in environment variables:');
-  console.error('   - NEXT_PUBLIC_SUPABASE_URL');
+  console.error('   - SUPABASE_URL');
   console.error('   - SUPABASE_SERVICE_ROLE_KEY');
   console.error('');
   console.error('Or manually run the SQL commands from database/jira_project_mapping.sql in your Supabase dashboard.');

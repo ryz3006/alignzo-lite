@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Use SSR for Vercel deployment
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js']
+  },
+  
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

@@ -7,6 +7,14 @@ import { isAdminUserServer } from '@/lib/auth';
 
 // GET - Get archival statistics
 export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextRequest) => {
+  // Check if Supabase is properly configured
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: 'Service configuration error' },
+      { status: 500 }
+    );
+  }
+
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
   if (rateLimitResponse) {
@@ -46,6 +54,14 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
 
 // POST - Trigger manual cleanup
 export const POST = withAdminAudit(AuditEventType.DELETE)(async (request: NextRequest) => {
+  // Check if Supabase is properly configured
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: 'Service configuration error' },
+      { status: 500 }
+    );
+  }
+
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
   if (rateLimitResponse) {

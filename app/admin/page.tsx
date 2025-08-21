@@ -74,8 +74,8 @@ export default function AdminPage() {
       setConfigStatus(prev => ({ ...prev, firebase: firebaseConfigured }));
 
       // Check Supabase config
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+          const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
       const supabaseConfigured = !!(supabaseUrl && supabaseKey);
       setConfigStatus(prev => ({ ...prev, supabase: supabaseConfigured }));
 
@@ -274,8 +274,8 @@ export default function AdminPage() {
                   <div>NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com</div>
                   <div>NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789</div>
                   <div>NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id</div>
-                  <div>NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co</div>
-                  <div>NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key</div>
+                                  <div>SUPABASE_URL=https://your-project.supabase.co</div>
+                <div>SUPABASE_ANON_KEY=your-supabase-anon-key</div>
                 </div>
               </div>
 

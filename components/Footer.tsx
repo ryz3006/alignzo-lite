@@ -383,8 +383,8 @@ export default function Footer({ className = '' }: FooterProps) {
                       NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id<br />
                       <br />
                       # Supabase Configuration<br />
-                      NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co<br />
-                      NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+                                      SUPABASE_URL=https://your-project.supabase.co<br />
+                SUPABASE_ANON_KEY=your-anon-key
                     </code>
                   </div>
                 </div>
