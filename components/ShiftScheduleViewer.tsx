@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, Team, ShiftType } from '@/lib/supabase';
+import { getUserIdFromEmail } from '@/lib/auth';
 import { Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -42,12 +43,11 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
 
   const loadUserTeams = async () => {
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        console.error('User not authenticated:', userError);
-        toast.error('User not authenticated');
+      const userId = await getUserIdFromEmail(userEmail);
+
+      if (!userId) {
+        console.error('User not found in database');
+        toast.error('User not found in database');
         return;
       }
 
@@ -58,7 +58,7 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
           team_id,
           teams (*)
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (error) throw error;
 

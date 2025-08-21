@@ -163,6 +163,26 @@ export async function getUserAccessControls(userEmail: string) {
   }
 }
 
+export async function getUserIdFromEmail(userEmail: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', userEmail)
+      .single();
+
+    if (error) {
+      console.error('Error getting user ID from email:', error);
+      return null;
+    }
+
+    return data?.id || null;
+  } catch (error) {
+    console.error('Error getting user ID from email:', error);
+    return null;
+  }
+}
+
 export function isAdminUser(user?: FirebaseUser | null): boolean {
   // Check admin session first
   if (typeof window !== 'undefined') {
