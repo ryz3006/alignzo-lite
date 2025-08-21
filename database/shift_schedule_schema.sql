@@ -90,17 +90,20 @@ CREATE TRIGGER update_custom_shift_enums_updated_at
 -- Enable RLS on shift_schedules table
 ALTER TABLE shift_schedules ENABLE ROW LEVEL SECURITY;
 
+-- Enable RLS on custom_shift_enums table
+ALTER TABLE custom_shift_enums ENABLE ROW LEVEL SECURITY;
+
 -- RLS Policies for shift_schedules table
-CREATE POLICY "Allow public read access" ON shift_schedules FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON shift_schedules FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update" ON shift_schedules FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete" ON shift_schedules FOR DELETE USING (true);
+CREATE POLICY "shift_schedules_select_policy" ON shift_schedules FOR SELECT USING (true);
+CREATE POLICY "shift_schedules_insert_policy" ON shift_schedules FOR INSERT WITH CHECK (true);
+CREATE POLICY "shift_schedules_update_policy" ON shift_schedules FOR UPDATE USING (true);
+CREATE POLICY "shift_schedules_delete_policy" ON shift_schedules FOR DELETE USING (true);
 
 -- RLS Policies for custom_shift_enums table
-CREATE POLICY "Allow public read access" ON custom_shift_enums FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON custom_shift_enums FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update" ON custom_shift_enums FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete" ON custom_shift_enums FOR DELETE USING (true);
+CREATE POLICY "custom_shift_enums_select_policy" ON custom_shift_enums FOR SELECT USING (true);
+CREATE POLICY "custom_shift_enums_insert_policy" ON custom_shift_enums FOR INSERT WITH CHECK (true);
+CREATE POLICY "custom_shift_enums_update_policy" ON custom_shift_enums FOR UPDATE USING (true);
+CREATE POLICY "custom_shift_enums_delete_policy" ON custom_shift_enums FOR DELETE USING (true);
 
 -- =====================================================
 -- COMMENTS
