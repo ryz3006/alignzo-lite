@@ -15,14 +15,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Query ticket_master_mappings instead of jira_user_mappings
+    // Since we simplified to use only Master Mappings
     let query = supabase
-      .from('jira_user_mappings')
+      .from('ticket_master_mappings')
       .select('*')
-      .eq('integration_user_email', integrationUserEmail);
+      .eq('is_active', true);
 
-    if (projectKey) {
-      query = query.eq('jira_project_key', projectKey);
-    }
+    // Note: ticket_master_mappings doesn't have integration_user_email or jira_project_key
+    // It's a global mapping table that applies to all sources
 
     const { data, error } = await query;
 
@@ -34,7 +35,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ mappings: data || [] });
+    // Transform the data to match the expected format
+    const transformedMappings = (data || []).map(mapping => ({
+      id: mapping.id,
+      user_email: mapping.mapped_user_email,
+      jira_assignee_name: mapping.source_assignee_value,
+      jira_reporter_name: mapping.source_assignee_value, // Use same value for reporter
+      integration_user_email: integrationUserEmail, // Add this for compatibility
+      created_at: mapping.created_at,
+      updated_at: mapping.updated_at
+    }));
+
+    return NextResponse.json({ mappings: transformedMappings });
   } catch (error) {
     console.error('Error fetching user mappings:', error);
     return NextResponse.json(
