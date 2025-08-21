@@ -441,7 +441,14 @@ export default function UploadTicketsPage() {
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedSource) {
-      toast.error('Please select a file and source');
+      toast.error('Please select a file and source mapping');
+      return;
+    }
+
+    // Find the selected mapping
+    const selectedMapping = mappings.find(mapping => mapping.source_id === selectedSource);
+    if (!selectedMapping) {
+      toast.error('Selected source mapping not found');
       return;
     }
 
@@ -454,7 +461,7 @@ export default function UploadTicketsPage() {
         .from('upload_sessions')
         .insert({
           user_email: (await getCurrentUser())?.email || '',
-          source_id: selectedSource,
+          source_id: selectedMapping.source_id,
           file_name: selectedFile.name,
           total_rows: 0,
           processed_rows: 0,
@@ -716,13 +723,10 @@ export default function UploadTicketsPage() {
              ticket[fieldName] = value;
            });
 
-           // Find matching mapping
-           const mapping = mappings.find(m => 
-             m.source_id === selectedSource && 
-             m.source_organization_value === ticket.assigned_support_organization
-           );
+           // Use the selected mapping directly since user selected a specific mapping
+           const mapping = selectedMapping;
 
-           if (mapping) {
+           if (mapping && mapping.source_organization_value === ticket.assigned_support_organization) {
              // Helper function to parse Remedy date format
              const parseRemedyDate = (dateString: string): string | null => {
                if (!dateString || dateString.trim() === '') return null;
@@ -758,7 +762,7 @@ export default function UploadTicketsPage() {
                  const { data: masterMapping, error } = await supabase
                    .from('ticket_master_mappings')
                    .select('mapped_user_email')
-                   .eq('source_id', selectedSource)
+                   .eq('source_id', selectedMapping.source_id)
                    .eq('source_assignee_value', assigneeValue.trim())
                    .eq('is_active', true)
                    .single();
@@ -779,9 +783,9 @@ export default function UploadTicketsPage() {
              }
 
              tickets.push({
-               source_id: selectedSource,
-               mapping_id: mapping.id,
-               project_id: mapping.project_id,
+               source_id: selectedMapping.source_id,
+               mapping_id: selectedMapping.id,
+               project_id: selectedMapping.project_id,
                incident_id: ticket.incident_id,
                priority: ticket.priority,
                region: ticket.region,
@@ -950,31 +954,24 @@ export default function UploadTicketsPage() {
         <div className="flex space-x-3">
           <button
             onClick={() => setShowAddSourceModal(true)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center"
+            className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-md hover:bg-gray-100 flex items-center"
+            title="Add a new source"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add a new source
-          </button>
-          <button
-            onClick={downloadSampleFile}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download Sample
-          </button>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload File
+            <Plus className="h-4 w-4" />
           </button>
           <button
             onClick={loadData}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+            className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-md hover:bg-gray-100 flex items-center"
+            title="Refresh data"
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <RefreshCw className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 flex items-center font-medium"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload File
           </button>
         </div>
       </div>
@@ -1453,26 +1450,41 @@ export default function UploadTicketsPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ticket Source
+                    Source Mapping
                   </label>
                   <select
                     value={selectedSource}
                     onChange={(e) => setSelectedSource(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">Select a source</option>
-                    {sources.map(source => (
-                      <option key={source.id} value={source.id}>
-                        {source.name}
+                    <option value="">Select a source mapping</option>
+                    {mappings.map(mapping => (
+                      <option key={mapping.id} value={mapping.source_id}>
+                        {mapping.source.name} → {mapping.project.name}
                       </option>
                     ))}
                   </select>
+                  {mappings.length === 0 && (
+                    <p className="text-sm text-red-500 mt-1">
+                      No source mappings found. Please create a source mapping first.
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    CSV File
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      CSV File
+                    </label>
+                    <button
+                      type="button"
+                      onClick={downloadSampleFile}
+                      className="text-sm text-primary-600 hover:text-primary-700 flex items-center"
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Download Sample
+                    </button>
+                  </div>
                   <input
                     type="file"
                     accept=".csv"
@@ -1504,7 +1516,7 @@ export default function UploadTicketsPage() {
                   </button>
                   <button
                     onClick={handleUpload}
-                    disabled={!selectedFile || !selectedSource}
+                    disabled={!selectedFile || !selectedSource || mappings.length === 0}
                     className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Upload
