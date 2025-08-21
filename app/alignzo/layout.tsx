@@ -56,7 +56,6 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
       // Get user access controls
       const accessControls = await getUserAccessControls(currentUser.email!);
-      console.log('User access controls loaded:', accessControls);
       setUserAccess(accessControls);
 
       setLoading(false);
@@ -78,7 +77,21 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const navigation = [
     { name: 'Dashboard', href: '/alignzo', icon: BarChart3, accessKey: 'access_dashboard' },
     { name: 'Work Report', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
-    { name: 'Analytics', href: '/alignzo/analytics', icon: TrendingUp, accessKey: 'access_analytics' },
+    { 
+      name: 'Analytics', 
+      href: '/alignzo/analytics', 
+      icon: TrendingUp, 
+      accessKey: 'access_analytics',
+      // Analytics tab should only show if user has access to at least one analytics sub-module
+      subAccessKeys: [
+        'access_analytics_workload',
+        'access_analytics_project_health', 
+        'access_analytics_tickets',
+        'access_analytics_operational',
+        'access_analytics_team_insights',
+        'access_analytics_remedy'
+      ]
+    },
     { name: 'Upload Tickets', href: '/alignzo/upload-tickets', icon: Upload, accessKey: 'access_upload_tickets' },
     { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database, accessKey: 'access_upload_tickets' },
     { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users, accessKey: 'access_master_mappings' },
@@ -88,12 +101,18 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   // Filter navigation based on user access
   const filteredNavigation = navigation.filter(item => {
     if (!userAccess) return item.accessKey === 'access_dashboard'; // Only show dashboard if no access data
-    const hasAccess = userAccess[item.accessKey];
-    console.log(`Access check for ${item.name} (${item.accessKey}):`, hasAccess);
-    return hasAccess;
+    
+    // Check main access key
+    const hasMainAccess = userAccess[item.accessKey];
+    
+    // For analytics, also check if user has access to at least one sub-module
+    if (item.accessKey === 'access_analytics' && item.subAccessKeys) {
+      const hasSubAccess = item.subAccessKeys.some(subKey => userAccess[subKey]);
+      return hasMainAccess && hasSubAccess;
+    }
+    
+    return hasMainAccess;
   });
-  
-  console.log('Filtered navigation:', filteredNavigation.map(item => item.name));
 
   if (loading) {
     return (

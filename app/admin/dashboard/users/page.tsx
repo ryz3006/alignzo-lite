@@ -11,7 +11,7 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
+  const defaultFormData = {
     full_name: '',
     email: '',
     phone_number: '',
@@ -27,7 +27,15 @@ export default function UsersPage() {
     access_upload_tickets: false,
     access_master_mappings: false,
     access_integrations: false,
-  });
+  };
+
+  const [formData, setFormData] = useState(defaultFormData);
+
+  const resetForm = () => {
+    setFormData({ ...defaultFormData });
+    setEditingUser(null);
+    setShowModal(false);
+  };
 
   useEffect(() => {
     loadUsers();
@@ -73,25 +81,7 @@ export default function UsersPage() {
         toast.success('User created successfully');
       }
 
-      setShowModal(false);
-      setEditingUser(null);
-      setFormData({ 
-        full_name: '', 
-        email: '', 
-        phone_number: '',
-        access_dashboard: true,
-        access_work_report: false,
-        access_analytics: false,
-        access_analytics_workload: false,
-        access_analytics_project_health: false,
-        access_analytics_tickets: false,
-        access_analytics_operational: false,
-        access_analytics_team_insights: false,
-        access_analytics_remedy: false,
-        access_upload_tickets: false,
-        access_master_mappings: false,
-        access_integrations: false,
-      });
+      resetForm();
       loadUsers();
     } catch (error: any) {
       console.error('Error saving user:', error);
@@ -456,27 +446,7 @@ export default function UsersPage() {
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowModal(false);
-                      setEditingUser(null);
-                      setFormData({ 
-                        full_name: '', 
-                        email: '', 
-                        phone_number: '',
-                        access_dashboard: true,
-                        access_work_report: false,
-                        access_analytics: false,
-                        access_analytics_workload: false,
-                        access_analytics_project_health: false,
-                        access_analytics_tickets: false,
-                        access_analytics_operational: false,
-                        access_analytics_team_insights: false,
-                        access_analytics_remedy: false,
-                        access_upload_tickets: false,
-                        access_master_mappings: false,
-                        access_integrations: false,
-                      });
-                    }}
+                    onClick={resetForm}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                   >
                     Cancel

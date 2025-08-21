@@ -113,9 +113,10 @@ export async function getUserAccessControls(userEmail: string) {
       .single();
 
     if (error) {
-      console.error('Error getting user access controls:', error);
+      console.error('Error getting user access controls for', userEmail, ':', error);
+      // Return default access controls if user not found or error occurs
       return {
-        access_dashboard: true, // Default to true for dashboard
+        access_dashboard: true,
         access_work_report: false,
         access_analytics: false,
         access_analytics_workload: false,
@@ -130,22 +131,36 @@ export async function getUserAccessControls(userEmail: string) {
       };
     }
 
-    return data || {
-      access_dashboard: true,
-      access_work_report: false,
-      access_analytics: false,
-      access_analytics_workload: false,
-      access_analytics_project_health: false,
-      access_analytics_tickets: false,
-      access_analytics_operational: false,
-      access_analytics_team_insights: false,
-      access_analytics_remedy: false,
-      access_upload_tickets: false,
-      access_master_mappings: false,
-      access_integrations: false,
+    // Ensure all boolean values are properly set
+    const accessControls = {
+      access_dashboard: data?.access_dashboard ?? true,
+      access_work_report: data?.access_work_report ?? false,
+      access_analytics: data?.access_analytics ?? false,
+      access_analytics_workload: data?.access_analytics_workload ?? false,
+      access_analytics_project_health: data?.access_analytics_project_health ?? false,
+      access_analytics_tickets: data?.access_analytics_tickets ?? false,
+      access_analytics_operational: data?.access_analytics_operational ?? false,
+      access_analytics_team_insights: data?.access_analytics_team_insights ?? false,
+      access_analytics_remedy: data?.access_analytics_remedy ?? false,
+      access_upload_tickets: data?.access_upload_tickets ?? false,
+      access_master_mappings: data?.access_master_mappings ?? false,
+      access_integrations: data?.access_integrations ?? false,
     };
+
+    // Debug log for troubleshooting (can be removed later)
+    console.log(`User ${userEmail} access controls:`, {
+      dashboard: accessControls.access_dashboard,
+      work_report: accessControls.access_work_report,
+      analytics: accessControls.access_analytics,
+      upload_tickets: accessControls.access_upload_tickets,
+      master_mappings: accessControls.access_master_mappings,
+      integrations: accessControls.access_integrations,
+    });
+
+    return accessControls;
   } catch (error) {
     console.error('Error getting user access controls:', error);
+    // Return default access controls on error
     return {
       access_dashboard: true,
       access_work_report: false,

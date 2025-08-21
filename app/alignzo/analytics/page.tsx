@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getUserAccessControls } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { getJiraCredentials } from '@/lib/jira';
 import { 
@@ -42,6 +42,7 @@ interface FilterState {
 
 export default function AnalyticsPage() {
   const [user, setUser] = useState<any>(null);
+  const [userAccess, setUserAccess] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('workload');
   const [jiraEnabled, setJiraEnabled] = useState(false);
@@ -73,6 +74,25 @@ export default function AnalyticsPage() {
     initializeAnalytics();
   }, []);
 
+  // Set default active tab when user access is loaded
+  useEffect(() => {
+    if (userAccess) {
+      const availableTabs = [
+        { id: 'workload', accessKey: 'access_analytics_workload' },
+        { id: 'project-health', accessKey: 'access_analytics_project_health' },
+        { id: 'jira-tickets', accessKey: 'access_analytics_tickets' },
+        { id: 'operational-efficiency', accessKey: 'access_analytics_operational' },
+        { id: 'team-insights', accessKey: 'access_analytics_team_insights' },
+        { id: 'remedy-dashboard', accessKey: 'access_analytics_remedy' }
+      ];
+      
+      const firstAvailableTab = availableTabs.find(tab => userAccess[tab.accessKey]);
+      if (firstAvailableTab) {
+        setActiveTab(firstAvailableTab.id);
+      }
+    }
+  }, [userAccess]);
+
   useEffect(() => {
     if (appliedFilters) {
       loadAnalyticsData();
@@ -86,6 +106,10 @@ export default function AnalyticsPage() {
       setUser(currentUser);
 
       if (!currentUser?.email) return;
+
+      // Get user access controls
+      const accessControls = await getUserAccessControls(currentUser.email);
+      setUserAccess(accessControls);
 
       // Check JIRA integration
       const credentials = await getJiraCredentials(currentUser.email);
@@ -214,6 +238,32 @@ export default function AnalyticsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  // Check if user has access to any analytics sub-modules
+  const hasAnyAnalyticsAccess = userAccess && (
+    userAccess.access_analytics_workload ||
+    userAccess.access_analytics_project_health ||
+    userAccess.access_analytics_tickets ||
+    userAccess.access_analytics_operational ||
+    userAccess.access_analytics_team_insights ||
+    userAccess.access_analytics_remedy
+  );
+
+  if (!hasAnyAnalyticsAccess) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <AlertTriangle className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Analytics Access</h3>
+          <p className="text-gray-600">
+            You don't have access to any analytics modules. Please contact your administrator.
+          </p>
+        </div>
       </div>
     );
   }
@@ -419,13 +469,50 @@ export default function AnalyticsPage() {
           <nav className="flex overflow-x-auto">
             <div className="flex space-x-8 px-6 min-w-full">
               {[
-                { id: 'workload', label: 'Workload & Utilization', icon: Users },
-                { id: 'project-health', label: 'Project Health & FTE', icon: Target },
-                { id: 'jira-tickets', label: 'Tickets & Issues', icon: FileText, requiresJira: true },
-                { id: 'operational-efficiency', label: 'Operational Efficiency', icon: Zap },
-                { id: 'team-insights', label: 'Team Insights', icon: Activity },
-                { id: 'remedy-dashboard', label: 'Remedy Dashboard', icon: AlertTriangle }
-              ].map((tab) => (
+                { 
+                  id: 'workload', 
+                  label: 'Workload & Utilization', 
+                  icon: Users,
+                  accessKey: 'access_analytics_workload'
+                },
+                { 
+                  id: 'project-health', 
+                  label: 'Project Health & FTE', 
+                  icon: Target,
+                  accessKey: 'access_analytics_project_health'
+                },
+                { 
+                  id: 'jira-tickets', 
+                  label: 'Tickets & Issues', 
+                  icon: FileText, 
+                  requiresJira: true,
+                  accessKey: 'access_analytics_tickets'
+                },
+                { 
+                  id: 'operational-efficiency', 
+                  label: 'Operational Efficiency', 
+                  icon: Zap,
+                  accessKey: 'access_analytics_operational'
+                },
+                { 
+                  id: 'team-insights', 
+                  label: 'Team Insights', 
+                  icon: Activity,
+                  accessKey: 'access_analytics_team_insights'
+                },
+                { 
+                  id: 'remedy-dashboard', 
+                  label: 'Remedy Dashboard', 
+                  icon: AlertTriangle,
+                  accessKey: 'access_analytics_remedy'
+                }
+              ]
+              .filter(tab => {
+                // Filter tabs based on user access controls
+                if (!userAccess) return false;
+                return userAccess[tab.accessKey];
+              })
+              .map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
