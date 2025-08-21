@@ -67,6 +67,13 @@ export default function ShiftSchedulePage() {
     }
   }, [selectedProject, selectedTeam, selectedYear, selectedMonth]);
 
+  // Refresh data when modal closes
+  useEffect(() => {
+    if (!showShiftEnumModal && selectedProject && selectedTeam) {
+      loadCustomShiftEnums();
+    }
+  }, [showShiftEnumModal, selectedProject, selectedTeam]);
+
   const loadProjects = async () => {
     try {
       const { data, error } = await supabase
@@ -823,13 +830,23 @@ export default function ShiftSchedulePage() {
       {/* Shift Enum Management Modal */}
       {selectedProject && selectedTeam && (
         <ShiftEnumModal
+          key={`${selectedProject}-${selectedTeam}-${customShiftEnums.length}`}
           isOpen={showShiftEnumModal}
-          onClose={() => setShowShiftEnumModal(false)}
+          onClose={() => {
+            setShowShiftEnumModal(false);
+            // Force refresh of data when modal closes
+            setTimeout(() => {
+              loadCustomShiftEnums();
+            }, 100);
+          }}
           projectId={selectedProject}
           teamId={selectedTeam}
           projectName={projects.find(p => p.id === selectedProject)?.name || ''}
           teamName={projectTeams.find(t => t.id === selectedTeam)?.name || ''}
-          onShiftsUpdated={loadShiftSchedule}
+          onShiftsUpdated={() => {
+            loadShiftSchedule();
+            loadCustomShiftEnums();
+          }}
         />
       )}
     </div>

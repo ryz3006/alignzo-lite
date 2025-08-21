@@ -210,7 +210,10 @@ export default function ShiftEnumModal({
 
       resetForm();
       await loadShiftEnums();
-      onShiftsUpdated();
+      // Add a small delay to ensure database update is complete
+      setTimeout(() => {
+        onShiftsUpdated();
+      }, 200);
     } catch (error) {
       console.error('Error saving shift enum:', error);
       toast.error('Failed to save shift enum');
@@ -237,7 +240,10 @@ export default function ShiftEnumModal({
       if (error) throw error;
       toast.success('Shift enum deleted successfully');
       await loadShiftEnums();
-      onShiftsUpdated();
+      // Add a small delay to ensure database update is complete
+      setTimeout(() => {
+        onShiftsUpdated();
+      }, 200);
     } catch (error) {
       console.error('Error deleting shift enum:', error);
       toast.error('Failed to delete shift enum');
