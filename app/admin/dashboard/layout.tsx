@@ -14,7 +14,9 @@ import {
   Settings,
   Menu,
   X,
-  Calendar
+  Calendar,
+  Shield,
+  Activity
 } from 'lucide-react';
 
 export default function AdminDashboardLayout({
@@ -79,6 +81,7 @@ export default function AdminDashboardLayout({
     { name: 'Projects', href: '/admin/dashboard/projects', icon: FolderOpen },
     { name: 'Work Reports', href: '/admin/dashboard/reports', icon: FileText },
     { name: 'Shift Schedule', href: '/admin/dashboard/shift-schedule', icon: Calendar },
+    { name: 'Audit Trail', href: '/admin/dashboard/audit-trail', icon: Activity },
   ];
 
   if (loading) {

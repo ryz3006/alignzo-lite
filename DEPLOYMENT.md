@@ -16,17 +16,17 @@ ADMIN_PASSWORD=your-admin-password
 # NEXT_PUBLIC_ADMIN_PASSWORD=your-admin-password
 
 # Firebase Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyAchetEFS86mLMIWI9z4G1BYud3ZZDQsSs
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=alignzolite.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=alignzolite
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=alignzolite.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=486557893156
-NEXT_PUBLIC_FIREBASE_APP_ID=1:486557893156:web:99ae1b182af50a32b3ceb1
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-H1S2KRVPY1
+NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-firebase-app-id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your-measurement-id
 
 # Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://xyqptvpugoomfrlpbkhh.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5cXB0dnB1Z29vbWZybHBia2hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1OTE3NDEsImV4cCI6MjA3MTE2Nzc0MX0.Pm98fpwVivR7l7zWnp_MGtDP-6ojB1psjDxJcesvg4U
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
 ### 2. GitHub Repository Secrets
@@ -49,17 +49,17 @@ To deploy to GitHub Pages, you need to add the following secrets to your GitHub 
 - `ADMIN_PASSWORD` = your-admin-password
 
 #### Firebase Configuration:
-- `NEXT_PUBLIC_FIREBASE_API_KEY` = AIzaSyAchetEFS86mLMIWI9z4G1BYud3ZZDQsSs
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` = alignzolite.firebaseapp.com
-- `NEXT_PUBLIC_FIREBASE_PROJECT_ID` = alignzolite
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` = alignzolite.firebasestorage.app
-- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` = 486557893156
-- `NEXT_PUBLIC_FIREBASE_APP_ID` = 1:486557893156:web:99ae1b182af50a32b3ceb1
-- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` = G-H1S2KRVPY1
+- `NEXT_PUBLIC_FIREBASE_API_KEY` = your-firebase-api-key
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` = your-project.firebaseapp.com
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID` = your-project-id
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` = your-project.appspot.com
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` = your-messaging-sender-id
+- `NEXT_PUBLIC_FIREBASE_APP_ID` = your-firebase-app-id
+- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` = your-measurement-id
 
 #### Supabase Configuration:
-- `NEXT_PUBLIC_SUPABASE_URL` = https://xyqptvpugoomfrlpbkhh.supabase.co
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5cXB0dnB1Z29vbWZybHBia2hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1OTE3NDEsImV4cCI6MjA3MTE2Nzc0MX0.Pm98fpwVivR7l7zWnp_MGtDP-6ojB1psjDxJcesvg4U
+- `NEXT_PUBLIC_SUPABASE_URL` = https://your-project.supabase.co
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = your-supabase-anon-key
 
 ## GitHub Pages Deployment
 

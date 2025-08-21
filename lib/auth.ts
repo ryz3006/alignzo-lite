@@ -212,6 +212,12 @@ export function isAdminUser(user?: FirebaseUser | null): boolean {
   return user.email === adminEmail;
 }
 
+// Server-side version for API routes
+export async function isAdminUserServer(userEmail: string): Promise<boolean> {
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+  return userEmail === adminEmail;
+}
+
 export async function getCurrentUser() {
   if (!auth) {
     return null;

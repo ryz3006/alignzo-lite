@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jiraCredentialsSchema } from '@/lib/validation';
+import { z } from 'zod';
+import { applyRateLimit, jiraLimiterConfig, addRateLimitHeaders } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimitResponse = applyRateLimit(request, jiraLimiterConfig);
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+  
   try {
     const body = await request.json();
-    const { base_url, user_email, api_token } = body;
-
-    if (!base_url || !user_email || !api_token) {
-      return NextResponse.json(
-        { error: 'All fields are required' },
-        { status: 400 }
-      );
-    }
+    
+    // Validate input
+    const validatedData = jiraCredentialsSchema.parse(body);
+    const { base_url, user_email, api_token } = validatedData;
 
     // Clean up the base URL
     const cleanBaseUrl = base_url.endsWith('/') ? base_url.slice(0, -1) : base_url;
@@ -31,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (response.ok) {
       const userData = await response.json();
-      return NextResponse.json({
+      const successResponse = NextResponse.json({
         success: true,
         message: 'JIRA connection verified successfully',
         user: {
@@ -40,6 +45,8 @@ export async function POST(request: NextRequest) {
           accountId: userData.accountId
         }
       });
+      
+      return addRateLimitHeaders(successResponse, request, jiraLimiterConfig);
     } else {
       let message = 'Failed to verify JIRA connection';
       if (response.status === 401) {
@@ -56,6 +63,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { 
+          success: false,
+          message: 'Invalid input data',
+          details: error.errors
+        },
+        { status: 400 }
+      );
+    }
+    
     console.error('Error in JIRA verification:', error);
     return NextResponse.json(
       { 
