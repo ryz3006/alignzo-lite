@@ -84,10 +84,7 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
 
       const { data: shifts, error } = await supabase
         .from('shift_schedules')
-        .select(`
-          *,
-          users (email, full_name)
-        `)
+        .select('*')
         .eq('team_id', selectedTeam)
         .gte('shift_date', startDate)
         .lte('shift_date', endDate)
@@ -95,14 +92,33 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
 
       if (error) throw error;
 
+      // Get unique user emails from shifts
+      const userEmails = Array.from(new Set(shifts?.map(shift => shift.user_email) || []));
+      
+      // Get user details for all emails
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('email, full_name')
+        .in('email', userEmails);
+
+      if (usersError) throw usersError;
+
+      // Create a map of email to user details
+      const userMap = new Map();
+      users?.forEach(user => {
+        userMap.set(user.email, user);
+      });
+
       // Group by user and date
       const userShifts: { [key: string]: any } = {};
       shifts?.forEach(shift => {
-        const userEmail = (shift.users as any).email;
+        const userEmail = shift.user_email;
+        const userDetails = userMap.get(userEmail);
+        
         if (!userShifts[userEmail]) {
           userShifts[userEmail] = {
             email: userEmail,
-            name: (shift.users as any).full_name,
+            name: userDetails?.full_name || userEmail.split('@')[0],
             shifts: {}
           };
         }
