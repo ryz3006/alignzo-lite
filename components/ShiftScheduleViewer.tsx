@@ -42,6 +42,15 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
 
   const loadUserTeams = async () => {
     try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('User not authenticated:', userError);
+        toast.error('User not authenticated');
+        return;
+      }
+
       // First get the user's team memberships
       const { data: teamMembers, error } = await supabase
         .from('team_members')
@@ -49,7 +58,7 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
           team_id,
           teams (*)
         `)
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+        .eq('user_id', user.id);
 
       if (error) throw error;
 

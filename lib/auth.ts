@@ -91,6 +91,78 @@ export async function checkUserAccess(userEmail: string): Promise<boolean> {
   }
 }
 
+export async function getUserAccessControls(userEmail: string) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        access_dashboard,
+        access_work_report,
+        access_analytics,
+        access_analytics_workload,
+        access_analytics_project_health,
+        access_analytics_tickets,
+        access_analytics_operational,
+        access_analytics_team_insights,
+        access_analytics_remedy,
+        access_upload_tickets,
+        access_master_mappings,
+        access_integrations
+      `)
+      .eq('email', userEmail)
+      .single();
+
+    if (error) {
+      console.error('Error getting user access controls:', error);
+      return {
+        access_dashboard: true, // Default to true for dashboard
+        access_work_report: false,
+        access_analytics: false,
+        access_analytics_workload: false,
+        access_analytics_project_health: false,
+        access_analytics_tickets: false,
+        access_analytics_operational: false,
+        access_analytics_team_insights: false,
+        access_analytics_remedy: false,
+        access_upload_tickets: false,
+        access_master_mappings: false,
+        access_integrations: false,
+      };
+    }
+
+    return data || {
+      access_dashboard: true,
+      access_work_report: false,
+      access_analytics: false,
+      access_analytics_workload: false,
+      access_analytics_project_health: false,
+      access_analytics_tickets: false,
+      access_analytics_operational: false,
+      access_analytics_team_insights: false,
+      access_analytics_remedy: false,
+      access_upload_tickets: false,
+      access_master_mappings: false,
+      access_integrations: false,
+    };
+  } catch (error) {
+    console.error('Error getting user access controls:', error);
+    return {
+      access_dashboard: true,
+      access_work_report: false,
+      access_analytics: false,
+      access_analytics_workload: false,
+      access_analytics_project_health: false,
+      access_analytics_tickets: false,
+      access_analytics_operational: false,
+      access_analytics_team_insights: false,
+      access_analytics_remedy: false,
+      access_upload_tickets: false,
+      access_master_mappings: false,
+      access_integrations: false,
+    };
+  }
+}
+
 export function isAdminUser(user?: FirebaseUser | null): boolean {
   // Check admin session first
   if (typeof window !== 'undefined') {

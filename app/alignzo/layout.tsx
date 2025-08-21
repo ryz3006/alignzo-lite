@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { getCurrentUser, checkUserAccess, signOutUser } from '@/lib/auth';
+import { getCurrentUser, checkUserAccess, signOutUser, getUserAccessControls } from '@/lib/auth';
 import { User } from 'firebase/auth';
 import Link from 'next/link';
 import { 
@@ -29,6 +29,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showTimerManagementModal, setShowTimerManagementModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userAccess, setUserAccess] = useState<any>(null);
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
@@ -53,6 +54,10 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Get user access controls
+      const accessControls = await getUserAccessControls(currentUser.email!);
+      setUserAccess(accessControls);
+
       setLoading(false);
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -70,14 +75,20 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/alignzo', icon: BarChart3 },
-    { name: 'Work Report', href: '/alignzo/reports', icon: Clock },
-    { name: 'Analytics', href: '/alignzo/analytics', icon: TrendingUp },
-    { name: 'Upload Tickets', href: '/alignzo/upload-tickets', icon: Upload },
-    { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database },
-    { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users },
-    { name: 'Integrations', href: '/alignzo/integrations', icon: Settings },
+    { name: 'Dashboard', href: '/alignzo', icon: BarChart3, accessKey: 'access_dashboard' },
+    { name: 'Work Report', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
+    { name: 'Analytics', href: '/alignzo/analytics', icon: TrendingUp, accessKey: 'access_analytics' },
+    { name: 'Upload Tickets', href: '/alignzo/upload-tickets', icon: Upload, accessKey: 'access_upload_tickets' },
+    { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database, accessKey: 'access_upload_tickets' },
+    { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users, accessKey: 'access_master_mappings' },
+    { name: 'Integrations', href: '/alignzo/integrations', icon: Settings, accessKey: 'access_integrations' },
   ];
+
+  // Filter navigation based on user access
+  const filteredNavigation = navigation.filter(item => {
+    if (!userAccess) return item.accessKey === 'access_dashboard'; // Only show dashboard if no access data
+    return userAccess[item.accessKey];
+  });
 
   if (loading) {
     return (
@@ -170,7 +181,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
         <nav className="mb-8">
           {/* Desktop Navigation */}
           <div className="hidden md:flex space-x-8 overflow-x-auto">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -192,7 +203,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
           {/* Mobile Navigation */}
           <div className="md:hidden">
             <div className="flex space-x-2 overflow-x-auto pb-2">
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link

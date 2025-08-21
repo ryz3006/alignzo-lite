@@ -171,7 +171,7 @@ export default function UserDashboardPage() {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-
+    
     const todayStr = today.toISOString().split('T')[0];
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
@@ -187,11 +187,41 @@ export default function UserDashboardPage() {
     const todayShift = shifts?.find(s => s.shift_date === todayStr)?.shift_type || 'G';
     const tomorrowShift = shifts?.find(s => s.shift_date === tomorrowStr)?.shift_type || 'G';
 
-    // Get custom shift enums for better display
-    const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
-      p_project_id: '', // We'll need to get this from user's teams
-      p_team_id: ''
-    });
+    // Get user's team and project for custom shift enums
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('User not authenticated:', userError);
+      return;
+    }
+
+    const { data: userTeams } = await supabase
+      .from('team_members')
+      .select(`
+        team_id,
+        teams (
+          id,
+          name,
+          team_project_assignments (
+            project_id
+          )
+        )
+      `)
+      .eq('user_id', user.id);
+
+    let customEnums: any[] = [];
+    if (userTeams && userTeams.length > 0) {
+      const firstTeam = userTeams[0];
+      const projectId = (firstTeam.teams as any)?.team_project_assignments?.[0]?.project_id;
+      
+      if (projectId) {
+        const { data: enums } = await supabase.rpc('get_custom_shift_enums', {
+          p_project_id: projectId,
+          p_team_id: firstTeam.team_id
+        });
+        customEnums = enums || [];
+      }
+    }
 
     const getShiftDisplay = (shiftType: string) => {
       const customEnum = customEnums?.find((e: any) => e.shift_identifier === shiftType);
@@ -251,11 +281,21 @@ export default function UserDashboardPage() {
     const availability: TeamAvailability[] = [];
 
     for (const team of teams || []) {
-      // Get custom shift enums for this team
-      const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
-        p_project_id: '', // We'll need to get project_id from team_project_assignment
-        p_team_id: team.id
-      });
+      // Get project assignments for this team
+      const { data: projectAssignments } = await supabase
+        .from('team_project_assignments')
+        .select('project_id')
+        .eq('team_id', team.id);
+
+      let customEnums: any[] = [];
+      if (projectAssignments && projectAssignments.length > 0) {
+        // Use the first project assignment for custom shift enums
+        const { data: enums } = await supabase.rpc('get_custom_shift_enums', {
+          p_project_id: projectAssignments[0].project_id,
+          p_team_id: team.id
+        });
+        customEnums = enums || [];
+      }
 
       // Get team members
       const { data: teamMembers, error: membersError } = await supabase

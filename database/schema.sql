@@ -23,6 +23,19 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    phone_number VARCHAR(20),
+    access_dashboard BOOLEAN DEFAULT TRUE,
+    access_work_report BOOLEAN DEFAULT FALSE,
+    access_analytics BOOLEAN DEFAULT FALSE,
+    access_analytics_workload BOOLEAN DEFAULT FALSE,
+    access_analytics_project_health BOOLEAN DEFAULT FALSE,
+    access_analytics_tickets BOOLEAN DEFAULT FALSE,
+    access_analytics_operational BOOLEAN DEFAULT FALSE,
+    access_analytics_team_insights BOOLEAN DEFAULT FALSE,
+    access_analytics_remedy BOOLEAN DEFAULT FALSE,
+    access_upload_tickets BOOLEAN DEFAULT FALSE,
+    access_master_mappings BOOLEAN DEFAULT FALSE,
+    access_integrations BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -283,6 +296,42 @@ CREATE TABLE IF NOT EXISTS ticket_master_mappings (
 );
 
 -- =====================================================
+-- SHIFT SCHEDULE TABLES
+-- =====================================================
+
+-- Shift types enum (default)
+CREATE TYPE shift_type AS ENUM ('M', 'A', 'N', 'G', 'H', 'L', 'E');
+
+-- Custom shift enums table for project-team specific shift definitions
+CREATE TABLE IF NOT EXISTS custom_shift_enums (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+    shift_identifier VARCHAR(10) NOT NULL,
+    shift_name VARCHAR(100) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    color VARCHAR(7) DEFAULT '#3B82F6',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(project_id, team_id, shift_identifier)
+);
+
+-- Shift schedules table
+CREATE TABLE IF NOT EXISTS shift_schedules (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+    user_email VARCHAR(255) NOT NULL,
+    shift_date DATE NOT NULL,
+    shift_type shift_type NOT NULL DEFAULT 'G',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(project_id, team_id, user_email, shift_date)
+);
+
+-- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
 
@@ -347,6 +396,18 @@ CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_assignee_value ON ticket_m
 CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_user_email ON ticket_master_mappings(mapped_user_email);
 CREATE INDEX IF NOT EXISTS idx_ticket_master_mappings_active ON ticket_master_mappings(is_active);
 
+-- Shift schedule indexes
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_project_id ON shift_schedules(project_id);
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_team_id ON shift_schedules(team_id);
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_user_email ON shift_schedules(user_email);
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_shift_date ON shift_schedules(shift_date);
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_project_team_date ON shift_schedules(project_id, team_id, shift_date);
+
+-- Custom shift enums indexes
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_project_id ON custom_shift_enums(project_id);
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_team_id ON custom_shift_enums(team_id);
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_project_team ON custom_shift_enums(project_id, team_id);
+
 -- =====================================================
 -- CONSTRAINTS
 -- =====================================================
@@ -401,6 +462,10 @@ CREATE TRIGGER update_uploaded_tickets_updated_at BEFORE UPDATE ON uploaded_tick
 CREATE TRIGGER update_upload_sessions_updated_at BEFORE UPDATE ON upload_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_ticket_master_mappings_updated_at BEFORE UPDATE ON ticket_master_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Shift schedule triggers
+CREATE TRIGGER update_shift_schedules_updated_at BEFORE UPDATE ON shift_schedules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_custom_shift_enums_updated_at BEFORE UPDATE ON custom_shift_enums FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
 -- =====================================================
@@ -423,6 +488,8 @@ ALTER TABLE ticket_upload_user_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uploaded_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE upload_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ticket_master_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shift_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_shift_enums ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- RLS POLICIES
@@ -518,6 +585,178 @@ CREATE POLICY "Allow public insert" ON ticket_master_mappings FOR INSERT WITH CH
 CREATE POLICY "Allow public update" ON ticket_master_mappings FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON ticket_master_mappings FOR DELETE USING (true);
 
+-- Shift schedule policies
+CREATE POLICY "shift_schedules_select_policy" ON shift_schedules FOR SELECT USING (true);
+CREATE POLICY "shift_schedules_insert_policy" ON shift_schedules FOR INSERT WITH CHECK (true);
+CREATE POLICY "shift_schedules_update_policy" ON shift_schedules FOR UPDATE USING (true);
+CREATE POLICY "shift_schedules_delete_policy" ON shift_schedules FOR DELETE USING (true);
+
+-- Custom shift enums policies
+CREATE POLICY "custom_shift_enums_select_policy" ON custom_shift_enums FOR SELECT USING (true);
+CREATE POLICY "custom_shift_enums_insert_policy" ON custom_shift_enums FOR INSERT WITH CHECK (true);
+CREATE POLICY "custom_shift_enums_update_policy" ON custom_shift_enums FOR UPDATE USING (true);
+CREATE POLICY "custom_shift_enums_delete_policy" ON custom_shift_enums FOR DELETE USING (true);
+
+-- =====================================================
+-- SHIFT SCHEDULE FUNCTIONS
+-- =====================================================
+
+-- Function to get shift schedule for a specific project, team, and month
+CREATE OR REPLACE FUNCTION get_shift_schedule(
+    p_project_id UUID,
+    p_team_id UUID,
+    p_year INTEGER,
+    p_month INTEGER
+)
+RETURNS TABLE (
+    user_email VARCHAR(255),
+    shift_date DATE,
+    shift_type shift_type
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        ss.user_email,
+        ss.shift_date,
+        ss.shift_type
+    FROM shift_schedules ss
+    WHERE ss.project_id = p_project_id
+      AND ss.team_id = p_team_id
+      AND EXTRACT(YEAR FROM ss.shift_date) = p_year
+      AND EXTRACT(MONTH FROM ss.shift_date) = p_month
+    ORDER BY ss.user_email, ss.shift_date;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to bulk insert/update shift schedules
+CREATE OR REPLACE FUNCTION upsert_shift_schedules(
+    p_project_id UUID,
+    p_team_id UUID,
+    p_user_email VARCHAR(255),
+    p_shift_date DATE,
+    p_shift_type shift_type
+)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO shift_schedules (project_id, team_id, user_email, shift_date, shift_type)
+    VALUES (p_project_id, p_team_id, p_user_email, p_shift_date, p_shift_type)
+    ON CONFLICT (project_id, team_id, user_email, shift_date)
+    DO UPDATE SET 
+        shift_type = EXCLUDED.shift_type,
+        updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to bulk upsert shift schedules from JSON array
+CREATE OR REPLACE FUNCTION upsert_shift_schedules_bulk(
+    shift_data JSONB
+)
+RETURNS VOID AS $$
+DECLARE
+    shift_record JSONB;
+BEGIN
+    -- Loop through each shift record in the JSON array
+    FOR shift_record IN SELECT * FROM jsonb_array_elements(shift_data)
+    LOOP
+        INSERT INTO shift_schedules (
+            project_id, 
+            team_id, 
+            user_email, 
+            shift_date, 
+            shift_type
+        )
+        VALUES (
+            (shift_record->>'project_id')::UUID,
+            (shift_record->>'team_id')::UUID,
+            shift_record->>'user_email',
+            (shift_record->>'shift_date')::DATE,
+            (shift_record->>'shift_type')::shift_type
+        )
+        ON CONFLICT (project_id, team_id, user_email, shift_date)
+        DO UPDATE SET 
+            shift_type = EXCLUDED.shift_type,
+            updated_at = NOW();
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get custom shift enums for a project-team combination
+CREATE OR REPLACE FUNCTION get_custom_shift_enums(
+    p_project_id UUID,
+    p_team_id UUID
+)
+RETURNS TABLE (
+    id UUID,
+    shift_identifier VARCHAR(10),
+    shift_name VARCHAR(100),
+    start_time TIME,
+    end_time TIME,
+    is_default BOOLEAN,
+    color VARCHAR(7)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        cse.id,
+        cse.shift_identifier,
+        cse.shift_name,
+        cse.start_time,
+        cse.end_time,
+        cse.is_default,
+        cse.color
+    FROM custom_shift_enums cse
+    WHERE cse.project_id = p_project_id
+      AND cse.team_id = p_team_id
+    ORDER BY cse.shift_identifier;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to validate and update shifts based on custom enums
+CREATE OR REPLACE FUNCTION validate_and_update_shifts(
+    p_project_id UUID,
+    p_team_id UUID,
+    p_year INTEGER,
+    p_month INTEGER
+)
+RETURNS INTEGER AS $$
+DECLARE
+    default_shift VARCHAR(10);
+    updated_count INTEGER := 0;
+BEGIN
+    -- Get the default shift for this project-team combination
+    SELECT shift_identifier INTO default_shift
+    FROM custom_shift_enums
+    WHERE project_id = p_project_id
+      AND team_id = p_team_id
+      AND is_default = true
+    LIMIT 1;
+
+    -- If no custom enums defined, use 'G' as default
+    IF default_shift IS NULL THEN
+        default_shift := 'G';
+    END IF;
+
+    -- Update all shifts that don't match valid custom enums
+    UPDATE shift_schedules
+    SET 
+        shift_type = default_shift::shift_type,
+        updated_at = NOW()
+    WHERE project_id = p_project_id
+      AND team_id = p_team_id
+      AND EXTRACT(YEAR FROM shift_date) = p_year
+      AND EXTRACT(MONTH FROM shift_date) = p_month
+      AND shift_type::VARCHAR NOT IN (
+          SELECT shift_identifier 
+          FROM custom_shift_enums 
+          WHERE project_id = p_project_id 
+            AND team_id = p_team_id
+      );
+
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+    RETURN updated_count;
+END;
+$$ LANGUAGE plpgsql;
+
 -- =====================================================
 -- INITIAL DATA
 -- =====================================================
@@ -531,7 +770,21 @@ ON CONFLICT (name) DO NOTHING;
 -- COMMENTS FOR DOCUMENTATION
 -- =====================================================
 
-COMMENT ON TABLE users IS 'Application users with authentication details';
+COMMENT ON TABLE users IS 'Application users with authentication details and access controls';
+COMMENT ON COLUMN users.phone_number IS 'Optional phone number for user contact';
+COMMENT ON COLUMN users.access_dashboard IS 'Access to main dashboard (always enabled)';
+COMMENT ON COLUMN users.access_work_report IS 'Access to work report functionality';
+COMMENT ON COLUMN users.access_analytics IS 'Access to main analytics section';
+COMMENT ON COLUMN users.access_analytics_workload IS 'Access to workload & utilization analytics';
+COMMENT ON COLUMN users.access_analytics_project_health IS 'Access to project health & FTE analytics';
+COMMENT ON COLUMN users.access_analytics_tickets IS 'Access to tickets & issues analytics';
+COMMENT ON COLUMN users.access_analytics_operational IS 'Access to operational efficiency analytics';
+COMMENT ON COLUMN users.access_analytics_team_insights IS 'Access to team insights analytics';
+COMMENT ON COLUMN users.access_analytics_remedy IS 'Access to remedy dashboard analytics';
+COMMENT ON COLUMN users.access_upload_tickets IS 'Access to upload tickets functionality';
+COMMENT ON COLUMN users.access_master_mappings IS 'Access to master mappings functionality';
+COMMENT ON COLUMN users.access_integrations IS 'Access to integrations functionality';
+
 COMMENT ON TABLE teams IS 'Teams that can be assigned to projects';
 COMMENT ON TABLE team_members IS 'Junction table linking users to teams';
 COMMENT ON TABLE projects IS 'Projects that users work on';
@@ -549,6 +802,19 @@ COMMENT ON TABLE uploaded_tickets IS 'Uploaded ticket data from external systems
 COMMENT ON TABLE upload_sessions IS 'Tracks upload progress and status';
 COMMENT ON TABLE ticket_master_mappings IS 'Centralized user mappings for all ticket sources (similar to JIRA integrations)';
 
+COMMENT ON TABLE shift_schedules IS 'Stores shift assignments for users by project, team, and date';
+COMMENT ON COLUMN shift_schedules.shift_type IS 'Shift type: M=Morning, A=Afternoon, N=Night, G=General/Day, H=Holiday, L=Leave, E=Evening';
+COMMENT ON COLUMN shift_schedules.shift_date IS 'Date for the shift assignment';
+COMMENT ON COLUMN shift_schedules.user_email IS 'Email of the user assigned to the shift';
+
+COMMENT ON TABLE custom_shift_enums IS 'Stores custom shift definitions for specific project-team combinations';
+COMMENT ON COLUMN custom_shift_enums.shift_identifier IS 'Short identifier for the shift (e.g., M, A, N, E)';
+COMMENT ON COLUMN custom_shift_enums.shift_name IS 'Full name of the shift (e.g., Morning, Afternoon, Night, Evening)';
+COMMENT ON COLUMN custom_shift_enums.start_time IS 'Shift start time in 24-hour format';
+COMMENT ON COLUMN custom_shift_enums.end_time IS 'Shift end time in 24-hour format';
+COMMENT ON COLUMN custom_shift_enums.is_default IS 'Whether this shift is the default for invalid assignments';
+COMMENT ON COLUMN custom_shift_enums.color IS 'Hex color code for the shift type display';
+
 -- =====================================================
 -- SCHEMA COMPLETE
 -- =====================================================
@@ -557,15 +823,19 @@ COMMENT ON TABLE ticket_master_mappings IS 'Centralized user mappings for all ti
 -- 
 -- This master schema includes:
 -- ✓ Core application functionality (users, teams, projects, work tracking)
--- ✓ JIRA integration support (user mappings, project mappings)
+-- ✓ User access control system with granular permissions
+-- ✓ JIRA integration support (user mappings, project mappings)  
 -- ✓ Ticket upload functionality (Remedy, ServiceNow, etc.)
 -- ✓ Master mapping system for centralized user management
+-- ✓ Shift schedule management with custom shift types and color coding
 -- ✓ All necessary performance indexes and security policies
 -- 
 -- NEXT STEPS:
 -- 1. Access the main application at /alignzo
 -- 2. Set up your first project and team
--- 3. Configure JIRA integrations if needed
--- 4. Set up ticket upload mappings at /alignzo/upload-tickets
--- 5. Upload your first ticket dump file
--- 6. Monitor work tracking and analytics
+-- 3. Configure user access controls in admin panel (/admin/dashboard/users)
+-- 4. Set up shift schedules for teams (/admin/dashboard/shift-schedule)
+-- 5. Configure JIRA integrations if needed
+-- 6. Set up ticket upload mappings at /alignzo/upload-tickets
+-- 7. Upload your first ticket dump file
+-- 8. Monitor work tracking, analytics, and shift schedules
