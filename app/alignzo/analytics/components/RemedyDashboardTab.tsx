@@ -46,6 +46,7 @@ interface RemedyMetrics {
   incidentTrendOverTime: Array<{ date: string; count: number }>;
   incidentsByReportedSource: Array<{ source: string; count: number }>;
   incidentTrendByPriority: Array<{ date: string; priority: string; count: number }>;
+  stackedBarData: any[];
   
   // Performance & Efficiency
   meanTimeToRespond: number; // in minutes
@@ -70,20 +71,8 @@ interface RemedyMetrics {
   // Categorization & Product Analysis
   incidentsByOperationalCategory: Array<{ category: string; count: number }>;
   incidentsByProductCategorization: Array<{ category: string; count: number }>;
-  operationalCategoryMonthlyTrends: Array<{ 
-    month: string; 
-    tier1: string; 
-    tier2: string; 
-    tier3: string; 
-    count: number 
-  }>;
-  productCategorizationMonthlyTrends: Array<{ 
-    month: string; 
-    tier1: string; 
-    tier2: string; 
-    tier3: string; 
-    count: number 
-  }>;
+  operationalCategoryMonthlyTrends: any[];
+  productCategorizationMonthlyTrends: any[];
   
   // User & Customer Impact
   incidentsByDepartment: Array<{ department: string; count: number }>;
@@ -115,6 +104,15 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  // Helper function to convert minutes to HH:MM:SS format
+  const formatTime = (minutes: number): string => {
+    if (minutes === 0) return '00:00:00';
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.floor(minutes % 60);
+    const secs = Math.floor((minutes % 1) * 60);
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     loadRemedyData();
@@ -206,12 +204,12 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       }, {} as Record<string, number>)
     ).map(([date, count]) => ({ date, count: count as number })).sort((a, b) => a.date.localeCompare(b.date));
 
-    // Incident Trend by Priority (for stacked bar chart)
+        // Incident Trend by Priority (for stacked bar chart)
     const incidentTrendByPriority = tickets.reduce((acc, ticket) => {
       const date = ticket.reported_date1 ? new Date(ticket.reported_date1).toISOString().split('T')[0] : 'Unknown';
       const priority = ticket.priority || 'Unknown';
       
-             const existingEntry = acc.find((item: { date: string; priority: string; count: number }) => item.date === date && item.priority === priority);
+      const existingEntry = acc.find((item: { date: string; priority: string; count: number }) => item.date === date && item.priority === priority);
       if (existingEntry) {
         existingEntry.count++;
       } else {
@@ -219,6 +217,24 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       }
       return acc;
     }, [] as Array<{ date: string; priority: string; count: number }>);
+
+    // Group by date for stacked bar chart
+    const groupedByDate = incidentTrendByPriority.reduce((acc: Record<string, Record<string, number>>, item: { date: string; priority: string; count: number }) => {
+      if (!acc[item.date]) {
+        acc[item.date] = {};
+      }
+      acc[item.date][item.priority] = item.count;
+      return acc;
+    }, {});
+
+    // Convert to format suitable for stacked bar chart
+    const stackedBarData = Object.entries(groupedByDate).map(([date, priorities]) => {
+      const result: any = { date };
+      Object.entries(priorities as Record<string, number>).forEach(([priority, count]) => {
+        result[priority] = count;
+      });
+      return result;
+    });
 
     const incidentsByReportedSource = Object.entries(
       tickets.reduce((acc, ticket) => {
@@ -351,45 +367,75 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       }, {} as Record<string, number>)
     ).map(([category, count]) => ({ category, count: count as number }));
 
-    // Monthly trends for Operational Category
+    // Monthly trends for Operational Category - Group by category and month
     const operationalCategoryMonthlyTrends = tickets.reduce((acc, ticket) => {
       const date = ticket.reported_date1 ? new Date(ticket.reported_date1) : null;
       if (date) {
-        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthDisplay = `${new Date(date.getFullYear(), date.getMonth()).toLocaleString('default', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`;
         const tier1 = ticket.operational_category_tier_1 || 'Unknown';
         const tier2 = ticket.operational_category_tier_2 || 'Unknown';
         const tier3 = ticket.operational_category_tier_3 || 'Unknown';
         
-        const key = `${month}-${tier1}-${tier2}-${tier3}`;
-        if (!acc[key]) {
-          acc[key] = { month, tier1, tier2, tier3, count: 0 };
+        const categoryKey = `${tier1}|${tier2}|${tier3}`;
+        if (!acc[categoryKey]) {
+          acc[categoryKey] = { tier1, tier2, tier3, months: {} };
         }
-        acc[key].count++;
+        if (!acc[categoryKey].months[monthKey]) {
+          acc[categoryKey].months[monthKey] = { monthDisplay, count: 0 };
+        }
+        acc[categoryKey].months[monthKey].count++;
       }
       return acc;
-    }, {} as Record<string, { month: string; tier1: string; tier2: string; tier3: string; count: number }>);
+    }, {} as Record<string, { tier1: string; tier2: string; tier3: string; months: Record<string, { monthDisplay: string; count: number }> }>);
 
-    const operationalCategoryMonthlyTrendsArray = Object.values(operationalCategoryMonthlyTrends) as Array<{ month: string; tier1: string; tier2: string; tier3: string; count: number }>;
+    // Convert to table format with months as columns
+    const operationalCategoryMonthlyTrendsArray = Object.values(operationalCategoryMonthlyTrends).map((category: any) => {
+      const result: any = {
+        tier1: category.tier1,
+        tier2: category.tier2,
+        tier3: category.tier3
+      };
+      Object.entries(category.months).forEach(([monthKey, data]: [string, any]) => {
+        result[data.monthDisplay] = data.count;
+      });
+      return result;
+    });
 
-    // Monthly trends for Product Categorization
+    // Monthly trends for Product Categorization - Group by category and month
     const productCategorizationMonthlyTrends = tickets.reduce((acc, ticket) => {
       const date = ticket.reported_date1 ? new Date(ticket.reported_date1) : null;
       if (date) {
-        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthDisplay = `${new Date(date.getFullYear(), date.getMonth()).toLocaleString('default', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`;
         const tier1 = ticket.product_categorization_tier_1 || 'Unknown';
         const tier2 = ticket.product_categorization_tier_2 || 'Unknown';
         const tier3 = ticket.product_categorization_tier_3 || 'Unknown';
         
-        const key = `${month}-${tier1}-${tier2}-${tier3}`;
-        if (!acc[key]) {
-          acc[key] = { month, tier1, tier2, tier3, count: 0 };
+        const categoryKey = `${tier1}|${tier2}|${tier3}`;
+        if (!acc[categoryKey]) {
+          acc[categoryKey] = { tier1, tier2, tier3, months: {} };
         }
-        acc[key].count++;
+        if (!acc[categoryKey].months[monthKey]) {
+          acc[categoryKey].months[monthKey] = { monthDisplay, count: 0 };
+        }
+        acc[categoryKey].months[monthKey].count++;
       }
       return acc;
-    }, {} as Record<string, { month: string; tier1: string; tier2: string; tier3: string; count: number }>);
+    }, {} as Record<string, { tier1: string; tier2: string; tier3: string; months: Record<string, { monthDisplay: string; count: number }> }>);
 
-    const productCategorizationMonthlyTrendsArray = Object.values(productCategorizationMonthlyTrends) as Array<{ month: string; tier1: string; tier2: string; tier3: string; count: number }>;
+    // Convert to table format with months as columns
+    const productCategorizationMonthlyTrendsArray = Object.values(productCategorizationMonthlyTrends).map((category: any) => {
+      const result: any = {
+        tier1: category.tier1,
+        tier2: category.tier2,
+        tier3: category.tier3
+      };
+      Object.entries(category.months).forEach(([monthKey, data]: [string, any]) => {
+        result[data.monthDisplay] = data.count;
+      });
+      return result;
+    });
 
     // 5. User & Customer Impact
     const incidentsByDepartment = Object.entries(
@@ -439,6 +485,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       incidentTrendOverTime,
       incidentsByReportedSource,
       incidentTrendByPriority,
+      stackedBarData,
       meanTimeToRespond,
       meanTimeToResolve,
       firstCallResolutionRate,
@@ -610,9 +657,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Incident Trend Over Time */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incident Trend Over Time</h4>
+                         {/* Incident Trend Over Time */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incident Trend Over Time
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Shows the number of incidents reported each day over the selected time period.
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={metrics.incidentTrendOverTime}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -624,9 +679,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               </ResponsiveContainer>
             </div>
 
-            {/* Incidents by Priority */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Priority</h4>
+                         {/* Incidents by Priority */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incidents by Priority
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Distribution of incidents by priority level (SR, S3, etc.). Shows the percentage breakdown of incident criticality.
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                                      <Pie
@@ -651,23 +714,42 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
           </div>
 
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-             {/* Incident Trend by Priority (Stacked Bar Chart) */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Incident Trend by Priority</h4>
-               <ResponsiveContainer width="100%" height={300}>
-                 <BarChart data={metrics.incidentTrendByPriority}>
-                   <CartesianGrid strokeDasharray="3 3" />
-                   <XAxis dataKey="date" />
-                   <YAxis />
-                   <Tooltip />
-                   <Bar dataKey="count" fill="#00C49F" stackId="a" />
-                 </BarChart>
-               </ResponsiveContainer>
-             </div>
+                           {/* Incident Trend by Priority (Stacked Bar Chart) */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Incident Trend by Priority
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Shows incident trends over time grouped by priority levels. Each priority is represented by a different colored stack.
+                    </div>
+                  </div>
+                </h4>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={metrics.stackedBarData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    {metrics.incidentsByPriority.map((priority, index) => (
+                      <Bar key={priority.priority} dataKey={priority.priority} stackId="a" fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-             {/* Incidents by Reported Source */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Reported Source</h4>
+                           {/* Incidents by Reported Source */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Incidents by Reported Source
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Shows how incidents are being reported (phone, email, self-service portal, etc.).
+                    </div>
+                  </div>
+                </h4>
                <ResponsiveContainer width="100%" height={300}>
                  <BarChart data={metrics.incidentsByReportedSource}>
                    <CartesianGrid strokeDasharray="3 3" />
@@ -692,9 +774,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* MTTR vs MTTR Comparison */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Response vs Resolution Time</h4>
+                         {/* MTTR vs MTTR Comparison */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Response vs Resolution Time
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     MTTR: Mean Time to Resolve (Last_Resolved_Date - Reported_Date1). MTTI: Mean Time to Respond (Responded_Date - Reported_Date1).
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={[
                   { metric: 'MTTR', time: metrics.meanTimeToResolve },
@@ -709,40 +799,48 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               </ResponsiveContainer>
             </div>
 
-                         {/* Assignee Performance Metrics Table */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Assignee Performance Metrics</h4>
-               <div className="overflow-x-auto">
-                 <table className="min-w-full bg-white border border-gray-200">
-                   <thead>
-                     <tr className="bg-gray-50">
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Assignee</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg MTTR (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max MTTR (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg MTTI (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max MTTI (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg Resolution (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max Resolution (min)</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Total Tickets</th>
-                     </tr>
-                   </thead>
-                   <tbody className="bg-white divide-y divide-gray-200">
-                     {metrics.assigneePerformanceMetrics.slice(0, 10).map((assignee, index) => (
-                       <tr key={index} className="hover:bg-gray-50">
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{assignee.assignee}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.avgMTTR)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.maxMTTR)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.avgMTTI)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.maxMTTI)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.avgResolutionTime)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{Math.round(assignee.maxResolutionTime)}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{assignee.totalTickets}</td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-             </div>
+                                       {/* Assignee Performance Metrics Table */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Assignee Performance Metrics
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      MTTR: Mean Time to Resolve (Last_Resolved_Date - Reported_Date1). MTTI: Mean Time to Respond (Responded_Date - Reported_Date1). Resolution Time: Actual time taken for ticket closure.
+                    </div>
+                  </div>
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full bg-white border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Assignee</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg MTTR</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max MTTR</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg MTTI</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max MTTI</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg Resolution</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Max Resolution</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Total Tickets</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {metrics.assigneePerformanceMetrics.slice(0, 10).map((assignee, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{assignee.assignee}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.avgMTTR)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.maxMTTR)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.avgMTTI)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.maxMTTI)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.avgResolutionTime)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(assignee.maxResolutionTime)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{assignee.totalTickets}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
           </div>
         </div>
       </div>
@@ -757,9 +855,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Incidents per Assignee */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incidents per Assignee</h4>
+                         {/* Incidents per Assignee */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incidents per Assignee
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Shows the number of incidents assigned to each support team member or group.
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={metrics.incidentsPerAssignee.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -771,34 +877,64 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               </ResponsiveContainer>
             </div>
 
-                         {/* Operational Category Monthly Trends Table */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Operational Category Monthly Trends</h4>
-               <div className="overflow-x-auto">
-                 <table className="min-w-full bg-white border border-gray-200">
-                   <thead>
-                     <tr className="bg-gray-50">
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Month</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 1</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 2</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 3</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Count</th>
-                     </tr>
-                   </thead>
-                   <tbody className="bg-white divide-y divide-gray-200">
-                     {metrics.operationalCategoryMonthlyTrends.slice(0, 10).map((item, index) => (
-                       <tr key={index} className="hover:bg-gray-50">
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.month}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier1}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier2}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier3}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.count}</td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-             </div>
+                                                   {/* Operational Category Monthly Trends Table */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Operational Category Monthly Trends
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Shows monthly ticket counts for each operational category tier combination. Months are displayed as columns for better readability.
+                    </div>
+                  </div>
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full bg-white border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 1</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 2</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 3</th>
+                        {(() => {
+                          const months = new Set<string>();
+                          metrics.operationalCategoryMonthlyTrends.forEach((item: any) => {
+                            Object.keys(item).forEach(key => {
+                              if (key !== 'tier1' && key !== 'tier2' && key !== 'tier3') {
+                                months.add(key);
+                              }
+                            });
+                          });
+                          return Array.from(months).sort().map(month => (
+                            <th key={month} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">{month}</th>
+                          ));
+                        })()}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {metrics.operationalCategoryMonthlyTrends.slice(0, 10).map((item: any, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier1}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier2}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier3}</td>
+                          {(() => {
+                            const months = new Set<string>();
+                            metrics.operationalCategoryMonthlyTrends.forEach((item: any) => {
+                              Object.keys(item).forEach(key => {
+                                if (key !== 'tier1' && key !== 'tier2' && key !== 'tier3') {
+                                  months.add(key);
+                                }
+                              });
+                            });
+                            return Array.from(months).sort().map(month => (
+                              <td key={month} className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item[month] || 0}</td>
+                            ));
+                          })()}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
           </div>
         </div>
       </div>
@@ -813,38 +949,76 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         {/* Product Categorization Monthly Trends Table */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Product Categorization Monthly Trends</h4>
-               <div className="overflow-x-auto">
-                 <table className="min-w-full bg-white border border-gray-200">
-                   <thead>
-                     <tr className="bg-gray-50">
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Month</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 1</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 2</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 3</th>
-                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Count</th>
-                     </tr>
-                   </thead>
-                   <tbody className="bg-white divide-y divide-gray-200">
-                     {metrics.productCategorizationMonthlyTrends.slice(0, 10).map((item, index) => (
-                       <tr key={index} className="hover:bg-gray-50">
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.month}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier1}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier2}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier3}</td>
-                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.count}</td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-             </div>
+                                                   {/* Product Categorization Monthly Trends Table */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Product Categorization Monthly Trends
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Shows monthly ticket counts for each product categorization tier combination. Months are displayed as columns for better readability.
+                    </div>
+                  </div>
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full bg-white border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 1</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 2</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Tier 3</th>
+                        {(() => {
+                          const months = new Set<string>();
+                          metrics.productCategorizationMonthlyTrends.forEach((item: any) => {
+                            Object.keys(item).forEach(key => {
+                              if (key !== 'tier1' && key !== 'tier2' && key !== 'tier3') {
+                                months.add(key);
+                              }
+                            });
+                          });
+                          return Array.from(months).sort().map(month => (
+                            <th key={month} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">{month}</th>
+                          ));
+                        })()}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {metrics.productCategorizationMonthlyTrends.slice(0, 10).map((item: any, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier1}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier2}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.tier3}</td>
+                          {(() => {
+                            const months = new Set<string>();
+                            metrics.productCategorizationMonthlyTrends.forEach((item: any) => {
+                              Object.keys(item).forEach(key => {
+                                if (key !== 'tier1' && key !== 'tier2' && key !== 'tier3') {
+                                  months.add(key);
+                                }
+                              });
+                            });
+                            return Array.from(months).sort().map(month => (
+                              <td key={month} className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item[month] || 0}</td>
+                            ));
+                          })()}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-            {/* Incidents by Operational Category */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Operational Category</h4>
+                         {/* Incidents by Operational Category */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incidents by Operational Category
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Distribution of incidents by operational category (hardware, software, network, etc.) based on Tier 1 categorization.
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                                      <Pie
@@ -880,9 +1054,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         {/* Additional Performance Metrics */}
-             <div className="bg-gray-50 rounded-lg p-4">
-               <h4 className="text-md font-medium text-gray-900 mb-4">Performance Summary</h4>
+                                       {/* Additional Performance Metrics */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                  Performance Summary
+                  <div className="ml-2 relative group">
+                    <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                      Key performance indicators: MTTR, MTTI, First Call Resolution Rate, and Incident Reopen Rate.
+                    </div>
+                  </div>
+                </h4>
                <div className="grid grid-cols-2 gap-4">
                  <div className="text-center">
                    <div className="text-2xl font-bold text-blue-600">{Math.round(metrics.meanTimeToResolve)}</div>
@@ -903,9 +1085,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                </div>
              </div>
 
-            {/* Incidents by Department */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Department</h4>
+                         {/* Incidents by Department */}
+             <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incidents by Department
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Shows which departments are most affected by incidents.
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={metrics.incidentsByDepartment.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -920,8 +1110,16 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
 
           {/* Incidents by Impact */}
           <div className="mt-6">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Impact</h4>
+                         <div className="bg-gray-50 rounded-lg p-4">
+               <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                 Incidents by Impact
+                 <div className="ml-2 relative group">
+                   <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                     Distribution of incidents by their impact level (high, medium, low, etc.).
+                   </div>
+                 </div>
+               </h4>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={metrics.incidentsByImpact}>
                   <CartesianGrid strokeDasharray="3 3" />
