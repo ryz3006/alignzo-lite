@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, WorkLog, Project } from '@/lib/supabase';
-import { Clock, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
+import { supabase, WorkLog, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
+import { Clock, TrendingUp, Calendar, BarChart3, RefreshCw, Users, Eye } from 'lucide-react';
 import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import toast from 'react-hot-toast';
+import ShiftScheduleViewer from '@/components/ShiftScheduleViewer';
 
 interface DashboardStats {
   todayHours: number;
@@ -23,6 +25,31 @@ interface WorkLogWithProject extends WorkLog {
   project: Project;
 }
 
+interface UserShift {
+  todayShift: string;
+  tomorrowShift: string;
+  todayShiftName: string;
+  tomorrowShiftName: string;
+  todayShiftColor: string;
+  tomorrowShiftColor: string;
+}
+
+interface TeamAvailability {
+  teamName: string;
+  shifts: {
+    [key: string]: string[]; // shift type -> array of user emails
+  };
+}
+
+const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor: string } } = {
+  M: { label: 'Morning', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  A: { label: 'Afternoon', color: 'text-purple-700', bgColor: 'bg-purple-100' },
+  N: { label: 'Night', color: 'text-indigo-700', bgColor: 'bg-indigo-100' },
+  G: { label: 'General/Day', color: 'text-green-700', bgColor: 'bg-green-100' },
+  H: { label: 'Holiday', color: 'text-red-700', bgColor: 'bg-red-100' },
+  L: { label: 'Leave', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
+};
+
 export default function UserDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -33,7 +60,10 @@ export default function UserDashboardPage() {
   });
   const [projectHours, setProjectHours] = useState<ProjectHours[]>([]);
   const [recentWorkLogs, setRecentWorkLogs] = useState<WorkLogWithProject[]>([]);
+  const [userShift, setUserShift] = useState<UserShift | null>(null);
+  const [teamAvailability, setTeamAvailability] = useState<TeamAvailability[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showShiftSchedule, setShowShiftSchedule] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -41,6 +71,7 @@ export default function UserDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
+      setLoading(true);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
 
@@ -48,80 +79,198 @@ export default function UserDashboardPage() {
 
       const userEmail = currentUser.email;
 
-      // Get all work logs for the user
-      const { data: workLogs, error } = await supabase
-        .from('work_logs')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-        .eq('user_email', userEmail)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const logs = workLogs || [];
-      const todayRange = getTodayRange();
-      const weekRange = getWeekRange();
-      const monthRange = getMonthRange();
-
-      // Calculate stats
-      const todayHours = logs
-        .filter(log => {
-          const logDate = new Date(log.start_time);
-          return logDate >= todayRange.startOfDay && logDate <= todayRange.endOfDay;
-        })
-        .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-      const weekHours = logs
-        .filter(log => {
-          const logDate = new Date(log.start_time);
-          return logDate >= weekRange.startOfWeek && logDate <= weekRange.endOfWeek;
-        })
-        .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-      const monthHours = logs
-        .filter(log => {
-          const logDate = new Date(log.start_time);
-          return logDate >= monthRange.startOfMonth && logDate <= monthRange.endOfMonth;
-        })
-        .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-      const totalHours = logs
-        .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-      setStats({
-        todayHours: Math.round(todayHours * 100) / 100,
-        weekHours: Math.round(weekHours * 100) / 100,
-        monthHours: Math.round(monthHours * 100) / 100,
-        totalHours: Math.round(totalHours * 100) / 100,
-      });
-
-      // Calculate project breakdown
-      const projectMap = new Map<string, number>();
-      logs.forEach(log => {
-        const projectName = log.project?.name || 'Unknown Project';
-        const hours = (log.logged_duration_seconds || 0) / 3600;
-        projectMap.set(projectName, (projectMap.get(projectName) || 0) + hours);
-      });
-
-      const projectData = Array.from(projectMap.entries())
-        .map(([name, hours]) => ({
-          projectName: name,
-          hours: Math.round(hours * 100) / 100,
-        }))
-        .sort((a, b) => b.hours - a.hours)
-        .slice(0, 10); // Top 10 projects
-
-      setProjectHours(projectData);
-
-      // Set recent work logs (latest 5)
-      setRecentWorkLogs(logs.slice(0, 5));
+      // Load work logs and stats
+      await loadWorkLogs(userEmail);
+      
+      // Load shift information
+      await loadShiftInformation(userEmail);
+      
+      // Load team availability
+      await loadTeamAvailability();
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadWorkLogs = async (userEmail: string) => {
+    const { data: workLogs, error } = await supabase
+      .from('work_logs')
+      .select(`
+        *,
+        project:projects(*)
+      `)
+      .eq('user_email', userEmail)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const logs = workLogs || [];
+    const todayRange = getTodayRange();
+    const weekRange = getWeekRange();
+    const monthRange = getMonthRange();
+
+    // Calculate stats
+    const todayHours = logs
+      .filter(log => {
+        const logDate = new Date(log.start_time);
+        return logDate >= todayRange.startOfDay && logDate <= todayRange.endOfDay;
+      })
+      .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+    const weekHours = logs
+      .filter(log => {
+        const logDate = new Date(log.start_time);
+        return logDate >= weekRange.startOfWeek && logDate <= weekRange.endOfWeek;
+      })
+      .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+    const monthHours = logs
+      .filter(log => {
+        const logDate = new Date(log.start_time);
+        return logDate >= monthRange.startOfMonth && logDate <= monthRange.endOfMonth;
+      })
+      .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+    const totalHours = logs
+      .reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+    setStats({
+      todayHours: Math.round(todayHours * 100) / 100,
+      weekHours: Math.round(weekHours * 100) / 100,
+      monthHours: Math.round(monthHours * 100) / 100,
+      totalHours: Math.round(totalHours * 100) / 100,
+    });
+
+    // Calculate project breakdown
+    const projectMap = new Map<string, number>();
+    logs.forEach(log => {
+      const projectName = log.project?.name || 'Unknown Project';
+      const hours = (log.logged_duration_seconds || 0) / 3600;
+      projectMap.set(projectName, (projectMap.get(projectName) || 0) + hours);
+    });
+
+    const projectData = Array.from(projectMap.entries())
+      .map(([name, hours]) => ({
+        projectName: name,
+        hours: Math.round(hours * 100) / 100,
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 10);
+
+    setProjectHours(projectData);
+    setRecentWorkLogs(logs.slice(0, 5));
+  };
+
+  const loadShiftInformation = async (userEmail: string) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    // Get user's shifts for today and tomorrow
+    const { data: shifts, error } = await supabase
+      .from('shift_schedules')
+      .select('*')
+      .eq('user_email', userEmail)
+      .in('shift_date', [todayStr, tomorrowStr]);
+
+    if (error) throw error;
+
+    const todayShift = shifts?.find(s => s.shift_date === todayStr)?.shift_type || 'G';
+    const tomorrowShift = shifts?.find(s => s.shift_date === tomorrowStr)?.shift_type || 'G';
+
+    // Get custom shift enums for better display
+    const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
+      p_project_id: '', // We'll need to get this from user's teams
+      p_team_id: ''
+    });
+
+    const getShiftDisplay = (shiftType: string) => {
+      const customEnum = customEnums?.find((e: any) => e.shift_identifier === shiftType);
+      if (customEnum) {
+        return {
+          name: customEnum.shift_name,
+          color: customEnum.color || '#3B82F6'
+        };
+      }
+      return {
+        name: SHIFT_TYPES[shiftType as ShiftType]?.label || 'General',
+        color: '#3B82F6'
+      };
+    };
+
+    const todayShiftInfo = getShiftDisplay(todayShift);
+    const tomorrowShiftInfo = getShiftDisplay(tomorrowShift);
+
+    setUserShift({
+      todayShift,
+      tomorrowShift,
+      todayShiftName: todayShiftInfo.name,
+      tomorrowShiftName: tomorrowShiftInfo.name,
+      todayShiftColor: todayShiftInfo.color,
+      tomorrowShiftColor: tomorrowShiftInfo.color,
+    });
+  };
+
+  const loadTeamAvailability = async () => {
+    // Get all teams and their members for today
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: teams, error: teamsError } = await supabase
+      .from('teams')
+      .select('*');
+
+    if (teamsError) throw teamsError;
+
+    const availability: TeamAvailability[] = [];
+
+    for (const team of teams || []) {
+      // Get team members
+      const { data: teamMembers, error: membersError } = await supabase
+        .from('team_members')
+        .select(`
+          user_id,
+          users (email, full_name)
+        `)
+        .eq('team_id', team.id);
+
+      if (membersError) continue;
+
+      // Get shifts for today for this team
+      const { data: shifts, error: shiftsError } = await supabase
+        .from('shift_schedules')
+        .select('*')
+        .eq('team_id', team.id)
+        .eq('shift_date', today);
+
+      if (shiftsError) continue;
+
+      // Group users by shift type
+      const shiftGroups: { [key: string]: string[] } = {};
+      
+      teamMembers?.forEach(member => {
+        const userEmail = (member.users as any).email;
+        const shift = shifts?.find(s => s.user_email === userEmail);
+        const shiftType = shift?.shift_type || 'G';
+        
+        if (!shiftGroups[shiftType]) {
+          shiftGroups[shiftType] = [];
+        }
+        shiftGroups[shiftType].push(userEmail);
+      });
+
+      availability.push({
+        teamName: team.name,
+        shifts: shiftGroups
+      });
+    }
+
+    setTeamAvailability(availability);
   };
 
   const statCards = [
@@ -161,14 +310,78 @@ export default function UserDashboardPage() {
 
   return (
     <div>
+      {/* Header with Welcome and Refresh */}
       <div className="mb-8">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Welcome back! Here's your work summary.</p>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={loadDashboardData}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              title="Refresh Dashboard"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Welcome, {user?.full_name || user?.email?.split('@')[0] || 'User'}!
+              </h1>
+              <p className="text-gray-600">Here's your work summary and shift information.</p>
+            </div>
           </div>
+          <button
+            onClick={() => setShowShiftSchedule(true)}
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            View Shift Schedule
+          </button>
         </div>
       </div>
+
+      {/* Shift Information Cards */}
+      {userShift && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Today's Shift</h3>
+                <p className="text-2xl font-bold" style={{ color: userShift.todayShiftColor }}>
+                  {userShift.todayShiftName}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
+                style={{ backgroundColor: userShift.todayShiftColor }}
+              >
+                {userShift.todayShift}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Tomorrow's Shift</h3>
+                <p className="text-2xl font-bold" style={{ color: userShift.tomorrowShiftColor }}>
+                  {userShift.tomorrowShiftName}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
+                style={{ backgroundColor: userShift.tomorrowShiftColor }}
+              >
+                {userShift.tomorrowShift}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -187,8 +400,74 @@ export default function UserDashboardPage() {
         ))}
       </div>
 
+      {/* Team Availability Table */}
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Today's Team Availability</h2>
+          <p className="text-sm text-gray-500">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        
+        {teamAvailability.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Team
+                  </th>
+                  {Object.keys(SHIFT_TYPES).map(shiftType => (
+                    <th key={shiftType} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {SHIFT_TYPES[shiftType as ShiftType].label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {teamAvailability.map((team) => (
+                  <tr key={team.teamName}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {team.teamName}
+                    </td>
+                    {Object.keys(SHIFT_TYPES).map(shiftType => {
+                      const users = team.shifts[shiftType] || [];
+                      return (
+                        <td key={shiftType} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                          {users.length > 0 ? (
+                            <div className="flex flex-col space-y-1">
+                              {users.slice(0, 3).map((email, index) => (
+                                <span key={index} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  {email.split('@')[0]}
+                                </span>
+                              ))}
+                              {users.length > 3 && (
+                                <span className="text-xs text-gray-500">
+                                  +{users.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <p>No team availability data found.</p>
+          </div>
+        )}
+      </div>
+
       {/* Project Breakdown Chart */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Hours by Project</h2>
         {projectHours.length > 0 ? (
           <div className="h-64">
@@ -220,7 +499,7 @@ export default function UserDashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="mt-8 bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
         <div className="space-y-4">
           {recentWorkLogs.length > 0 ? (
@@ -257,6 +536,15 @@ export default function UserDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Shift Schedule Viewer Modal */}
+      {showShiftSchedule && (
+        <ShiftScheduleViewer
+          isOpen={showShiftSchedule}
+          onClose={() => setShowShiftSchedule(false)}
+          userEmail={user?.email}
+        />
+      )}
     </div>
   );
 }
