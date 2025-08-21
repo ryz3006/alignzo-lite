@@ -27,7 +27,8 @@ import {
   CheckCircle,
   Download,
   Image,
-  HelpCircle
+  HelpCircle,
+  Calendar
 } from 'lucide-react';
 
 interface WorkloadMetrics {
@@ -38,6 +39,7 @@ interface WorkloadMetrics {
   utilizationRate: number;
   overtimeHours: number;
   idleHours: number;
+  leaveCount: number;
   projectDistribution: Record<string, number>;
   workTypeDistribution: Record<string, number>;
   dailyWorkload: Array<{
@@ -45,6 +47,7 @@ interface WorkloadMetrics {
     hours: number;
     utilization: number;
   }>;
+  shiftData: Record<string, string>; // date -> shift_type
 }
 
 interface WorkloadTabProps {
@@ -71,6 +74,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     averageUtilization: 0,
     totalOvertime: 0,
     totalIdleHours: 0,
+    totalLeaves: 0,
     topContributors: [] as { name: string; hours: number }[],
     underutilizedMembers: [] as { name: string; hours: number; hasWorkLogs: boolean }[]
   });
@@ -98,13 +102,14 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     try {
       setLoading(true);
       
-      const [workLogs, users, teams] = await Promise.all([
+      const [workLogs, users, teams, shiftData] = await Promise.all([
         loadWorkLogs(),
         loadUsers(),
-        loadTeams()
+        loadTeams(),
+        loadShiftData()
       ]);
 
-      const metrics = calculateWorkloadMetrics(workLogs, users);
+      const metrics = calculateWorkloadMetrics(workLogs, users, shiftData);
       setWorkloadMetrics(metrics);
       
       const summary = calculateSummaryMetrics(metrics);
@@ -156,6 +161,22 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     return data || [];
   };
 
+  const loadShiftData = async () => {
+    let query = supabase
+      .from('shift_schedules')
+      .select('*')
+      .gte('shift_date', filters.dateRange.start)
+      .lte('shift_date', filters.dateRange.end);
+
+    if (filters.selectedUsers.length > 0) {
+      query = query.in('user_email', filters.selectedUsers);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  };
+
   const calculateWorkingDays = (startDate: string, endDate: string) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -187,7 +208,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     }, {});
   };
 
-  const calculateDailyWorkload = (logs: any[], workingDays: number) => {
+  const calculateDailyWorkload = (logs: any[], workingDays: number, shiftData: Record<string, string>) => {
     const dailyData = groupByDay(logs);
     const result = [];
     
@@ -198,7 +219,12 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       
       const dayLogs = dailyData[dateStr] || [];
       const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-      const utilization = hours / 8 * 100; // Assuming 8-hour workday
+      
+      // Check if user has an active shift for this day (not H or L)
+      const shiftType = shiftData[dateStr];
+      const isActiveShift = shiftType && shiftType !== 'H' && shiftType !== 'L';
+      const availableHours = isActiveShift ? 8 : 0;
+      const utilization = availableHours > 0 ? (hours / availableHours) * 100 : 0;
       
       result.push({
         date: dateStr,
@@ -210,10 +236,9 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     return result;
   };
 
-  const calculateWorkloadMetrics = (workLogs: any[], users: any[]): WorkloadMetrics[] => {
+  const calculateWorkloadMetrics = (workLogs: any[], users: any[], shiftData: any[]): WorkloadMetrics[] => {
     const standardWorkHoursPerDay = 8;
     const workingDaysInPeriod = calculateWorkingDays(filters.dateRange.start, filters.dateRange.end);
-    const totalAvailableHours = standardWorkHoursPerDay * workingDaysInPeriod;
 
     const filteredUsers = filters.selectedUsers.length > 0 
       ? users.filter(user => filters.selectedUsers.includes(user.email))
@@ -221,6 +246,32 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
 
     return filteredUsers.map(user => {
       const userLogs = workLogs.filter(log => log.user_email === user.email);
+      const userShifts = shiftData.filter(shift => shift.user_email === user.email);
+      
+      // Create shift data map for this user
+      const userShiftData: Record<string, string> = {};
+      userShifts.forEach(shift => {
+        userShiftData[shift.shift_date] = shift.shift_type;
+      });
+
+      // Calculate available hours based on shifts (excluding H and L)
+      let totalAvailableHours = 0;
+      let leaveCount = 0;
+      
+      for (let i = 0; i < workingDaysInPeriod; i++) {
+        const date = new Date(filters.dateRange.start);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const shiftType = userShiftData[dateStr] || 'G'; // Default to General if no shift assigned
+        if (shiftType === 'L') {
+          leaveCount++;
+        } else if (shiftType !== 'H') {
+          // Only count as available hours if not Holiday or Leave
+          totalAvailableHours += standardWorkHoursPerDay;
+        }
+      }
+
       const totalLoggedHours = userLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
       const utilizationRate = totalAvailableHours > 0 ? (totalLoggedHours / totalAvailableHours) * 100 : 0;
       const overtimeHours = Math.max(0, totalLoggedHours - totalAvailableHours);
@@ -245,7 +296,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       });
 
       // Calculate daily workload
-      const dailyWorkload = calculateDailyWorkload(userLogs, workingDaysInPeriod);
+      const dailyWorkload = calculateDailyWorkload(userLogs, workingDaysInPeriod, userShiftData);
 
       return {
         userEmail: user.email,
@@ -255,9 +306,11 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
         utilizationRate: Math.round(utilizationRate * 100) / 100,
         overtimeHours: Math.round(overtimeHours * 100) / 100,
         idleHours: Math.round(idleHours * 100) / 100,
+        leaveCount,
         projectDistribution,
         workTypeDistribution,
-        dailyWorkload
+        dailyWorkload,
+        shiftData: userShiftData
       };
     });
   };
@@ -267,6 +320,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     const averageUtilization = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.utilizationRate, 0) / totalUsers;
     const totalOvertime = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.overtimeHours, 0);
     const totalIdleHours = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.idleHours, 0);
+    const totalLeaves = metrics.reduce((sum: number, m: WorkloadMetrics) => sum + m.leaveCount, 0);
 
     // Top contributors (highest utilization) - only include users with work logs
     const topContributors = metrics
@@ -275,8 +329,13 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       .slice(0, 5)
       .map(m => ({ name: m.userName, hours: m.totalLoggedHours }));
 
-    // Underutilized members - show users with work logs in yellow, no work logs in red
+    // Underutilized members - only show users who have active shifts (not all H or L)
     const underutilizedMembers = metrics
+      .filter(m => {
+        // Check if user has any active shifts (not all H or L)
+        const hasActiveShifts = Object.values(m.shiftData).some(shiftType => shiftType !== 'H' && shiftType !== 'L');
+        return hasActiveShifts;
+      })
       .sort((a, b) => a.utilizationRate - b.utilizationRate)
       .slice(0, 5)
       .map(m => ({ 
@@ -290,6 +349,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       averageUtilization: Math.round(averageUtilization * 100) / 100,
       totalOvertime: Math.round(totalOvertime * 100) / 100,
       totalIdleHours: Math.round(totalIdleHours * 100) / 100,
+      totalLeaves,
       topContributors,
       underutilizedMembers
     };
@@ -298,313 +358,260 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
       </div>
     );
   }
 
-  const chartData = workloadMetrics.map((metric) => ({
-    name: metric.userName,
-    utilization: metric.utilizationRate,
-    loggedHours: metric.totalLoggedHours,
-    overtime: metric.overtimeHours,
-    idle: metric.idleHours
-  }));
-
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalUsers}</p>
-              </div>
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-blue-100">
+              <Users className="h-6 w-6 text-blue-600" />
             </div>
-            <div className="relative tooltip-container">
-              <HelpCircle 
-                className="w-5 h-5 text-gray-400 cursor-pointer" 
-                onClick={() => setActiveTooltip(activeTooltip === 'totalUsers' ? null : 'totalUsers')}
-              />
-              {activeTooltip === 'totalUsers' && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
-                  <div className="font-medium mb-1">Total Users</div>
-                  <div className="text-gray-300 text-xs">
-                    Number of users who have logged work hours during the selected period. 
-                    Calculated by counting unique user emails from work logs.
-                  </div>
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalUsers}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Utilization</p>
-                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.averageUtilization}%</p>
-              </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-green-100">
+              <TrendingUp className="h-6 w-6 text-green-600" />
             </div>
-            <div className="relative tooltip-container">
-              <HelpCircle 
-                className="w-5 h-5 text-gray-400 cursor-pointer" 
-                onClick={() => setActiveTooltip(activeTooltip === 'avgUtilization' ? null : 'avgUtilization')}
-              />
-              {activeTooltip === 'avgUtilization' && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
-                  <div className="font-medium mb-1">Average Utilization</div>
-                  <div className="text-gray-300 text-xs">
-                    Average percentage of available work hours that users have logged. 
-                    Calculated as: (Total Logged Hours ÷ Total Available Hours) × 100.
-                    Available hours = 8 hours × working days in period.
-                  </div>
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Avg Utilization</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.averageUtilization}%</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Overtime</p>
-                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalOvertime}h</p>
-              </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-orange-100">
+              <Clock className="h-6 w-6 text-orange-600" />
             </div>
-            <div className="relative tooltip-container">
-              <HelpCircle 
-                className="w-5 h-5 text-gray-400 cursor-pointer" 
-                onClick={() => setActiveTooltip(activeTooltip === 'totalOvertime' ? null : 'totalOvertime')}
-              />
-              {activeTooltip === 'totalOvertime' && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
-                  <div className="font-medium mb-1">Total Overtime</div>
-                  <div className="text-gray-300 text-xs">
-                    Total hours logged beyond the standard 8-hour workday across all users. 
-                    Calculated as: Sum of (Logged Hours - 8 hours) for each day where logged hours &gt; 8.
-                  </div>
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Overtime</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalOvertime}h</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <Clock className="w-6 h-6 text-red-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Idle Hours</p>
-                <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalIdleHours}h</p>
-              </div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-red-100">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
             </div>
-            <div className="relative tooltip-container">
-              <HelpCircle 
-                className="w-5 h-5 text-gray-400 cursor-pointer" 
-                onClick={() => setActiveTooltip(activeTooltip === 'idleHours' ? null : 'idleHours')}
-              />
-              {activeTooltip === 'idleHours' && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-10">
-                  <div className="font-medium mb-1">Idle Hours</div>
-                  <div className="text-gray-300 text-xs">
-                    Total unlogged hours during working days across all users. 
-                    Calculated as: Sum of (8 hours - Logged Hours) for each day where logged hours &lt; 8.
-                    Represents potential capacity that wasn't utilized.
-                  </div>
-                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Idle Hours</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalIdleHours}h</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-yellow-100">
+              <Calendar className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Leaves</p>
+              <p className="text-2xl font-bold text-gray-900">{summaryMetrics.totalLeaves}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center">
+            <div className="p-2 rounded-full bg-purple-100">
+              <CheckCircle className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Active Users</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {workloadMetrics.filter(m => m.totalLoggedHours > 0).length}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Utilization Chart */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-medium text-gray-900">Team Utilization</h3>
-          <button
-            onClick={() => downloadChartAsImage('utilization-chart', 'team-utilization')}
-            className="text-gray-600 hover:text-gray-800"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
-        <div ref={(el) => { chartRefs.current['utilization-chart'] = el; }}>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
-              <YAxis />
-              <Tooltip formatter={(value: any) => [`${value}%`, 'Utilization']} />
-              <Bar dataKey="utilization" fill="#10b981" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Workload Distribution */}
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Utilization Distribution */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Hours Distribution</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Utilization Distribution</h3>
             <button
-              onClick={() => downloadChartAsImage('hours-distribution', 'hours-distribution')}
-              className="text-gray-600 hover:text-gray-800"
+              onClick={() => downloadChartAsImage('utilization-chart', 'utilization-distribution')}
+              className="p-2 text-gray-400 hover:text-gray-600"
+              title="Download Chart"
             >
-              <Download className="w-4 h-4" />
+              <Download className="h-4 w-4" />
             </button>
           </div>
-          <div ref={(el) => { chartRefs.current['hours-distribution'] = el; }}>
+          <div ref={(el) => { chartRefs.current['utilization-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
+              <BarChart data={workloadMetrics}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
                 <Tooltip />
-                <Legend />
-                <Bar dataKey="loggedHours" fill="#3b82f6" name="Logged Hours" />
-                <Bar dataKey="overtime" fill="#f59e0b" name="Overtime" />
-                <Bar dataKey="idle" fill="#ef4444" name="Idle Hours" />
+                <Bar dataKey="utilizationRate" fill="#3B82F6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
+        {/* Workload vs Available Hours */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Daily Workload Trend</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Workload vs Available Hours</h3>
             <button
-              onClick={() => downloadChartAsImage('daily-trend', 'daily-workload-trend')}
-              className="text-gray-600 hover:text-gray-800"
+              onClick={() => downloadChartAsImage('workload-chart', 'workload-vs-available')}
+              className="p-2 text-gray-400 hover:text-gray-600"
+              title="Download Chart"
             >
-              <Download className="w-4 h-4" />
+              <Download className="h-4 w-4" />
             </button>
           </div>
-          <div ref={(el) => { chartRefs.current['daily-trend'] = el; }}>
+          <div ref={(el) => { chartRefs.current['workload-chart'] = el; }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={workloadMetrics}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="totalLoggedHours" fill="#10B981" name="Logged Hours" />
+                <Bar dataKey="availableHours" fill="#F59E0B" name="Available Hours" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Daily Workload Trend */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Daily Workload Trend</h3>
+            <button
+              onClick={() => downloadChartAsImage('daily-trend-chart', 'daily-workload-trend')}
+              className="p-2 text-gray-400 hover:text-gray-600"
+              title="Download Chart"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+          <div ref={(el) => { chartRefs.current['daily-trend-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={workloadMetrics[0]?.dailyWorkload || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip formatter={(value: any) => [`${value}%`, 'Utilization']} />
-                <Line type="monotone" dataKey="utilization" stroke="#10b981" strokeWidth={2} />
+                <Tooltip />
+                <Line type="monotone" dataKey="hours" stroke="#3B82F6" strokeWidth={2} />
               </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Leave Distribution */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Leave Distribution</h3>
+            <button
+              onClick={() => downloadChartAsImage('leave-chart', 'leave-distribution')}
+              className="p-2 text-gray-400 hover:text-gray-600"
+              title="Download Chart"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+          <div ref={(el) => { chartRefs.current['leave-chart'] = el; }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={workloadMetrics.filter(m => m.leaveCount > 0)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="leaveCount" fill="#F59E0B" />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Team Performance Insights */}
+      {/* Performance Lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Contributors */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Top Contributors</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Contributors</h3>
           <div className="space-y-3">
             {summaryMetrics.topContributors.map((contributor, index) => (
-              <div key={contributor.name} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center">
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-green-600">{index + 1}</span>
+                    <span className="text-sm font-semibold text-green-600">{index + 1}</span>
                   </div>
-                  <div className="ml-3">
-                    <span className="text-sm font-medium text-gray-900">{contributor.name}</span>
-                    <div className="text-xs text-gray-500">{contributor.hours}h logged</div>
-                  </div>
+                  <span className="ml-3 font-medium text-gray-900">{contributor.name}</span>
                 </div>
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-sm text-gray-600">{contributor.hours}h</span>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Underutilized Members */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Underutilized Members</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Underutilized Members</h3>
           <div className="space-y-3">
             {summaryMetrics.underutilizedMembers.map((member, index) => (
-              <div key={member.name} className={`flex items-center justify-between p-3 rounded-lg ${
-                member.hasWorkLogs ? 'bg-yellow-50' : 'bg-red-50'
-              }`}>
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     member.hasWorkLogs ? 'bg-yellow-100' : 'bg-red-100'
                   }`}>
-                    <span className={`text-sm font-medium ${
+                    <span className={`text-sm font-semibold ${
                       member.hasWorkLogs ? 'text-yellow-600' : 'text-red-600'
                     }`}>{index + 1}</span>
                   </div>
-                  <div className="ml-3">
-                    <span className="text-sm font-medium text-gray-900">{member.name}</span>
-                    <div className="text-xs text-gray-500">{member.hours}h logged</div>
-                  </div>
+                  <span className="ml-3 font-medium text-gray-900">{member.name}</span>
                 </div>
-                <AlertTriangle className={`w-5 h-5 ${
-                  member.hasWorkLogs ? 'text-yellow-600' : 'text-red-600'
-                }`} />
+                <span className="text-sm text-gray-600">{member.hours}h</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Detailed Workload Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Detailed Metrics Table */}
+      <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Detailed Workload Analysis</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Detailed Workload Metrics</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Logged Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Available Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Utilization %
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Overtime
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Idle Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logged Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilization</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Idle Hours</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leaves</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {workloadMetrics.map((metric) => (
                 <tr key={metric.userEmail} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{metric.userName}</div>
-                      <div className="text-sm text-gray-500">{metric.userEmail}</div>
-                    </div>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {metric.userName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {metric.totalLoggedHours}h
@@ -613,44 +620,28 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
                     {metric.availableHours}h
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      metric.utilizationRate >= 80 
-                        ? 'bg-green-100 text-green-800'
-                        : metric.utilizationRate >= 60
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      metric.utilizationRate >= 80 ? 'bg-green-100 text-green-800' :
+                      metric.utilizationRate >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
                     }`}>
                       {metric.utilizationRate}%
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {metric.overtimeHours > 0 ? (
-                      <span className="text-red-600 font-medium">{metric.overtimeHours}h</span>
-                    ) : (
-                      <span className="text-gray-500">0h</span>
-                    )}
+                    {metric.overtimeHours}h
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {metric.idleHours > 0 ? (
-                      <span className="text-orange-600 font-medium">{metric.idleHours}h</span>
-                    ) : (
-                      <span className="text-gray-500">0h</span>
-                    )}
+                    {metric.idleHours}h
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {metric.utilizationRate >= 80 ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Optimal
-                      </span>
-                    ) : metric.utilizationRate >= 60 ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Moderate
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Low
-                      </span>
-                    )}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      metric.leaveCount > 5 ? 'bg-red-100 text-red-800' :
+                      metric.leaveCount > 3 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {metric.leaveCount}
+                    </span>
                   </td>
                 </tr>
               ))}

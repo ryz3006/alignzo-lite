@@ -147,15 +147,7 @@ export async function getUserAccessControls(userEmail: string) {
       access_integrations: data?.access_integrations ?? false,
     };
 
-    // Debug log for troubleshooting (can be removed later)
-    console.log(`User ${userEmail} access controls:`, {
-      dashboard: accessControls.access_dashboard,
-      work_report: accessControls.access_work_report,
-      analytics: accessControls.access_analytics,
-      upload_tickets: accessControls.access_upload_tickets,
-      master_mappings: accessControls.access_master_mappings,
-      integrations: accessControls.access_integrations,
-    });
+
 
     return accessControls;
   } catch (error) {

@@ -148,7 +148,6 @@ export default function AnalyticsPage() {
     try {
       setRefreshing(true);
       // Load analytics data based on filters
-      console.log('Loading analytics data with filters:', appliedFilters);
     } catch (error) {
       console.error('Error loading analytics data:', error);
       toast.error('Failed to load analytics data');
