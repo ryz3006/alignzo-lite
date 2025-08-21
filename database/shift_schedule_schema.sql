@@ -215,7 +215,8 @@ RETURNS TABLE (
     shift_name VARCHAR(100),
     start_time TIME,
     end_time TIME,
-    is_default BOOLEAN
+    is_default BOOLEAN,
+    color VARCHAR(7)
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -225,7 +226,8 @@ BEGIN
         cse.shift_name,
         cse.start_time,
         cse.end_time,
-        cse.is_default
+        cse.is_default,
+        cse.color
     FROM custom_shift_enums cse
     WHERE cse.project_id = p_project_id
       AND cse.team_id = p_team_id

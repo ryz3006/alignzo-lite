@@ -66,3 +66,34 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Update the get_custom_shift_enums function to return the color column
+CREATE OR REPLACE FUNCTION get_custom_shift_enums(
+    p_project_id UUID,
+    p_team_id UUID
+)
+RETURNS TABLE (
+    id UUID,
+    shift_identifier VARCHAR(10),
+    shift_name VARCHAR(100),
+    start_time TIME,
+    end_time TIME,
+    is_default BOOLEAN,
+    color VARCHAR(7)
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        cse.id,
+        cse.shift_identifier,
+        cse.shift_name,
+        cse.start_time,
+        cse.end_time,
+        cse.is_default,
+        cse.color
+    FROM custom_shift_enums cse
+    WHERE cse.project_id = p_project_id
+      AND cse.team_id = p_team_id
+    ORDER BY cse.shift_identifier;
+END;
+$$ LANGUAGE plpgsql;
