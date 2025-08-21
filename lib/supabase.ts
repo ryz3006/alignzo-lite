@@ -208,3 +208,17 @@ export interface TicketMasterMapping {
   created_at: string;
   updated_at: string;
 }
+
+// Shift Schedule Types
+export type ShiftType = 'M' | 'A' | 'N' | 'G' | 'H' | 'L';
+
+export interface ShiftSchedule {
+  id: string;
+  project_id: string;
+  team_id: string;
+  user_email: string;
+  shift_date: string;
+  shift_type: ShiftType;
+  created_at: string;
+  updated_at: string;
+}

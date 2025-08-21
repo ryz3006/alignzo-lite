@@ -13,7 +13,8 @@ import {
   LogOut,
   Settings,
   Menu,
-  X
+  X,
+  Calendar
 } from 'lucide-react';
 
 export default function AdminDashboardLayout({
@@ -77,6 +78,7 @@ export default function AdminDashboardLayout({
     { name: 'Teams', href: '/admin/dashboard/teams', icon: Teams },
     { name: 'Projects', href: '/admin/dashboard/projects', icon: FolderOpen },
     { name: 'Work Reports', href: '/admin/dashboard/reports', icon: FileText },
+    { name: 'Shift Schedule', href: '/admin/dashboard/shift-schedule', icon: Calendar },
   ];
 
   if (loading) {
