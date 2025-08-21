@@ -24,3 +24,45 @@ COMMENT ON COLUMN custom_shift_enums.color IS 'Hex color code for the shift type
 
 -- Enable RLS on custom_shift_enums table (if not already enabled)
 ALTER TABLE custom_shift_enums ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for custom_shift_enums table (if not already created)
+-- Note: These will fail if policies already exist, which is expected
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE schemaname = 'public' 
+        AND tablename = 'custom_shift_enums' 
+        AND policyname = 'custom_shift_enums_select_policy'
+    ) THEN
+        CREATE POLICY "custom_shift_enums_select_policy" ON custom_shift_enums FOR SELECT USING (true);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE schemaname = 'public' 
+        AND tablename = 'custom_shift_enums' 
+        AND policyname = 'custom_shift_enums_insert_policy'
+    ) THEN
+        CREATE POLICY "custom_shift_enums_insert_policy" ON custom_shift_enums FOR INSERT WITH CHECK (true);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE schemaname = 'public' 
+        AND tablename = 'custom_shift_enums' 
+        AND policyname = 'custom_shift_enums_update_policy'
+    ) THEN
+        CREATE POLICY "custom_shift_enums_update_policy" ON custom_shift_enums FOR UPDATE USING (true);
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE schemaname = 'public' 
+        AND tablename = 'custom_shift_enums' 
+        AND policyname = 'custom_shift_enums_delete_policy'
+    ) THEN
+        CREATE POLICY "custom_shift_enums_delete_policy" ON custom_shift_enums FOR DELETE USING (true);
+    END IF;
+END
+$$;
