@@ -12,7 +12,9 @@ export default function AdminLoginPage() {
   const router = useRouter();
 
   // Check if admin credentials are configured
-  const adminConfigured = process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+  // Note: Admin credentials are server-side only, so we can't check them from client-side
+  // The actual verification happens on the server in the API route
+  const adminConfigured = true; // We'll let the server handle the verification
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,10 +26,7 @@ export default function AdminLoginPage() {
       router.push('/admin/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
-      console.log('Environment variables check:', {
-        adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-        adminPassword: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ? '***' : 'NOT_SET'
-      });
+      console.log('Admin login attempt failed');
       toast.error(error.message || 'Login failed');
     } finally {
       setLoading(false);
@@ -47,13 +46,11 @@ export default function AdminLoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to access the admin panel
           </p>
-          {!adminConfigured && (
-            <div className="mt-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
-              <p className="text-sm text-yellow-700">
-                ⚠️ Admin credentials not configured in environment variables
-              </p>
-            </div>
-          )}
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-400 rounded-md">
+            <p className="text-sm text-blue-700">
+              ℹ️ Admin credentials are configured server-side for security
+            </p>
+          </div>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">

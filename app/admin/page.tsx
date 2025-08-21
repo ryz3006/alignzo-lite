@@ -34,10 +34,7 @@ export default function AdminPage() {
     try {
       // Check admin session first
       const currentAdmin = getCurrentAdmin();
-      console.log('Admin check:', { currentAdmin, envVars: {
-        adminEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL,
-        adminPassword: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ? '***' : 'NOT_SET'
-      }});
+      console.log('Admin check:', { currentAdmin });
       
       if (currentAdmin) {
         setAdminSession(currentAdmin);
