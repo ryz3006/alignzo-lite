@@ -111,11 +111,16 @@ export default function IntegrationsPage() {
       if (data) {
         setJiraIntegration({
           id: data.id,
-          base_url: data.integration_data.base_url,
-          user_email_integration: data.integration_data.user_email_integration,
-          api_token: data.integration_data.api_token,
-          is_verified: data.integration_data.is_verified || false
+          base_url: data.base_url || '',
+          user_email_integration: data.user_email_integration || '',
+          api_token: data.api_token || '',
+          is_verified: data.is_verified || false
         });
+        
+        // Load project mappings if integration is verified
+        if (data.is_verified) {
+          await loadProjectMappings(userEmail);
+        }
       }
     } catch (error) {
       console.error('Error loading JIRA integration:', error);
