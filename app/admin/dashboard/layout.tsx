@@ -11,7 +11,9 @@ import {
   FolderOpen, 
   FileText, 
   LogOut,
-  Settings
+  Settings,
+  Menu,
+  X
 } from 'lucide-react';
 
 export default function AdminDashboardLayout({
@@ -22,6 +24,7 @@ export default function AdminDashboardLayout({
   const [user, setUser] = useState<User | null>(null);
   const [adminSession, setAdminSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -87,13 +90,32 @@ export default function AdminDashboardLayout({
   return (
     <div className="bg-gray-100">
       <div className="flex h-screen">
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg flex flex-col h-full">
-          <div className="flex items-center justify-center h-16 border-b border-gray-200 px-4">
+        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <div className="flex items-center justify-between h-16 border-b border-gray-200 px-4">
             <div className="flex items-center space-x-2">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+              {/* Full logo for bigger screens */}
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="hidden sm:block h-8 w-auto" />
+              {/* Icon only for smaller screens */}
+              <img src="/android-chrome-192x192.png" alt="Alignzo Icon" className="sm:hidden h-6 w-6" />
               <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
             </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
           
           <nav className="flex-1 mt-8 overflow-y-auto">
@@ -104,6 +126,7 @@ export default function AdminDashboardLayout({
                   <Link
                     key={item.name}
                     href={item.href}
+                    onClick={() => setSidebarOpen(false)}
                     className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                       isActive
                         ? 'bg-primary-100 text-primary-700'
@@ -146,7 +169,24 @@ export default function AdminDashboardLayout({
 
         {/* Main content */}
         <div className="flex-1 overflow-auto">
-          <main className="p-8">
+          {/* Mobile header */}
+          <div className="lg:hidden bg-white shadow-sm border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 py-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="flex items-center space-x-2">
+                <img src="/android-chrome-192x192.png" alt="Alignzo Icon" className="h-6 w-6" />
+                <h1 className="text-lg font-bold text-gray-900">Admin</h1>
+              </div>
+              <div className="w-10"></div> {/* Spacer for centering */}
+            </div>
+          </div>
+
+          <main className="p-4 lg:p-8">
             {children}
           </main>
         </div>

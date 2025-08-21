@@ -220,16 +220,16 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">IT Operations Analytics</h1>
-          <p className="text-gray-600">Comprehensive workload and operations insights for Telecom Product Operations</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">IT Operations Analytics</h1>
+          <p className="text-gray-600 text-sm sm:text-base">Comprehensive workload and operations insights for Telecom Product Operations</p>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
+            className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -238,21 +238,21 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Enhanced Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
           <div className="flex items-center">
             <Filter className="h-5 w-5 mr-2 text-gray-600" />
             <h3 className="text-lg font-medium text-gray-900">Advanced Filters</h3>
           </div>
           <button
             onClick={handleApplyFilters}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+            className="bg-green-600 text-white px-3 sm:px-4 py-2 rounded-md hover:bg-green-700 flex items-center text-sm"
           >
             <Check className="h-4 w-4 mr-2" />
             Apply Filters
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
             <input
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
                 ...prev,
                 dateRange: { ...prev.dateRange, start: e.target.value }
               }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
           <div>
@@ -274,7 +274,7 @@ export default function AnalyticsPage() {
                 ...prev,
                 dateRange: { ...prev.dateRange, end: e.target.value }
               }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
           <div className="relative filter-dropdown">
@@ -283,16 +283,16 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showTeamDropdown: !prev.showTeamDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 truncate">
                   {filters.selectedTeams.length === 0 
                     ? 'All Teams' 
                     : filters.selectedTeams.length === 1 
                       ? filters.selectedTeams[0] 
                       : `${filters.selectedTeams.length} teams selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -311,9 +311,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedTeams: prev.selectedTeams.filter(t => t !== team) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700">{team}</span>
+                        <span className="text-sm text-gray-700 truncate">{team}</span>
                       </label>
                     ))}
                   </div>
@@ -327,16 +327,16 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showProjectDropdown: !prev.showProjectDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 truncate">
                   {filters.selectedProjects.length === 0 
                     ? 'All Projects' 
                     : filters.selectedProjects.length === 1 
                       ? filters.selectedProjects[0] 
                       : `${filters.selectedProjects.length} projects selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -355,9 +355,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedProjects: prev.selectedProjects.filter(p => p !== project) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700">{project}</span>
+                        <span className="text-sm text-gray-700 truncate">{project}</span>
                       </label>
                     ))}
                   </div>
@@ -371,16 +371,16 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showUserDropdown: !prev.showUserDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 truncate">
                   {filters.selectedUsers.length === 0 
                     ? 'All Users' 
                     : filters.selectedUsers.length === 1 
                       ? filters.selectedUsers[0] 
                       : `${filters.selectedUsers.length} users selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -399,9 +399,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== user) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700">{user}</span>
+                        <span className="text-sm text-gray-700 truncate">{user}</span>
                       </label>
                     ))}
                   </div>
@@ -415,33 +415,36 @@ export default function AnalyticsPage() {
       {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            {[
-              { id: 'workload', label: 'Workload & Utilization', icon: Users },
-              { id: 'project-health', label: 'Project Health & FTE', icon: Target },
-              { id: 'jira-tickets', label: 'Tickets & Issues', icon: FileText, requiresJira: true },
-              { id: 'operational-efficiency', label: 'Operational Efficiency', icon: Zap },
-              { id: 'team-insights', label: 'Team Insights', icon: Activity }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                disabled={tab.requiresJira && !jiraEnabled}
-                className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : tab.requiresJira && !jiraEnabled
-                      ? 'border-transparent text-gray-400 cursor-not-allowed'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="h-4 w-4 mr-2" />
-                {tab.label}
-                {tab.requiresJira && !jiraEnabled && (
-                  <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1 rounded">JIRA</span>
-                )}
-              </button>
-            ))}
+          <nav className="flex overflow-x-auto">
+            <div className="flex space-x-8 px-6 min-w-full">
+              {[
+                { id: 'workload', label: 'Workload & Utilization', icon: Users },
+                { id: 'project-health', label: 'Project Health & FTE', icon: Target },
+                { id: 'jira-tickets', label: 'Tickets & Issues', icon: FileText, requiresJira: true },
+                { id: 'operational-efficiency', label: 'Operational Efficiency', icon: Zap },
+                { id: 'team-insights', label: 'Team Insights', icon: Activity }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  disabled={tab.requiresJira && !jiraEnabled}
+                  className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : tab.requiresJira && !jiraEnabled
+                        ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+                  {tab.requiresJira && !jiraEnabled && (
+                    <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1 rounded flex-shrink-0">JIRA</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </nav>
         </div>
 

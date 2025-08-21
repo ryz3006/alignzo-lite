@@ -15,7 +15,9 @@ import {
   Settings,
   Upload,
   Database,
-  Users
+  Users,
+  Menu,
+  X
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
@@ -26,6 +28,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showTimerManagementModal, setShowTimerManagementModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
@@ -91,8 +94,10 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-              <h1 className="text-xl font-semibold text-gray-900">Alignzo Lite</h1>
+              {/* Full logo for bigger screens */}
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="hidden sm:block h-12 w-auto" />
+              {/* Icon only for smaller screens */}
+              <img src="/android-chrome-192x192.png" alt="Alignzo Icon" className="sm:hidden h-8 w-8" />
             </div>
             
             <div className="flex items-center space-x-4">
@@ -117,7 +122,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                 )}
               </button>
               
-              <div className="flex items-center space-x-3">
+              <div className="hidden sm:flex items-center space-x-3">
                 <div className="text-sm text-gray-700">
                   {user?.email}
                 </div>
@@ -129,22 +134,49 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                   <LogOut className="h-5 w-5" />
                 </button>
               </div>
+
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="sm:hidden p-2 text-gray-400 hover:text-gray-600"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t border-gray-200 bg-white">
+            <div className="px-4 py-3 space-y-3">
+              <div className="text-sm text-gray-700 border-b border-gray-200 pb-2">
+                {user?.email}
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Navigation */}
         <nav className="mb-8">
-          <div className="flex space-x-8">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex space-x-8 overflow-x-auto">
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
                     isActive
                       ? 'bg-primary-100 text-primary-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -155,6 +187,30 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+          </div>
+
+          {/* Mobile Navigation */}
+          <div className="md:hidden">
+            <div className="flex space-x-2 overflow-x-auto pb-2">
+              {navigation.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0 ${
+                      isActive
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <item.icon className="mr-1 h-4 w-4" />
+                    <span className="hidden sm:inline">{item.name}</span>
+                    <span className="sm:hidden">{item.name.split(' ')[0]}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </nav>
 
