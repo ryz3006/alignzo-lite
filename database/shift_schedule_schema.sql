@@ -11,8 +11,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- SHIFT SCHEDULE TABLES
 -- =====================================================
 
--- Shift types enum
+-- Shift types enum (default)
 CREATE TYPE shift_type AS ENUM ('M', 'A', 'N', 'G', 'H', 'L');
+
+-- Custom shift enums table for project-team specific shift definitions
+CREATE TABLE IF NOT EXISTS custom_shift_enums (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+    shift_identifier VARCHAR(10) NOT NULL,
+    shift_name VARCHAR(100) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(project_id, team_id, shift_identifier)
+);
 
 -- Shift schedules table
 CREATE TABLE IF NOT EXISTS shift_schedules (
@@ -38,6 +53,11 @@ CREATE INDEX IF NOT EXISTS idx_shift_schedules_user_email ON shift_schedules(use
 CREATE INDEX IF NOT EXISTS idx_shift_schedules_shift_date ON shift_schedules(shift_date);
 CREATE INDEX IF NOT EXISTS idx_shift_schedules_project_team_date ON shift_schedules(project_id, team_id, shift_date);
 
+-- Indexes for custom_shift_enums table
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_project_id ON custom_shift_enums(project_id);
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_team_id ON custom_shift_enums(team_id);
+CREATE INDEX IF NOT EXISTS idx_custom_shift_enums_project_team ON custom_shift_enums(project_id, team_id);
+
 -- =====================================================
 -- TRIGGERS
 -- =====================================================
@@ -57,6 +77,12 @@ CREATE TRIGGER update_shift_schedules_updated_at
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
+-- Trigger for custom_shift_enums table
+CREATE TRIGGER update_custom_shift_enums_updated_at 
+    BEFORE UPDATE ON custom_shift_enums 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
 -- =====================================================
@@ -70,6 +96,12 @@ CREATE POLICY "Allow public insert" ON shift_schedules FOR INSERT WITH CHECK (tr
 CREATE POLICY "Allow public update" ON shift_schedules FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON shift_schedules FOR DELETE USING (true);
 
+-- RLS Policies for custom_shift_enums table
+CREATE POLICY "Allow public read access" ON custom_shift_enums FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON custom_shift_enums FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON custom_shift_enums FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON custom_shift_enums FOR DELETE USING (true);
+
 -- =====================================================
 -- COMMENTS
 -- =====================================================
@@ -78,6 +110,13 @@ COMMENT ON TABLE shift_schedules IS 'Stores shift assignments for users by proje
 COMMENT ON COLUMN shift_schedules.shift_type IS 'Shift type: M=Morning, A=Afternoon, N=Night, G=General/Day, H=Holiday, L=Leave';
 COMMENT ON COLUMN shift_schedules.shift_date IS 'Date for the shift assignment';
 COMMENT ON COLUMN shift_schedules.user_email IS 'Email of the user assigned to the shift';
+
+COMMENT ON TABLE custom_shift_enums IS 'Stores custom shift definitions for specific project-team combinations';
+COMMENT ON COLUMN custom_shift_enums.shift_identifier IS 'Short identifier for the shift (e.g., M, A, N)';
+COMMENT ON COLUMN custom_shift_enums.shift_name IS 'Full name of the shift (e.g., Morning, Afternoon, Night)';
+COMMENT ON COLUMN custom_shift_enums.start_time IS 'Shift start time in 24-hour format';
+COMMENT ON COLUMN custom_shift_enums.end_time IS 'Shift end time in 24-hour format';
+COMMENT ON COLUMN custom_shift_enums.is_default IS 'Whether this shift is the default for invalid assignments';
 
 -- =====================================================
 -- HELPER FUNCTIONS
@@ -159,5 +198,80 @@ BEGIN
             shift_type = EXCLUDED.shift_type,
             updated_at = NOW();
     END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get custom shift enums for a project-team combination
+CREATE OR REPLACE FUNCTION get_custom_shift_enums(
+    p_project_id UUID,
+    p_team_id UUID
+)
+RETURNS TABLE (
+    id UUID,
+    shift_identifier VARCHAR(10),
+    shift_name VARCHAR(100),
+    start_time TIME,
+    end_time TIME,
+    is_default BOOLEAN
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        cse.id,
+        cse.shift_identifier,
+        cse.shift_name,
+        cse.start_time,
+        cse.end_time,
+        cse.is_default
+    FROM custom_shift_enums cse
+    WHERE cse.project_id = p_project_id
+      AND cse.team_id = p_team_id
+    ORDER BY cse.shift_identifier;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to validate and update shifts based on custom enums
+CREATE OR REPLACE FUNCTION validate_and_update_shifts(
+    p_project_id UUID,
+    p_team_id UUID,
+    p_year INTEGER,
+    p_month INTEGER
+)
+RETURNS INTEGER AS $$
+DECLARE
+    default_shift VARCHAR(10);
+    updated_count INTEGER := 0;
+BEGIN
+    -- Get the default shift for this project-team combination
+    SELECT shift_identifier INTO default_shift
+    FROM custom_shift_enums
+    WHERE project_id = p_project_id
+      AND team_id = p_team_id
+      AND is_default = true
+    LIMIT 1;
+
+    -- If no custom enums defined, use 'G' as default
+    IF default_shift IS NULL THEN
+        default_shift := 'G';
+    END IF;
+
+    -- Update all shifts that don't match valid custom enums
+    UPDATE shift_schedules
+    SET 
+        shift_type = default_shift::shift_type,
+        updated_at = NOW()
+    WHERE project_id = p_project_id
+      AND team_id = p_team_id
+      AND EXTRACT(YEAR FROM shift_date) = p_year
+      AND EXTRACT(MONTH FROM shift_date) = p_month
+      AND shift_type::VARCHAR NOT IN (
+          SELECT shift_identifier 
+          FROM custom_shift_enums 
+          WHERE project_id = p_project_id 
+            AND team_id = p_team_id
+      );
+
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+    RETURN updated_count;
 END;
 $$ LANGUAGE plpgsql;

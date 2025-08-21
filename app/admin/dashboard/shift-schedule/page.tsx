@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
-import { Calendar, Download, Save, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { Calendar, Download, Save, ChevronLeft, ChevronRight, Upload, Settings } from 'lucide-react';
+import ShiftEnumModal from './ShiftEnumModal';
 import toast from 'react-hot-toast';
 
 interface TeamMember {
@@ -38,6 +39,8 @@ export default function ShiftSchedulePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showShiftEnumModal, setShowShiftEnumModal] = useState(false);
+  const [customShiftEnums, setCustomShiftEnums] = useState<any[]>([]);
 
   useEffect(() => {
     loadProjects();
@@ -60,6 +63,7 @@ export default function ShiftSchedulePage() {
   useEffect(() => {
     if (selectedProject && selectedTeam && selectedYear && selectedMonth) {
       loadShiftSchedule();
+      loadCustomShiftEnums();
     }
   }, [selectedProject, selectedTeam, selectedYear, selectedMonth]);
 
@@ -142,6 +146,21 @@ export default function ShiftSchedulePage() {
     }
   };
 
+  const loadCustomShiftEnums = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_custom_shift_enums', {
+        p_project_id: selectedProject,
+        p_team_id: selectedTeam
+      });
+
+      if (error) throw error;
+      setCustomShiftEnums(data || []);
+    } catch (error) {
+      console.error('Error loading custom shift enums:', error);
+      setCustomShiftEnums([]);
+    }
+  };
+
   const loadShiftSchedule = async () => {
     try {
       setLoading(true);
@@ -171,7 +190,15 @@ export default function ShiftSchedulePage() {
           const existingShift = shiftSchedules?.find(s => 
             s.user_email === member.user_email && s.shift_date === date
           );
-          shifts[date] = existingShift?.shift_type || 'G';
+          
+          if (existingShift) {
+            shifts[date] = existingShift.shift_type;
+          } else {
+            // Default logic: weekends = Holiday (H), weekdays = General (G)
+            const dayOfWeek = new Date(date).getDay();
+            const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+            shifts[date] = isWeekendDay ? 'H' : 'G';
+          }
         });
         
         return {
@@ -331,8 +358,17 @@ export default function ShiftSchedulePage() {
         return;
       }
 
+      // Get custom shift enums for validation
+      const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
+        p_project_id: selectedProject,
+        p_team_id: selectedTeam
+      });
+
+      const validShiftIdentifiers = customEnums?.map((enum_: any) => enum_.shift_identifier) || [];
+      const defaultShift = customEnums?.find((enum_: any) => enum_.is_default)?.shift_identifier || 'G';
+
       // Process each data row
-      const updatesCount = { updated: 0, skipped: 0 };
+      const updatesCount = { updated: 0, skipped: 0, invalidShifts: 0 };
       
       for (let i = 1; i < lines.length; i++) {
         const row = lines[i].trim();
@@ -364,20 +400,30 @@ export default function ShiftSchedulePage() {
           const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
           if (day > daysInMonth) continue;
 
-          // Validate shift type
-          if (shiftValue && !Object.keys(SHIFT_TYPES).includes(shiftValue as ShiftType)) {
-            console.warn(`Invalid shift type "${shiftValue}" for ${email} on day ${day}`);
-            continue;
-          }
-
           if (shiftValue) {
             const date = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            
+            // Validate shift type against custom enums or default types
+            let finalShiftValue = shiftValue;
+            if (validShiftIdentifiers.length > 0) {
+              // Use custom enums if defined
+              if (!validShiftIdentifiers.includes(shiftValue)) {
+                finalShiftValue = defaultShift;
+                updatesCount.invalidShifts++;
+              }
+            } else {
+              // Use default shift types
+              if (!Object.keys(SHIFT_TYPES).includes(shiftValue as ShiftType)) {
+                finalShiftValue = 'G';
+                updatesCount.invalidShifts++;
+              }
+            }
             
             // Update local state
             setShiftData(prev => 
               prev.map(user => 
                 user.user_email === email 
-                  ? { ...user, shifts: { ...user.shifts, [date]: shiftValue as ShiftType } }
+                  ? { ...user, shifts: { ...user.shifts, [date]: finalShiftValue as ShiftType } }
                   : user
               )
             );
@@ -388,7 +434,7 @@ export default function ShiftSchedulePage() {
               p_team_id: selectedTeam,
               p_user_email: email,
               p_shift_date: date,
-              p_shift_type: shiftValue as ShiftType
+              p_shift_type: finalShiftValue as ShiftType
             });
 
             updatesCount.updated++;
@@ -396,7 +442,12 @@ export default function ShiftSchedulePage() {
         }
       }
 
-      toast.success(`CSV uploaded successfully! Updated ${updatesCount.updated} shifts. Skipped ${updatesCount.skipped} invalid entries.`);
+      let message = `CSV uploaded successfully! Updated ${updatesCount.updated} shifts. Skipped ${updatesCount.skipped} invalid entries.`;
+      if (updatesCount.invalidShifts > 0) {
+        message += ` ${updatesCount.invalidShifts} invalid shifts were replaced with default shift.`;
+      }
+      
+      toast.success(message);
       
       // Reload the schedule to reflect changes
       await loadShiftSchedule();
@@ -446,6 +497,27 @@ export default function ShiftSchedulePage() {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  // Dynamic shift types based on custom enums or defaults
+  const getShiftTypes = () => {
+    if (customShiftEnums.length > 0) {
+      // Use custom shift enums
+      const shiftTypes: { [key: string]: { label: string; color: string; bgColor: string } } = {};
+      customShiftEnums.forEach(enum_ => {
+        shiftTypes[enum_.shift_identifier] = {
+          label: enum_.shift_name,
+          color: 'text-gray-700',
+          bgColor: 'bg-blue-100'
+        };
+      });
+      return shiftTypes;
+    } else {
+      // Use default shift types
+      return SHIFT_TYPES;
+    }
+  };
+
+  const currentShiftTypes = getShiftTypes();
 
   return (
     <div className="space-y-6">
@@ -560,9 +632,25 @@ export default function ShiftSchedulePage() {
               Shift Schedule - {monthNames[selectedMonth - 1]} {selectedYear}
             </h2>
             <div className="flex items-center space-x-2">
-              <label className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 cursor-pointer disabled:opacity-50">
-                <Upload className="h-4 w-4 mr-1" />
-                {uploading ? 'Uploading...' : 'Upload CSV'}
+              <button
+                onClick={() => setShowShiftEnumModal(true)}
+                disabled={!selectedProject || !selectedTeam}
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Settings className="h-4 w-4 mr-1" />
+                Manage Shifts
+              </button>
+              <label className={`flex items-center px-3 py-2 text-sm font-medium rounded-md cursor-pointer transition-all ${
+                uploading 
+                  ? 'bg-blue-100 text-blue-800 cursor-not-allowed' 
+                  : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+              } ${(!selectedProject || !selectedTeam) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {uploading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                ) : (
+                  <Upload className="h-4 w-4 mr-1" />
+                )}
+                {uploading ? 'Processing CSV...' : 'Upload CSV'}
                 <input
                   type="file"
                   accept=".csv"
@@ -609,13 +697,15 @@ export default function ShiftSchedulePage() {
                     {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => (
                       <th
                         key={day}
-                        className={`px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                          isWeekend(day) ? 'bg-gray-100' : ''
+                        className={`px-4 py-4 text-center text-sm font-medium uppercase tracking-wider border border-gray-200 ${
+                          isWeekend(day) ? 'bg-red-100 text-red-800 border-red-200' : 'bg-gray-50 text-gray-700'
                         }`}
                       >
                         <div className="flex flex-col">
-                          <span className="font-semibold">{day}</span>
-                          <span className="text-xs text-gray-400">({getDayName(day)})</span>
+                          <span className="font-bold text-base">{day}</span>
+                          <span className={`text-xs ${isWeekend(day) ? 'text-red-600' : 'text-gray-500'}`}>
+                            ({getDayName(day)})
+                          </span>
                         </div>
                       </th>
                     ))}
@@ -630,32 +720,32 @@ export default function ShiftSchedulePage() {
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {user.full_name}
                       </td>
-                      {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => {
-                        const date = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                        const currentShift = user.shifts[date] || 'G';
-                        const shiftConfig = SHIFT_TYPES[currentShift];
-                        
-                        return (
-                          <td
+                                             {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => {
+                         const date = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                         const currentShift = user.shifts[date] || 'G';
+                         const shiftConfig = currentShiftTypes[currentShift] || SHIFT_TYPES[currentShift] || SHIFT_TYPES['G'];
+                         
+                         return (
+                                                     <td
                             key={day}
-                            className={`px-3 py-3 text-center ${
-                              isWeekend(day) ? 'bg-gray-50' : ''
-                            }`}
+                            className={`px-4 py-4 text-center ${
+                              isWeekend(day) ? 'bg-red-50 border-red-100' : 'bg-white'
+                            } border border-gray-200`}
                           >
                             <select
                               value={currentShift}
                               onChange={(e) => updateShift(user.user_email, date, e.target.value as ShiftType)}
-                              className={`w-full min-w-[50px] px-3 py-2 text-sm font-bold rounded border-0 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer ${shiftConfig.bgColor} ${shiftConfig.color}`}
+                              className={`w-full min-w-[60px] px-4 py-3 text-base font-bold rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none cursor-pointer transition-all ${shiftConfig.bgColor} ${shiftConfig.color}`}
                             >
-                              {Object.entries(SHIFT_TYPES).map(([key, config]) => (
-                                <option key={key} value={key} className={`${config.bgColor} ${config.color} font-bold`}>
+                              {Object.entries(currentShiftTypes).map(([key, config]) => (
+                                <option key={key} value={key} className={`${config.bgColor} ${config.color} font-bold text-base`}>
                                   {key}
                                 </option>
                               ))}
                             </select>
                           </td>
-                        );
-                      })}
+                         );
+                       })}
                     </tr>
                   ))}
                 </tbody>
@@ -668,9 +758,11 @@ export default function ShiftSchedulePage() {
       {/* Shift Type Legend and CSV Upload Info */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">Shift Types</h3>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">
+            {customShiftEnums.length > 0 ? 'Custom Shift Types' : 'Default Shift Types'}
+          </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {Object.entries(SHIFT_TYPES).map(([key, config]) => (
+            {Object.entries(currentShiftTypes).map(([key, config]) => (
               <div key={key} className="flex items-center space-x-2">
                 <div className={`w-4 h-4 rounded ${config.bgColor} border border-gray-300`}></div>
                 <span className="text-sm text-gray-700">
@@ -679,6 +771,11 @@ export default function ShiftSchedulePage() {
               </div>
             ))}
           </div>
+          {customShiftEnums.length === 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              Click "Manage Shifts" to create custom shift types for this project-team combination.
+            </p>
+          )}
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -694,6 +791,19 @@ export default function ShiftSchedulePage() {
           </div>
         </div>
       </div>
+
+      {/* Shift Enum Management Modal */}
+      {selectedProject && selectedTeam && (
+        <ShiftEnumModal
+          isOpen={showShiftEnumModal}
+          onClose={() => setShowShiftEnumModal(false)}
+          projectId={selectedProject}
+          teamId={selectedTeam}
+          projectName={projects.find(p => p.id === selectedProject)?.name || ''}
+          teamName={projectTeams.find(t => t.id === selectedTeam)?.name || ''}
+          onShiftsUpdated={loadShiftSchedule}
+        />
+      )}
     </div>
   );
 }

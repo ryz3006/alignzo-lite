@@ -16,14 +16,25 @@ The Shift Schedule feature allows administrators to manage and assign shifts to 
 - **Weekend Highlighting**: Visual distinction for weekend days
 - **Bulk Operations**: Save entire month schedules at once
 - **CSV Export**: Download shift schedules as CSV files
+- **CSV Upload**: Upload shift schedules with partial updates (only updates specified users/dates)
+- **Custom Shift Management**: Create and manage custom shift types for specific project-team combinations
+- **Shift Validation**: Automatic validation and correction of invalid shift assignments
 
 ### Shift Types
+
+#### Default Shift Types
 - **M (Morning)**: Blue background - Morning shift
 - **A (Afternoon)**: Purple background - Afternoon shift  
 - **N (Night)**: Indigo background - Night shift
 - **G (General/Day)**: Green background - General/Day shift (default)
 - **H (Holiday)**: Red background - Holiday
 - **L (Leave)**: Yellow background - Leave
+
+#### Custom Shift Types
+- **Project-Specific**: Create custom shift types for specific project-team combinations
+- **Attributes**: Shift identifier, name, start time, end time, and default designation
+- **Validation**: Automatic validation against custom shift definitions
+- **Fallback**: Invalid shifts are automatically replaced with the designated default shift
 
 ## Database Schema
 
@@ -77,10 +88,45 @@ node scripts/create-shift-schedule-tables.js
 5. **Save Schedule**: Click "Save Schedule" to persist all changes
 6. **Export**: Click "Download CSV" to export the schedule
 
+### Managing Custom Shift Types
+
+1. **Access Management**: Click "Manage Shifts" button after selecting a project and team
+2. **Create Shift Types**: 
+   - Click "Add Shift Enum" to create new shift types
+   - Enter shift identifier (e.g., M, A, N), name, start time, and end time
+   - Set one shift as default for invalid assignments
+3. **Edit/Delete**: Use the edit and delete buttons to modify existing shift types
+4. **Validation**: Click "Validate Shifts" to automatically correct invalid assignments
+
+### Uploading a Shift Schedule
+
+### Uploading a Shift Schedule
+
+1. **Prepare CSV File**: Create a CSV file with the following format:
+   ```
+   Email,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
+   user1@example.com,G,M,A,N,H,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G
+   user2@example.com,G,G,G,G,G,H,H,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G
+   ```
+
+2. **Upload Process**:
+   - Click "Upload CSV" button
+   - Select your CSV file
+   - The system will process the file and show results
+
+3. **Upload Behavior**:
+   - **Partial Updates**: Only updates users and dates mentioned in the CSV
+   - **Preservation**: Existing shifts for unmentioned users/dates are preserved
+   - **Validation**: Users must be members of the selected team
+   - **Shift Validation**: Invalid shifts are automatically replaced with the default shift
+   - **Error Handling**: Invalid entries are skipped with detailed feedback
+
 ### Default Behavior
 - All team members are assigned "G" (General/Day) shift by default
 - Weekends are visually highlighted with a gray background
 - The table shows all days in the selected month
+- Custom shift types override default types when defined for a project-team combination
+- Invalid shifts are automatically corrected to the designated default shift
 
 ### Team Member Loading
 The system automatically loads team members based on:

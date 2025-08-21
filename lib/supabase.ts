@@ -222,3 +222,16 @@ export interface ShiftSchedule {
   created_at: string;
   updated_at: string;
 }
+
+export interface CustomShiftEnum {
+  id: string;
+  project_id: string;
+  team_id: string;
+  shift_identifier: string;
+  shift_name: string;
+  start_time: string;
+  end_time: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
