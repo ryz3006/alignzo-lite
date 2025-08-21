@@ -615,9 +615,10 @@ export default function UploadTicketsPage() {
        
        const headers = parsedLines[0].map(h => h.trim());
        
-       // Validate headers
-       const requiredHeaders = [
-         'Incident ID', 'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
+       // Validate headers - only Incident ID is mandatory
+       const mandatoryHeaders = ['Incident ID'];
+       const optionalHeaders = [
+         'Priority', 'Region', 'Assigned_Support_Organization', 'Assigned_GROUP',
          'Vertical', 'Sub_Vertical', 'Owner_Support_Organization', 'Owner_GROUP', 'Owner',
          'Reported_source', 'User Name', 'Site_Group', 'Operational Category Tier 1',
          'Operational Category Tier 2', 'Operational Category Tier 3', 'Product_Name',
@@ -630,9 +631,19 @@ export default function UploadTicketsPage() {
          'Owner_Login_ID', 'Impact', 'Submit Date', 'Report Date', 'VIL_Function', 'IT_Partner', 'MTTR', 'MTTI'
        ];
 
-       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-       if (missingHeaders.length > 0) {
-         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+       const missingMandatoryHeaders = mandatoryHeaders.filter(h => !headers.includes(h));
+       if (missingMandatoryHeaders.length > 0) {
+         throw new Error(`Missing mandatory headers: ${missingMandatoryHeaders.join(', ')}`);
+       }
+
+       const missingOptionalHeaders = optionalHeaders.filter(h => !headers.includes(h));
+       if (missingOptionalHeaders.length > 0) {
+         console.warn(`Missing optional headers: ${missingOptionalHeaders.join(', ')}`);
+         // Show a warning toast but continue with upload
+         toast(`Some optional fields are missing: ${missingOptionalHeaders.slice(0, 5).join(', ')}${missingOptionalHeaders.length > 5 ? '...' : ''}. Upload will continue with available data.`, {
+           icon: '⚠️',
+           duration: 5000
+         });
        }
 
        // Count valid data rows (excluding header and empty lines)
@@ -726,10 +737,35 @@ export default function UploadTicketsPage() {
              ticket[fieldName] = value;
            });
 
+           // Ensure all expected fields exist with default values if missing
+           const allExpectedFields = [
+             'incident_id', 'priority', 'region', 'assigned_support_organization', 'assigned_group',
+             'vertical', 'sub_vertical', 'owner_support_organization', 'owner_group', 'owner',
+             'reported_source', 'user_name', 'site_group', 'operational_category_tier_1',
+             'operational_category_tier_2', 'operational_category_tier_3', 'product_name',
+             'product_categorization_tier_1', 'product_categorization_tier_2', 'product_categorization_tier_3',
+             'incident_type', 'summary', 'assignee', 'reported_date1', 'responded_date',
+             'last_resolved_date', 'closed_date', 'status', 'status_reason_hidden', 'pending_reason',
+             'group_transfers', 'total_transfers', 'department', 'vip', 'company', 'vendor_ticket_number',
+             'reported_to_vendor', 'resolution', 'resolver_group', 'reopen_count', 'reopened_date',
+             'service_desk_1st_assigned_date', 'service_desk_1st_assigned_group', 'submitter',
+             'owner_login_id', 'impact', 'submit_date', 'report_date', 'vil_function', 'it_partner', 'mttr', 'mtti'
+           ];
+
+           allExpectedFields.forEach(field => {
+             if (!(field in ticket)) {
+               ticket[field] = null;
+             }
+           });
+
            // Use the selected mapping directly since user selected a specific mapping
            const mapping = selectedMapping;
 
-           if (mapping && mapping.source_organization_value === ticket.assigned_support_organization) {
+           // Check if organization matches or if organization field is missing (allow upload)
+           const organizationMatches = !ticket.assigned_support_organization || 
+             (mapping && mapping.source_organization_value === ticket.assigned_support_organization);
+
+           if (mapping && organizationMatches) {
              // Helper function to parse Remedy date format
              const parseRemedyDate = (dateString: string): string | null => {
                if (!dateString || dateString.trim() === '') return null;

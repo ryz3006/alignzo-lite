@@ -552,16 +552,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Priority</h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie
-                    data={metrics.incidentsByPriority}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
+                                     <Pie
+                     data={metrics.incidentsByPriority}
+                     cx="50%"
+                     cy="50%"
+                     labelLine={false}
+                     label={({ priority, percent }) => `${priority} ${(percent * 100).toFixed(0)}%`}
+                     outerRadius={80}
+                     fill="#8884d8"
+                     dataKey="count"
+                     nameKey="priority"
+                   >
                     {metrics.incidentsByPriority.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -718,16 +719,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by Operational Category</h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie
-                    data={metrics.incidentsByOperationalCategory}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
+                                     <Pie
+                     data={metrics.incidentsByOperationalCategory}
+                     cx="50%"
+                     cy="50%"
+                     labelLine={false}
+                     label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
+                     outerRadius={80}
+                     fill="#8884d8"
+                     dataKey="count"
+                     nameKey="category"
+                   >
                     {metrics.incidentsByOperationalCategory.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -755,16 +757,17 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
               <h4 className="text-md font-medium text-gray-900 mb-4">Incidents by VIP Status</h4>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie
-                    data={metrics.incidentsByVIPStatus}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
+                                     <Pie
+                     data={metrics.incidentsByVIPStatus}
+                     cx="50%"
+                     cy="50%"
+                     labelLine={false}
+                     label={({ status, percent }) => `${status} ${(percent * 100).toFixed(0)}%`}
+                     outerRadius={80}
+                     fill="#8884d8"
+                     dataKey="count"
+                     nameKey="status"
+                   >
                     {metrics.incidentsByVIPStatus.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
