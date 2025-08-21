@@ -19,6 +19,13 @@ const nextConfig = {
         path: false,
       };
     }
+    
+    // Add explicit path mapping for @/ alias
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname),
+    };
+    
     return config;
   },
   
