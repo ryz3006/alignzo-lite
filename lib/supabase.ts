@@ -10,6 +10,19 @@ export interface User {
   id: string;
   full_name: string;
   email: string;
+  phone_number?: string;
+  access_dashboard?: boolean;
+  access_work_report?: boolean;
+  access_analytics?: boolean;
+  access_analytics_workload?: boolean;
+  access_analytics_project_health?: boolean;
+  access_analytics_tickets?: boolean;
+  access_analytics_operational?: boolean;
+  access_analytics_team_insights?: boolean;
+  access_analytics_remedy?: boolean;
+  access_upload_tickets?: boolean;
+  access_master_mappings?: boolean;
+  access_integrations?: boolean;
   created_at: string;
   updated_at: string;
 }

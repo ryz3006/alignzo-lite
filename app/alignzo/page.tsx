@@ -39,6 +39,7 @@ interface TeamAvailability {
   shifts: {
     [key: string]: string[]; // shift type -> array of user emails
   };
+  customEnums: any[];
 }
 
 const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor: string } } = {
@@ -64,6 +65,8 @@ export default function UserDashboardPage() {
   const [teamAvailability, setTeamAvailability] = useState<TeamAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [showShiftSchedule, setShowShiftSchedule] = useState(false);
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -217,6 +220,24 @@ export default function UserDashboardPage() {
     });
   };
 
+  const showUserDetails = async (email: string) => {
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('full_name, email, phone_number')
+        .eq('email', email)
+        .single();
+
+      if (error) throw error;
+      
+      setSelectedUser(user);
+      setShowUserDetailsModal(true);
+    } catch (error) {
+      console.error('Error loading user details:', error);
+      toast.error('Failed to load user details');
+    }
+  };
+
   const loadTeamAvailability = async () => {
     // Get all teams and their members for today
     const today = new Date().toISOString().split('T')[0];
@@ -230,12 +251,18 @@ export default function UserDashboardPage() {
     const availability: TeamAvailability[] = [];
 
     for (const team of teams || []) {
+      // Get custom shift enums for this team
+      const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
+        p_project_id: '', // We'll need to get project_id from team_project_assignment
+        p_team_id: team.id
+      });
+
       // Get team members
       const { data: teamMembers, error: membersError } = await supabase
         .from('team_members')
         .select(`
           user_id,
-          users (email, full_name)
+          users (email, full_name, phone_number)
         `)
         .eq('team_id', team.id);
 
@@ -266,7 +293,8 @@ export default function UserDashboardPage() {
 
       availability.push({
         teamName: team.name,
-        shifts: shiftGroups
+        shifts: shiftGroups,
+        customEnums: customEnums || []
       });
     }
 
@@ -417,44 +445,65 @@ export default function UserDashboardPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Team
                   </th>
-                  {Object.keys(SHIFT_TYPES).map(shiftType => (
-                    <th key={shiftType} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {SHIFT_TYPES[shiftType as ShiftType].label}
-                    </th>
-                  ))}
+                  {teamAvailability.map((team) => {
+                    // Get all unique shift types from custom enums and default types
+                    const allShiftTypes = new Set([
+                      ...Object.keys(SHIFT_TYPES),
+                      ...(team.customEnums?.map((e: any) => e.shift_identifier) || [])
+                    ]);
+                    
+                    return Array.from(allShiftTypes).map(shiftType => {
+                      const customEnum = team.customEnums?.find((e: any) => e.shift_identifier === shiftType);
+                      const defaultShift = SHIFT_TYPES[shiftType as ShiftType];
+                      const shiftName = customEnum?.shift_name || defaultShift?.label || shiftType;
+                      
+                      return (
+                        <th key={`${team.teamName}-${shiftType}`} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {shiftName}
+                        </th>
+                      );
+                    });
+                  })}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {teamAvailability.map((team) => (
-                  <tr key={team.teamName}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {team.teamName}
-                    </td>
-                    {Object.keys(SHIFT_TYPES).map(shiftType => {
-                      const users = team.shifts[shiftType] || [];
-                      return (
-                        <td key={shiftType} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                          {users.length > 0 ? (
-                            <div className="flex flex-col space-y-1">
-                              {users.slice(0, 3).map((email, index) => (
-                                <span key={index} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                  {email.split('@')[0]}
-                                </span>
-                              ))}
-                              {users.length > 3 && (
-                                <span className="text-xs text-gray-500">
-                                  +{users.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {teamAvailability.map((team) => {
+                  // Get all unique shift types for this team
+                  const allShiftTypes = new Set([
+                    ...Object.keys(SHIFT_TYPES),
+                    ...(team.customEnums?.map((e: any) => e.shift_identifier) || [])
+                  ]);
+                  
+                  return (
+                    <tr key={team.teamName}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {team.teamName}
+                      </td>
+                      {Array.from(allShiftTypes).map(shiftType => {
+                        const users = team.shifts[shiftType] || [];
+                        return (
+                          <td key={shiftType} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                            {users.length > 0 ? (
+                              <div className="flex flex-col space-y-1">
+                                {users.map((email, index) => (
+                                  <button
+                                    key={index}
+                                    onClick={() => showUserDetails(email)}
+                                    className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 transition-colors cursor-pointer"
+                                  >
+                                    {email.split('@')[0]}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -544,6 +593,42 @@ export default function UserDashboardPage() {
           onClose={() => setShowShiftSchedule(false)}
           userEmail={user?.email}
         />
+      )}
+
+      {/* User Details Modal */}
+      {showUserDetailsModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">User Details</h2>
+              <button
+                onClick={() => setShowUserDetailsModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-md"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Name</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedUser.full_name}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedUser.email}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedUser.phone_number || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

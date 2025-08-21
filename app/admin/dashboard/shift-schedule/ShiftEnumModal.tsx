@@ -65,7 +65,7 @@ export default function ShiftEnumModal({
       
       let enums = data || [];
       
-      // Ensure mandatory H and G enums exist
+      // Ensure mandatory H, G, and L enums exist
       await ensureMandatoryEnums();
       
       // Reload after ensuring mandatory enums
@@ -92,7 +92,7 @@ export default function ShiftEnumModal({
         .select('shift_identifier')
         .eq('project_id', projectId)
         .eq('team_id', teamId)
-        .in('shift_identifier', ['H', 'G']);
+        .in('shift_identifier', ['H', 'G', 'L']);
 
       if (checkError) throw checkError;
 
@@ -113,6 +113,14 @@ export default function ShiftEnumModal({
           end_time: '17:00',
           is_default: true,
           color: '#10B981' // Green for General
+        },
+        {
+          shift_identifier: 'L',
+          shift_name: 'Leave',
+          start_time: '00:00',
+          end_time: '23:59',
+          is_default: false,
+          color: '#F59E0B' // Orange for Leave
         }
       ];
 
@@ -224,8 +232,8 @@ export default function ShiftEnumModal({
 
   const handleDelete = async (id: string, shiftIdentifier: string) => {
     // Prevent deletion of mandatory enums
-    if (shiftIdentifier === 'H' || shiftIdentifier === 'G') {
-      toast.error('Cannot delete mandatory shift types (H - Holiday, G - General)');
+    if (shiftIdentifier === 'H' || shiftIdentifier === 'G' || shiftIdentifier === 'L') {
+      toast.error('Cannot delete mandatory shift types (H - Holiday, G - General, L - Leave)');
       return;
     }
 
@@ -264,7 +272,7 @@ export default function ShiftEnumModal({
   };
 
   const isMandatoryEnum = (identifier: string) => {
-    return identifier === 'H' || identifier === 'G';
+    return identifier === 'H' || identifier === 'G' || identifier === 'L';
   };
 
   const resetForm = () => {

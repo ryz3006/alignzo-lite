@@ -14,6 +14,19 @@ export default function UsersPage() {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
+    phone_number: '',
+    access_dashboard: true,
+    access_work_report: false,
+    access_analytics: false,
+    access_analytics_workload: false,
+    access_analytics_project_health: false,
+    access_analytics_tickets: false,
+    access_analytics_operational: false,
+    access_analytics_team_insights: false,
+    access_analytics_remedy: false,
+    access_upload_tickets: false,
+    access_master_mappings: false,
+    access_integrations: false,
   });
 
   useEffect(() => {
@@ -62,7 +75,23 @@ export default function UsersPage() {
 
       setShowModal(false);
       setEditingUser(null);
-      setFormData({ full_name: '', email: '' });
+      setFormData({ 
+        full_name: '', 
+        email: '', 
+        phone_number: '',
+        access_dashboard: true,
+        access_work_report: false,
+        access_analytics: false,
+        access_analytics_workload: false,
+        access_analytics_project_health: false,
+        access_analytics_tickets: false,
+        access_analytics_operational: false,
+        access_analytics_team_insights: false,
+        access_analytics_remedy: false,
+        access_upload_tickets: false,
+        access_master_mappings: false,
+        access_integrations: false,
+      });
       loadUsers();
     } catch (error: any) {
       console.error('Error saving user:', error);
@@ -75,6 +104,19 @@ export default function UsersPage() {
     setFormData({
       full_name: user.full_name,
       email: user.email,
+      phone_number: user.phone_number || '',
+      access_dashboard: user.access_dashboard ?? true,
+      access_work_report: user.access_work_report ?? false,
+      access_analytics: user.access_analytics ?? false,
+      access_analytics_workload: user.access_analytics_workload ?? false,
+      access_analytics_project_health: user.access_analytics_project_health ?? false,
+      access_analytics_tickets: user.access_analytics_tickets ?? false,
+      access_analytics_operational: user.access_analytics_operational ?? false,
+      access_analytics_team_insights: user.access_analytics_team_insights ?? false,
+      access_analytics_remedy: user.access_analytics_remedy ?? false,
+      access_upload_tickets: user.access_upload_tickets ?? false,
+      access_master_mappings: user.access_master_mappings ?? false,
+      access_integrations: user.access_integrations ?? false,
     });
     setShowModal(true);
   };
@@ -153,6 +195,9 @@ export default function UsersPage() {
                   Email
                 </th>
                 <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone
+                </th>
+                <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -170,6 +215,11 @@ export default function UsersPage() {
                   </td>
                   <td className="px-3 sm:px-6 py-4">
                     <div className="text-sm text-gray-900 truncate">{user.email}</div>
+                  </td>
+                  <td className="hidden sm:table-cell px-6 py-4">
+                    <div className="text-sm text-gray-500">
+                      {user.phone_number || '-'}
+                    </div>
                   </td>
                   <td className="hidden sm:table-cell px-6 py-4">
                     <div className="text-sm text-gray-500">
@@ -200,13 +250,13 @@ export default function UsersPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 {editingUser ? 'Edit User' : 'Add User'}
               </h3>
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Full Name
                   </label>
@@ -218,7 +268,7 @@ export default function UsersPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="mb-6">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Email
                   </label>
@@ -230,13 +280,202 @@ export default function UsersPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="flex justify-end space-x-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="+1234567890"
+                  />
+                </div>
+                
+                {/* Access Controls */}
+                <div className="border-t pt-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Access Controls</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_dashboard"
+                        checked={formData.access_dashboard}
+                        disabled
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_dashboard" className="ml-2 text-sm text-gray-700">
+                        Dashboard (Always enabled)
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_work_report"
+                        checked={formData.access_work_report}
+                        onChange={(e) => setFormData({ ...formData, access_work_report: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_work_report" className="ml-2 text-sm text-gray-700">
+                        Work Report
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_analytics"
+                        checked={formData.access_analytics}
+                        onChange={(e) => setFormData({ ...formData, access_analytics: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_analytics" className="ml-2 text-sm text-gray-700">
+                        Analytics
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_upload_tickets"
+                        checked={formData.access_upload_tickets}
+                        onChange={(e) => setFormData({ ...formData, access_upload_tickets: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_upload_tickets" className="ml-2 text-sm text-gray-700">
+                        Upload Tickets
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_master_mappings"
+                        checked={formData.access_master_mappings}
+                        onChange={(e) => setFormData({ ...formData, access_master_mappings: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_master_mappings" className="ml-2 text-sm text-gray-700">
+                        Master Mappings
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_integrations"
+                        checked={formData.access_integrations}
+                        onChange={(e) => setFormData({ ...formData, access_integrations: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_integrations" className="ml-2 text-sm text-gray-700">
+                        Integrations
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Analytics Sub-options */}
+                  {formData.access_analytics && (
+                    <div className="mt-3 pl-4 border-l-2 border-gray-200">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Analytics Sub-modules:</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_workload"
+                            checked={formData.access_analytics_workload}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_workload: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_workload" className="ml-2 text-xs text-gray-600">
+                            Workload & Utilization
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_project_health"
+                            checked={formData.access_analytics_project_health}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_project_health: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_project_health" className="ml-2 text-xs text-gray-600">
+                            Project Health & FTE
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_tickets"
+                            checked={formData.access_analytics_tickets}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_tickets: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_tickets" className="ml-2 text-xs text-gray-600">
+                            Tickets & Issues
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_operational"
+                            checked={formData.access_analytics_operational}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_operational: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_operational" className="ml-2 text-xs text-gray-600">
+                            Operational Efficiency
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_team_insights"
+                            checked={formData.access_analytics_team_insights}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_team_insights: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_team_insights" className="ml-2 text-xs text-gray-600">
+                            Team Insights
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="access_analytics_remedy"
+                            checked={formData.access_analytics_remedy}
+                            onChange={(e) => setFormData({ ...formData, access_analytics_remedy: e.target.checked })}
+                            className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="access_analytics_remedy" className="ml-2 text-xs text-gray-600">
+                            Remedy Dashboard
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={() => {
                       setShowModal(false);
                       setEditingUser(null);
-                      setFormData({ full_name: '', email: '' });
+                      setFormData({ 
+                        full_name: '', 
+                        email: '', 
+                        phone_number: '',
+                        access_dashboard: true,
+                        access_work_report: false,
+                        access_analytics: false,
+                        access_analytics_workload: false,
+                        access_analytics_project_health: false,
+                        access_analytics_tickets: false,
+                        access_analytics_operational: false,
+                        access_analytics_team_insights: false,
+                        access_analytics_remedy: false,
+                        access_upload_tickets: false,
+                        access_master_mappings: false,
+                        access_integrations: false,
+                      });
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                   >
