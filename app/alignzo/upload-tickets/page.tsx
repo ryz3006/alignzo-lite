@@ -13,7 +13,7 @@ interface ProjectWithUsers extends Project {
 interface MappingWithDetails extends TicketUploadMapping {
   source: TicketSource;
   project: Project;
-  user_mappings: TicketUploadUserMapping[];
+  // Remove user_mappings since we'll use master mappings only
 }
 
 export default function UploadTicketsPage() {
@@ -35,11 +35,15 @@ export default function UploadTicketsPage() {
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [organizationField, setOrganizationField] = useState<string>('Assigned_Support_Organization');
   const [organizationValue, setOrganizationValue] = useState<string>('');
-  const [userMappings, setUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
   
   // Edit mapping states
   const [editingMapping, setEditingMapping] = useState<MappingWithDetails | null>(null);
-  const [editingUserMappings, setEditingUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
+  
+  // Remove user mapping states
+  // const [userMappings, setUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
+  
+  // Remove edit mapping states
+  // const [editingUserMappings, setEditingUserMappings] = useState<Array<{ user_email: string; assignee_value: string }>>([]);
   
   // Upload states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -156,18 +160,22 @@ export default function UploadTicketsPage() {
   };
 
   const loadMappings = async () => {
-    const { data, error } = await supabase
-      .from('ticket_upload_mappings')
-      .select(`
-        *,
-        source:ticket_sources(*),
-        project:projects(*),
-        user_mappings:ticket_upload_user_mappings(*)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('ticket_upload_mappings')
+        .select(`
+          *,
+          source:ticket_sources(*),
+          project:projects(*)
+        `)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    setMappings(data || []);
+      if (error) throw error;
+      setMappings(data || []);
+    } catch (error) {
+      console.error('Error loading mappings:', error);
+      toast.error('Failed to load mappings');
+    }
   };
 
   const loadUploadSessions = async () => {
@@ -204,20 +212,20 @@ export default function UploadTicketsPage() {
       if (mappingError) throw mappingError;
 
       // Create user mappings
-      if (userMappings.length > 0) {
-        const userMappingData = userMappings.map(um => ({
-          mapping_id: mapping.id,
-          user_email: um.user_email,
-          source_assignee_field: 'Assignee',
-          source_assignee_value: um.assignee_value.trim()
-        }));
+      // if (userMappings.length > 0) {
+      //   const userMappingData = userMappings.map(um => ({
+      //     mapping_id: mapping.id,
+      //     user_email: um.user_email,
+      //     source_assignee_field: 'Assignee',
+      //     source_assignee_value: um.assignee_value.trim()
+      //   }));
 
-        const { error: userMappingError } = await supabase
-          .from('ticket_upload_user_mappings')
-          .insert(userMappingData);
+      //   const { error: userMappingError } = await supabase
+      //     .from('ticket_upload_user_mappings')
+      //     .insert(userMappingData);
 
-        if (userMappingError) throw userMappingError;
-      }
+      //   if (userMappingError) throw userMappingError;
+      // }
 
       toast.success('Source mapping created successfully');
       setShowMappingModal(false);
@@ -232,8 +240,9 @@ export default function UploadTicketsPage() {
   const resetMappingForm = () => {
     setSelectedSource('');
     setSelectedProject('');
+    setOrganizationField('Assigned_Support_Organization');
     setOrganizationValue('');
-    setUserMappings([]);
+    // Remove user mappings reset
   };
 
   const handleEditMapping = (mapping: MappingWithDetails) => {
@@ -243,12 +252,12 @@ export default function UploadTicketsPage() {
     setOrganizationValue(mapping.source_organization_value);
     
     // Convert existing user mappings to the format expected by the form
-    const existingUserMappings = mapping.user_mappings.map(um => ({
-      user_email: um.user_email,
-      assignee_value: um.source_assignee_value
-    }));
-    setEditingUserMappings(existingUserMappings);
-    setUserMappings(existingUserMappings);
+    // const existingUserMappings = mapping.user_mappings.map(um => ({
+    //   user_email: um.user_email,
+    //   assignee_value: um.source_assignee_value
+    // }));
+    // setEditingUserMappings(existingUserMappings);
+    // setUserMappings(existingUserMappings);
     
     setShowEditMappingModal(true);
   };
@@ -274,28 +283,28 @@ export default function UploadTicketsPage() {
       if (mappingError) throw mappingError;
 
       // Delete existing user mappings
-      const { error: deleteError } = await supabase
-        .from('ticket_upload_user_mappings')
-        .delete()
-        .eq('mapping_id', editingMapping.id);
+      // const { error: deleteError } = await supabase
+      //   .from('ticket_upload_user_mappings')
+      //   .delete()
+      //   .eq('mapping_id', editingMapping.id);
 
-      if (deleteError) throw deleteError;
+      // if (deleteError) throw deleteError;
 
       // Create new user mappings
-      if (userMappings.length > 0) {
-        const userMappingData = userMappings.map(um => ({
-          mapping_id: editingMapping.id,
-          user_email: um.user_email,
-          source_assignee_field: 'Assignee',
-          source_assignee_value: um.assignee_value.trim()
-        }));
+      // if (userMappings.length > 0) {
+      //   const userMappingData = userMappings.map(um => ({
+      //     mapping_id: editingMapping.id,
+      //     user_email: um.user_email,
+      //     source_assignee_field: 'Assignee',
+      //     source_assignee_value: um.assignee_value.trim()
+      //   }));
 
-        const { error: userMappingError } = await supabase
-          .from('ticket_upload_user_mappings')
-          .insert(userMappingData);
+      //   const { error: userMappingError } = await supabase
+      //     .from('ticket_upload_user_mappings')
+      //     .insert(userMappingData);
 
-        if (userMappingError) throw userMappingError;
-      }
+      //   if (userMappingError) throw userMappingError;
+      // }
 
       toast.success('Mapping updated successfully');
       setShowEditMappingModal(false);
@@ -309,11 +318,11 @@ export default function UploadTicketsPage() {
 
   const resetEditMappingForm = () => {
     setEditingMapping(null);
-    setEditingUserMappings([]);
+    // setEditingUserMappings([]);
     setSelectedSource('');
     setSelectedProject('');
     setOrganizationValue('');
-    setUserMappings([]);
+    // setUserMappings([]);
   };
 
   const downloadSampleFile = () => {
@@ -373,19 +382,20 @@ export default function UploadTicketsPage() {
     setSelectedFile(file);
   };
 
-  const addUserMapping = () => {
-    setUserMappings([...userMappings, { user_email: '', assignee_value: '' }]);
-  };
+  // Remove user mapping functions
+  // const addUserMapping = () => {
+  //   setUserMappings([...userMappings, { user_email: '', assignee_value: '' }]);
+  // };
 
-  const removeUserMapping = (index: number) => {
-    setUserMappings(userMappings.filter((_, i) => i !== index));
-  };
+  // const removeUserMapping = (index: number) => {
+  //   setUserMappings(userMappings.filter((_, i) => i !== index));
+  // };
 
-  const updateUserMapping = (index: number, field: 'user_email' | 'assignee_value', value: string) => {
-    const updated = [...userMappings];
-    updated[index][field] = value;
-    setUserMappings(updated);
-  };
+  // const updateUserMapping = (index: number, field: 'user_email' | 'assignee_value', value: string) => {
+  //   const updated = [...userMappings];
+  //   updated[index][field] = value;
+  //   setUserMappings(updated);
+  // };
 
   const handleDeleteMapping = async (mappingId: string) => {
     if (!confirm('Are you sure you want to delete this mapping? This will also delete all associated user mappings.')) {
@@ -761,22 +771,11 @@ export default function UploadTicketsPage() {
                }
              };
 
-             // Get mapped user email from master mappings first, then fall back to project-specific mappings
+             // Get mapped user email from master mappings only
              let mappedUserEmail = null;
              
-             // Try master mapping first
              if (ticket.assignee) {
                mappedUserEmail = await getMappedUserEmail(ticket.assignee);
-             }
-             
-             // If no master mapping found, try project-specific mapping
-             if (!mappedUserEmail && ticket.assignee) {
-               const userMapping = mapping.user_mappings.find(um => 
-                 um.source_assignee_value === ticket.assignee
-               );
-               if (userMapping) {
-                 mappedUserEmail = userMapping.user_email;
-               }
              }
 
              tickets.push({
@@ -845,9 +844,13 @@ export default function UploadTicketsPage() {
         }
 
         if (tickets.length > 0) {
+          // Use UPSERT (insert or update) instead of simple insert
           const { error: insertError } = await supabase
             .from('uploaded_tickets')
-            .insert(tickets);
+            .upsert(tickets, {
+              onConflict: 'incident_id',
+              ignoreDuplicates: false
+            });
 
           if (insertError) throw insertError;
         }
@@ -869,7 +872,27 @@ export default function UploadTicketsPage() {
         .eq('id', session.id);
 
       setUploadProgress({ current: validRowCount, total: validRowCount, status: 'Completed!' });
-      toast.success(`Successfully uploaded ${processedRows} tickets`);
+      
+      // Get upsert statistics
+      try {
+        const { data: upsertStats, error: statsError } = await supabase
+          .rpc('get_upsert_statistics', { 
+            p_session_id: session.id 
+          });
+        
+        if (!statsError && upsertStats && upsertStats.length > 0) {
+          const stats = upsertStats[0];
+          if (stats.updated_records > 0) {
+            toast.success(`Upload completed! ${stats.new_records} new records, ${stats.updated_records} records updated.`);
+          } else {
+            toast.success(`Successfully uploaded ${stats.new_records} new tickets`);
+          }
+        } else {
+          toast.success(`Successfully uploaded ${processedRows} tickets`);
+        }
+      } catch (error) {
+        toast.success(`Successfully uploaded ${processedRows} tickets`);
+      }
       
       setTimeout(() => {
         setShowProgressModal(false);
@@ -994,7 +1017,7 @@ export default function UploadTicketsPage() {
                         </div>
                       </div>
                       
-                      {mapping.user_mappings.length > 0 && (
+                      {/* {mapping.user_mappings.length > 0 && (
                         <div className="mt-3">
                           <h4 className="text-sm font-medium text-gray-700 mb-2">User Mappings:</h4>
                           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -1005,7 +1028,7 @@ export default function UploadTicketsPage() {
                             ))}
                           </div>
                         </div>
-                      )}
+                      )} */}
                     </div>
                     
                                          <div className="flex space-x-2">
@@ -1207,7 +1230,7 @@ export default function UploadTicketsPage() {
                    </p>
                  </div>
 
-                 {selectedProject && (
+                 {/* {selectedProject && (
                    <div>
                      <div className="flex justify-between items-center mb-2">
                        <label className="block text-sm font-medium text-gray-700">
@@ -1257,7 +1280,7 @@ export default function UploadTicketsPage() {
                        ))}
                      </div>
                    </div>
-                 )}
+                 )} */}
 
                  <div className="flex justify-end space-x-3 pt-4">
                    <button
@@ -1337,7 +1360,7 @@ export default function UploadTicketsPage() {
                   </p>
                 </div>
 
-                {selectedProject && (
+                {/* {selectedProject && (
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
@@ -1387,7 +1410,7 @@ export default function UploadTicketsPage() {
                       ))}
                     </div>
                   </div>
-                )}
+                )} */}
 
                 <div className="flex justify-end space-x-3 pt-4">
                   <button

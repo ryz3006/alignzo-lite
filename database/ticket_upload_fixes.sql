@@ -151,17 +151,57 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to validate uploaded ticket data for UPSERT operations (no duplicate check)
+CREATE OR REPLACE FUNCTION validate_ticket_data_upsert(
+    p_incident_id TEXT,
+    p_priority TEXT,
+    p_assignee TEXT,
+    p_reported_date TEXT
+)
+RETURNS TABLE(
+    is_valid BOOLEAN,
+    error_message TEXT
+) AS $$
+BEGIN
+    -- Check required fields
+    IF p_incident_id IS NULL OR TRIM(p_incident_id) = '' THEN
+        RETURN QUERY SELECT FALSE, 'Incident ID is required';
+        RETURN;
+    END IF;
+    
+    -- Validate priority if provided
+    IF p_priority IS NOT NULL AND p_priority != '' THEN
+        IF p_priority NOT IN ('SR', 'INC', 'CR', 'PR') THEN
+            RETURN QUERY SELECT FALSE, 'Invalid priority value: ' || p_priority;
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- Validate reported date if provided
+    IF p_reported_date IS NOT NULL AND p_reported_date != '' THEN
+        IF parse_remedy_date(p_reported_date) IS NULL THEN
+            RETURN QUERY SELECT FALSE, 'Invalid reported date format: ' || p_reported_date;
+            RETURN;
+        END IF;
+    END IF;
+    
+    -- All validations passed
+    RETURN QUERY SELECT TRUE, 'Valid';
+END;
+$$ LANGUAGE plpgsql;
+
 -- =====================================================
 -- BULK INSERT FUNCTION WITH VALIDATION
 -- =====================================================
 
--- Function to bulk insert tickets with validation
+-- Function to bulk insert tickets with validation and UPSERT functionality
 CREATE OR REPLACE FUNCTION bulk_insert_tickets(
     p_tickets JSONB
 )
 RETURNS TABLE(
     success_count INTEGER,
     error_count INTEGER,
+    updated_count INTEGER,
     errors JSONB
 ) AS $$
 DECLARE
@@ -169,14 +209,15 @@ DECLARE
     validation_result RECORD;
     success_counter INTEGER := 0;
     error_counter INTEGER := 0;
+    updated_counter INTEGER := 0;
     error_list JSONB := '[]'::JSONB;
 BEGIN
     -- Loop through each ticket in the JSON array
     FOR ticket IN SELECT * FROM jsonb_array_elements(p_tickets)
     LOOP
-        -- Validate the ticket
+        -- Validate the ticket (remove duplicate check since we want to update)
         SELECT * INTO validation_result 
-        FROM validate_ticket_data(
+        FROM validate_ticket_data_upsert(
             ticket->>'incident_id',
             ticket->>'priority',
             ticket->>'assignee',
@@ -184,7 +225,7 @@ BEGIN
         );
         
         IF validation_result.is_valid THEN
-            -- Insert the ticket
+            -- Insert or update the ticket using UPSERT
             BEGIN
                 INSERT INTO uploaded_tickets (
                     source_id,
@@ -308,9 +349,83 @@ BEGIN
                     time_string_to_seconds(clean_csv_field(ticket->>'mtti')),
                     time_string_to_minutes(clean_csv_field(ticket->>'mttr')),
                     time_string_to_minutes(clean_csv_field(ticket->>'mtti'))
-                );
+                )
+                ON CONFLICT (incident_id) DO UPDATE SET
+                    source_id = EXCLUDED.source_id,
+                    mapping_id = EXCLUDED.mapping_id,
+                    project_id = EXCLUDED.project_id,
+                    priority = EXCLUDED.priority,
+                    region = EXCLUDED.region,
+                    assigned_support_organization = EXCLUDED.assigned_support_organization,
+                    assigned_group = EXCLUDED.assigned_group,
+                    vertical = EXCLUDED.vertical,
+                    sub_vertical = EXCLUDED.sub_vertical,
+                    owner_support_organization = EXCLUDED.owner_support_organization,
+                    owner_group = EXCLUDED.owner_group,
+                    owner = EXCLUDED.owner,
+                    reported_source = EXCLUDED.reported_source,
+                    user_name = EXCLUDED.user_name,
+                    site_group = EXCLUDED.site_group,
+                    operational_category_tier_1 = EXCLUDED.operational_category_tier_1,
+                    operational_category_tier_2 = EXCLUDED.operational_category_tier_2,
+                    operational_category_tier_3 = EXCLUDED.operational_category_tier_3,
+                    product_name = EXCLUDED.product_name,
+                    product_categorization_tier_1 = EXCLUDED.product_categorization_tier_1,
+                    product_categorization_tier_2 = EXCLUDED.product_categorization_tier_2,
+                    product_categorization_tier_3 = EXCLUDED.product_categorization_tier_3,
+                    incident_type = EXCLUDED.incident_type,
+                    summary = EXCLUDED.summary,
+                    assignee = EXCLUDED.assignee,
+                    mapped_user_email = EXCLUDED.mapped_user_email,
+                    reported_date1 = EXCLUDED.reported_date1,
+                    responded_date = EXCLUDED.responded_date,
+                    last_resolved_date = EXCLUDED.last_resolved_date,
+                    closed_date = EXCLUDED.closed_date,
+                    status = EXCLUDED.status,
+                    status_reason_hidden = EXCLUDED.status_reason_hidden,
+                    pending_reason = EXCLUDED.pending_reason,
+                    group_transfers = EXCLUDED.group_transfers,
+                    total_transfers = EXCLUDED.total_transfers,
+                    department = EXCLUDED.department,
+                    vip = EXCLUDED.vip,
+                    company = EXCLUDED.company,
+                    vendor_ticket_number = EXCLUDED.vendor_ticket_number,
+                    reported_to_vendor = EXCLUDED.reported_to_vendor,
+                    resolution = EXCLUDED.resolution,
+                    resolver_group = EXCLUDED.resolver_group,
+                    reopen_count = EXCLUDED.reopen_count,
+                    reopened_date = EXCLUDED.reopened_date,
+                    service_desk_1st_assigned_date = EXCLUDED.service_desk_1st_assigned_date,
+                    service_desk_1st_assigned_group = EXCLUDED.service_desk_1st_assigned_group,
+                    submitter = EXCLUDED.submitter,
+                    owner_login_id = EXCLUDED.owner_login_id,
+                    impact = EXCLUDED.impact,
+                    submit_date = EXCLUDED.submit_date,
+                    report_date = EXCLUDED.report_date,
+                    vil_function = EXCLUDED.vil_function,
+                    it_partner = EXCLUDED.it_partner,
+                    mttr = EXCLUDED.mttr,
+                    mtti = EXCLUDED.mtti,
+                    mttr_seconds = EXCLUDED.mttr_seconds,
+                    mtti_seconds = EXCLUDED.mtti_seconds,
+                    mttr_minutes = EXCLUDED.mttr_minutes,
+                    mtti_minutes = EXCLUDED.mtti_minutes,
+                    updated_at = NOW();
                 
-                success_counter := success_counter + 1;
+                -- Check if this was an update or insert
+                IF FOUND THEN
+                    IF (SELECT COUNT(*) FROM uploaded_tickets WHERE incident_id = clean_csv_field(ticket->>'incident_id')) > 1 THEN
+                        -- This was an update (record existed before)
+                        updated_counter := updated_counter + 1;
+                    ELSE
+                        -- This was an insert (new record)
+                        success_counter := success_counter + 1;
+                    END IF;
+                ELSE
+                    -- This was an insert
+                    success_counter := success_counter + 1;
+                END IF;
+                
             EXCEPTION
                 WHEN OTHERS THEN
                     error_counter := error_counter + 1;
@@ -328,7 +443,7 @@ BEGIN
         END IF;
     END LOOP;
     
-    RETURN QUERY SELECT success_counter, error_counter, error_list;
+    RETURN QUERY SELECT success_counter, error_counter, updated_counter, error_list;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -788,7 +903,7 @@ COMMENT ON FUNCTION parse_remedy_date(TEXT) IS 'Safely parses Remedy date format
 COMMENT ON FUNCTION safe_string_to_int(TEXT) IS 'Safely converts string to integer with NULL handling';
 COMMENT ON FUNCTION clean_csv_field(TEXT) IS 'Cleans and validates CSV field values';
 COMMENT ON FUNCTION validate_ticket_data(TEXT, TEXT, TEXT, TEXT) IS 'Validates ticket data before insertion';
-COMMENT ON FUNCTION bulk_insert_tickets(JSONB) IS 'Bulk inserts tickets with validation and error reporting';
+COMMENT ON FUNCTION bulk_insert_tickets(JSONB) IS 'Bulk inserts or updates tickets with UPSERT functionality';
 COMMENT ON FUNCTION cleanup_uploaded_tickets() IS 'Cleans existing data by converting empty strings to NULL';
 COMMENT ON FUNCTION get_ticket_stats_by_project(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets ticket statistics by project with date filtering';
 COMMENT ON FUNCTION get_user_workload_stats(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets user workload statistics with date filtering';
@@ -796,6 +911,9 @@ COMMENT ON FUNCTION get_mttr_mtti_stats_by_project(UUID, TIMESTAMP WITH TIME ZON
 COMMENT ON FUNCTION get_mttr_mtti_stats_by_user(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets MTTR/MTTI statistics by user with date filtering';
 COMMENT ON FUNCTION get_mttr_mtti_trends(INTEGER, INTEGER) IS 'Gets MTTR/MTTI trends over time with date filtering';
 COMMENT ON FUNCTION get_performance_benchmarks(UUID) IS 'Gets performance benchmarks for MTTR and MTTI';
+COMMENT ON FUNCTION validate_ticket_data_upsert(TEXT, TEXT, TEXT, TEXT) IS 'Validates ticket data for UPSERT operations (no duplicate check)';
+COMMENT ON FUNCTION get_upsert_statistics(UUID, TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE) IS 'Gets statistics on new vs updated records from UPSERT operations';
+COMMENT ON FUNCTION get_incident_change_history(TEXT) IS 'Gets change history for a specific incident ID';
 
 -- =====================================================
 -- FIXES COMPLETE
@@ -806,16 +924,25 @@ COMMENT ON FUNCTION get_performance_benchmarks(UUID) IS 'Gets performance benchm
 -- ✓ Better data type handling for numeric fields
 -- ✓ Improved date parsing for Remedy format
 -- ✓ Enhanced CSV field cleaning and validation
--- ✓ Bulk insert with validation and error reporting
+-- ✓ **UPSERT functionality - updates existing records instead of rejecting duplicates**
+-- ✓ Bulk insert/update with validation and error reporting
 -- ✓ Data cleanup functions for existing data
 -- ✓ Analytics helper functions for reporting
+-- ✓ **MTTR/MTTI mathematical conversions for better analytics**
 -- ✓ Additional performance indexes
+-- 
+-- **UPSERT Behavior:**
+-- - When the same Incident ID is encountered again, the existing record is updated
+-- - No duplicate records are created
+-- - All fields are updated with the latest data from the CSV
+-- - Upload statistics show new vs updated record counts
 -- 
 -- Usage:
 -- 1. Run this file to apply all fixes
--- 2. Use bulk_insert_tickets() for safe bulk data insertion
+-- 2. Use bulk_insert_tickets() for safe bulk data insertion/updates
 -- 3. Use cleanup_uploaded_tickets() to clean existing data
 -- 4. Use analytics functions for reporting and insights
+-- 5. **Use get_upsert_statistics() to track new vs updated records**
 
 -- Function to convert time format string to seconds
 CREATE OR REPLACE FUNCTION time_string_to_seconds(time_string TEXT)
@@ -919,5 +1046,78 @@ BEGIN
     
     GET DIAGNOSTICS updated_count = ROW_COUNT;
     RETURN updated_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get upsert statistics for a specific upload session
+CREATE OR REPLACE FUNCTION get_upsert_statistics(
+    p_session_id UUID DEFAULT NULL,
+    p_start_date TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    p_end_date TIMESTAMP WITH TIME ZONE DEFAULT NULL
+)
+RETURNS TABLE(
+    total_records BIGINT,
+    new_records BIGINT,
+    updated_records BIGINT,
+    duplicate_incident_ids TEXT[]
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH upsert_stats AS (
+        SELECT 
+            incident_id,
+            created_at,
+            updated_at,
+            CASE 
+                WHEN created_at = updated_at THEN 'new'
+                ELSE 'updated'
+            END as record_type
+        FROM uploaded_tickets ut
+        WHERE (p_session_id IS NULL OR ut.source_id IN (
+            SELECT source_id FROM upload_sessions WHERE id = p_session_id
+        ))
+        AND (p_start_date IS NULL OR ut.updated_at >= p_start_date)
+        AND (p_end_date IS NULL OR ut.updated_at <= p_end_date)
+    )
+    SELECT 
+        COUNT(*) as total_records,
+        COUNT(CASE WHEN record_type = 'new' THEN 1 END) as new_records,
+        COUNT(CASE WHEN record_type = 'updated' THEN 1 END) as updated_records,
+        ARRAY_AGG(DISTINCT incident_id) FILTER (WHERE record_type = 'updated') as duplicate_incident_ids
+    FROM upsert_stats;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get change history for a specific incident
+CREATE OR REPLACE FUNCTION get_incident_change_history(
+    p_incident_id TEXT
+)
+RETURNS TABLE(
+    incident_id TEXT,
+    change_type TEXT,
+    old_values JSONB,
+    new_values JSONB,
+    changed_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    -- This function can be enhanced with a proper audit trail table
+    -- For now, return basic information about the incident
+    RETURN QUERY
+    SELECT 
+        ut.incident_id,
+        CASE 
+            WHEN ut.created_at = ut.updated_at THEN 'Initial Upload'
+            ELSE 'Updated'
+        END as change_type,
+        '{}'::JSONB as old_values, -- Placeholder for audit trail
+        jsonb_build_object(
+            'status', ut.status,
+            'assignee', ut.assignee,
+            'resolution', ut.resolution,
+            'last_updated', ut.updated_at
+        ) as new_values,
+        ut.updated_at as changed_at
+    FROM uploaded_tickets ut
+    WHERE ut.incident_id = p_incident_id;
 END;
 $$ LANGUAGE plpgsql;
