@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
+import { getJiraCredentials, JiraIssue } from '@/lib/jira';
 import { supabase } from '@/lib/supabase';
 import { 
   BarChart, 
@@ -206,17 +206,16 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       setError(null);
       console.log('Loading JIRA data with complete pagination...');
 
-      // Add timeout protection
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 30000)
-      );
+      // Get current user for API calls
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        setError('User not authenticated');
+        return;
+      }
 
       // First, get all available JIRA project mappings for the user
       console.log('Fetching JIRA project mappings...');
-      const allProjectMappings = await Promise.race([
-        getAllJiraProjectMappings(),
-        timeoutPromise
-      ]) as JiraProjectMapping[];
+      const allProjectMappings = await getAllJiraProjectMappings();
       
       console.log('Project mappings received:', allProjectMappings);
       
@@ -286,7 +285,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
 
       console.log('Executing JIRA search with JQL:', jql);
       setLoadingProgress('Fetching JIRA data...');
-      console.log('About to call searchAllJiraIssues with credentials:', credentials);
+      console.log('About to call JIRA search API with credentials:', credentials);
       console.log('JQL query:', jql);
       
       let result: { success: boolean; issues?: JiraIssue[]; message: string };
@@ -295,10 +294,30 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         console.log('Starting JIRA API call...');
         setLoadingProgress('Making JIRA API request...');
         
-        result = await Promise.race([
-          searchAllJiraIssues(credentials, jql),
-          timeoutPromise
-        ]) as { success: boolean; issues?: JiraIssue[]; message: string };
+        // Use the backend API endpoint instead of calling JIRA directly
+        const response = await fetch('/api/jira/search-issues', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userEmail: currentUser.email,
+            projectKey: jql.match(/project = "([^"]+)"/)?.[1] || '',
+            maxResults: 100
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch JIRA issues');
+        }
+
+        const data = await response.json();
+        result = {
+          success: data.success,
+          issues: data.issues,
+          message: data.success ? 'Success' : data.error
+        };
         
         console.log('JIRA search result:', result);
         setLoadingProgress('Processing JIRA data...');
