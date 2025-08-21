@@ -69,9 +69,11 @@ interface RemedyMetrics {
   }>;
   assigneeMTTRHeatmap: Array<{ assignee: string; avgMTTR: number }>;
   incidentsByPriorityAndStatus: Array<{ priority: string; status: string; count: number }>;
-  topMTTRIncidents: Array<{ incidentId: string; priority: string; assignee: string; timeTaken: number }>;
+  incidentsByPriorityStatusAndMonth: any[];
+  topMTTRIncidents: Array<{ incidentId: string; priority: string; assignee: string; timeTaken: number; ticket: any }>;
   resolutionTimeBuckets: Array<{ 
     monthYear: string; 
+    monthDisplay: string;
     assignee: string; 
     priority: string; 
     lessThan1Hour: number; 
@@ -119,6 +121,8 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Handle tooltip toggle
   const toggleTooltip = (tooltipId: string) => {
@@ -469,17 +473,51 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       return { priority, status, count: count as number };
     });
 
-    // Top 5 Incidents with Max MTTR
+    // Incidents by Priority, Status and Month
+    const incidentsByPriorityStatusAndMonth = tickets.reduce((acc, ticket) => {
+      const date = ticket.reported_date1 ? new Date(ticket.reported_date1) : null;
+      if (date) {
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthDisplay = `${new Date(date.getFullYear(), date.getMonth()).toLocaleString('default', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`;
+        const priority = ticket.priority || 'Unknown';
+        const status = ticket.status || 'Unknown';
+        
+        const key = `${monthKey}|${priority}`;
+        if (!acc[key]) {
+          acc[key] = { monthDisplay, priority, months: {} };
+        }
+        if (!acc[key].months[status]) {
+          acc[key].months[status] = 0;
+        }
+        acc[key].months[status]++;
+      }
+      return acc;
+    }, {} as Record<string, { monthDisplay: string; priority: string; months: Record<string, number> }>);
+
+    // Convert to table format with status as columns
+    const incidentsByPriorityStatusAndMonthArray = Object.values(incidentsByPriorityStatusAndMonth).map((item: any) => {
+      const result: any = {
+        monthDisplay: item.monthDisplay,
+        priority: item.priority
+      };
+      Object.keys(item.months).forEach((status: string) => {
+        result[status] = item.months[status] as number;
+      });
+      return result;
+    });
+
+    // Top 10 Incidents with Max MTTR
     const topMTTRIncidents = tickets
       .filter(ticket => ticket.reported_date1 && ticket.last_resolved_date)
       .map(ticket => ({
         incidentId: ticket.incident_id || 'Unknown',
         priority: ticket.priority || 'Unknown',
         assignee: ticket.assignee || 'Unassigned',
-        timeTaken: calculateTimeDiff(ticket.reported_date1, ticket.last_resolved_date)
+        timeTaken: calculateTimeDiff(ticket.reported_date1, ticket.last_resolved_date),
+        ticket: ticket // Store the full ticket data for modal
       }))
       .sort((a, b) => b.timeTaken - a.timeTaken)
-      .slice(0, 5);
+      .slice(0, 10);
 
     // Resolution Time Buckets
     const resolutionTimeBuckets = tickets
@@ -487,6 +525,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       .reduce((acc, ticket) => {
         const date = new Date(ticket.reported_date1);
         const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthDisplay = `${new Date(date.getFullYear(), date.getMonth()).toLocaleString('default', { month: 'short' })}-${String(date.getFullYear()).slice(-2)}`;
         const assignee = ticket.assignee || 'Unassigned';
         const priority = ticket.priority || 'Unknown';
         const resolutionTime = calculateTimeDiff(ticket.reported_date1, ticket.last_resolved_date);
@@ -495,6 +534,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         if (!acc[key]) {
           acc[key] = {
             monthYear,
+            monthDisplay,
             assignee,
             priority,
             lessThan1Hour: 0,
@@ -527,18 +567,23 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
         return acc;
       }, {} as Record<string, any>);
 
-    const resolutionTimeBucketsArray = Object.values(resolutionTimeBuckets) as Array<{ 
-      monthYear: string; 
-      assignee: string; 
-      priority: string; 
-      lessThan1Hour: number; 
-      oneToTwoHours: number; 
-      twoToFourHours: number; 
-      fourToEightHours: number; 
-      eightToTwelveHours: number; 
-      twelveToTwentyFourHours: number; 
-      moreThan24Hours: number; 
-    }>;
+    const resolutionTimeBucketsArray = Object.values(resolutionTimeBuckets)
+      .sort((a: any, b: any) => {
+        // Sort by monthYear in descending order (latest first)
+        return b.monthYear.localeCompare(a.monthYear);
+      }) as Array<{ 
+        monthYear: string; 
+        monthDisplay: string;
+        assignee: string; 
+        priority: string; 
+        lessThan1Hour: number; 
+        oneToTwoHours: number; 
+        twoToFourHours: number; 
+        fourToEightHours: number; 
+        eightToTwelveHours: number; 
+        twelveToTwentyFourHours: number; 
+        moreThan24Hours: number; 
+      }>;
 
     // 4. Categorization & Product Analysis
     const incidentsByOperationalCategory = Object.entries(
@@ -689,6 +734,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       assigneePerformanceMetrics,
       assigneeMTTRHeatmap,
       incidentsByPriorityAndStatus,
+      incidentsByPriorityStatusAndMonth: incidentsByPriorityStatusAndMonthArray,
       topMTTRIncidents,
       resolutionTimeBuckets: resolutionTimeBucketsArray,
       incidentsByOperationalCategory,
@@ -1145,77 +1191,120 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                       )}
                     </div>
                   </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={metrics.assigneeMTTRHeatmap.slice(0, 15)}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="assignee" angle={-45} textAnchor="end" height={80} />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value: any) => [formatTime(value), 'Avg MTTR']}
-                        labelFormatter={(label) => `Assignee: ${label}`}
-                      />
-                      <Bar dataKey="avgMTTR" fill="#8884d8">
-                        {metrics.assigneeMTTRHeatmap.slice(0, 15).map((entry, index) => {
-                          const maxMTTR = Math.max(...metrics.assigneeMTTRHeatmap.map(item => item.avgMTTR));
-                          const intensity = entry.avgMTTR / maxMTTR;
-                          const color = `rgba(255, 99, 132, ${0.3 + intensity * 0.7})`;
-                          return <Cell key={`cell-${index}`} fill={color} />;
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Incidents by Priority and Status Table */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                                  <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center justify-between">
-                  <div className="flex items-center">
-                    Incidents by Priority and Status
-                    <div className="ml-2 relative tooltip-container">
-                      <button
-                        onClick={() => toggleTooltip('priority-status-table')}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <HelpCircle className="w-4 h-4" />
-                      </button>
-                      {activeTooltip === 'priority-status-table' && (
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg z-10 max-w-xs">
-                          Shows the count of incidents grouped by priority and status combination.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => exportSectionData(
-                      'Incidents by Priority and Status',
-                      metrics.incidentsByPriorityAndStatus.map(item => [
-                        item.priority,
-                        item.status,
-                        item.count
-                      ]),
-                      ['Priority', 'Status', 'Count']
-                    )}
-                    className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 flex items-center"
-                  >
-                    <Download className="w-3 h-3 mr-1" />
-                    Export
-                  </button>
-                </h4>
                   <div className="overflow-x-auto">
                     <table className="w-full bg-white border border-gray-200">
                       <thead>
                         <tr className="bg-gray-50">
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Priority</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Status</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Count</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Assignee</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Avg MTTR</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {metrics.incidentsByPriorityAndStatus.slice(0, 15).map((item, index) => (
+                        {metrics.assigneeMTTRHeatmap.slice(0, 15).map((item, index) => {
+                          const maxMTTR = Math.max(...metrics.assigneeMTTRHeatmap.map(entry => entry.avgMTTR));
+                          const intensity = item.avgMTTR / maxMTTR;
+                          const bgColor = `rgba(255, 99, 132, ${0.1 + intensity * 0.6})`;
+                          const textColor = intensity > 0.5 ? 'text-white' : 'text-gray-900';
+                          return (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.assignee}</td>
+                              <td 
+                                className={`px-3 py-2 whitespace-nowrap text-sm font-medium border-b ${textColor}`}
+                                style={{ backgroundColor: bgColor }}
+                              >
+                                {formatTime(item.avgMTTR)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                                {/* Incidents by Priority and Status Table */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center justify-between">
+                    <div className="flex items-center">
+                      Incidents by Priority and Status
+                      <div className="ml-2 relative tooltip-container">
+                        <button
+                          onClick={() => toggleTooltip('priority-status-table')}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <HelpCircle className="w-4 h-4" />
+                        </button>
+                        {activeTooltip === 'priority-status-table' && (
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg z-10 max-w-xs">
+                            Shows the count of incidents grouped by month, priority and status. Status values are displayed as columns.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const statuses = new Set<string>();
+                        metrics.incidentsByPriorityStatusAndMonth.forEach((item: any) => {
+                          Object.keys(item).forEach(key => {
+                            if (key !== 'monthDisplay' && key !== 'priority') {
+                              statuses.add(key);
+                            }
+                          });
+                        });
+                        const sortedStatuses = Array.from(statuses).sort();
+                        const headers = ['Month/Year', 'Priority', ...sortedStatuses];
+                        const data = metrics.incidentsByPriorityStatusAndMonth.map((item: any) => [
+                          item.monthDisplay,
+                          item.priority,
+                          ...sortedStatuses.map(status => item[status] || 0)
+                        ]);
+                        exportSectionData('Incidents by Priority and Status', data, headers);
+                      }}
+                      className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 flex items-center"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Export
+                    </button>
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full bg-white border border-gray-200">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Month/Year</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Priority</th>
+                          {(() => {
+                            const statuses = new Set<string>();
+                            metrics.incidentsByPriorityStatusAndMonth.forEach((item: any) => {
+                              Object.keys(item).forEach(key => {
+                                if (key !== 'monthDisplay' && key !== 'priority') {
+                                  statuses.add(key);
+                                }
+                              });
+                            });
+                            return Array.from(statuses).sort().map(status => (
+                              <th key={status} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">{status}</th>
+                            ));
+                          })()}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {metrics.incidentsByPriorityStatusAndMonth.slice(0, 15).map((item, index) => (
                           <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.monthDisplay}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.priority}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.status}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.count}</td>
+                            {(() => {
+                              const statuses = new Set<string>();
+                              metrics.incidentsByPriorityStatusAndMonth.forEach((item: any) => {
+                                Object.keys(item).forEach(key => {
+                                  if (key !== 'monthDisplay' && key !== 'priority') {
+                                    statuses.add(key);
+                                  }
+                                });
+                              });
+                              return Array.from(statuses).sort().map(status => (
+                                <td key={status} className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item[status] || 0}</td>
+                              ));
+                            })()}
                           </tr>
                         ))}
                       </tbody>
@@ -1227,7 +1316,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                 <div className="bg-gray-50 rounded-lg p-4">
                                   <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center justify-between">
                   <div className="flex items-center">
-                    Top 5 Max MTTR Incidents
+                    Top 10 Max MTTR Incidents
                     <div className="ml-2 relative tooltip-container">
                       <button
                         onClick={() => toggleTooltip('top-mttr-incidents')}
@@ -1237,14 +1326,14 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                       </button>
                       {activeTooltip === 'top-mttr-incidents' && (
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg z-10 max-w-xs">
-                          Shows the top 5 incidents with the highest MTTR (Mean Time to Resolve) values.
+                          Shows the top 10 incidents with the highest MTTR (Mean Time to Resolve) values. Click the view icon to see ticket details.
                         </div>
                       )}
                     </div>
                   </div>
                   <button
                     onClick={() => exportSectionData(
-                      'Top 5 Max MTTR Incidents',
+                      'Top 10 Max MTTR Incidents',
                       metrics.topMTTRIncidents.map(item => [
                         item.incidentId,
                         item.priority,
@@ -1267,6 +1356,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Priority</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Assignee</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Time Taken</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -1276,6 +1366,21 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{incident.priority}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{incident.assignee}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{formatTime(incident.timeTaken)}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">
+                              <button
+                                onClick={() => {
+                                  setSelectedTicket(incident.ticket);
+                                  setShowTicketModal(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="View Details"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1303,22 +1408,22 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                     </div>
                   </div>
                   <button
-                    onClick={() => exportSectionData(
-                      'Resolution Time Buckets',
-                      metrics.resolutionTimeBuckets.map(item => [
-                        item.monthYear,
-                        item.assignee,
-                        item.priority,
-                        item.lessThan1Hour,
-                        item.oneToTwoHours,
-                        item.twoToFourHours,
-                        item.fourToEightHours,
-                        item.eightToTwelveHours,
-                        item.twelveToTwentyFourHours,
-                        item.moreThan24Hours
-                      ]),
-                      ['Month/Year', 'Assignee', 'Priority', '< 1 Hour', '1-2 Hours', '2-4 Hours', '4-8 Hours', '8-12 Hours', '12-24 Hours', '> 24 Hours']
-                    )}
+                                          onClick={() => exportSectionData(
+                        'Resolution Time Buckets',
+                        metrics.resolutionTimeBuckets.map(item => [
+                          item.monthDisplay,
+                          item.assignee,
+                          item.priority,
+                          item.lessThan1Hour,
+                          item.oneToTwoHours,
+                          item.twoToFourHours,
+                          item.fourToEightHours,
+                          item.eightToTwelveHours,
+                          item.twelveToTwentyFourHours,
+                          item.moreThan24Hours
+                        ]),
+                        ['Month/Year', 'Assignee', 'Priority', '< 1 Hour', '1-2 Hours', '2-4 Hours', '4-8 Hours', '8-12 Hours', '12-24 Hours', '> 24 Hours']
+                      )}
                     className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 flex items-center"
                   >
                     <Download className="w-3 h-3 mr-1" />
@@ -1344,7 +1449,7 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
                       <tbody className="bg-white divide-y divide-gray-200">
                         {metrics.resolutionTimeBuckets.slice(0, 15).map((item, index) => (
                           <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.monthYear}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.monthDisplay}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.assignee}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.priority}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{item.lessThan1Hour}</td>
@@ -1740,6 +1845,69 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
           </div>
         </div>
       </div>
+
+      {/* Ticket Details Modal */}
+      {showTicketModal && selectedTicket && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Ticket Details</h3>
+                <button
+                  onClick={() => setShowTicketModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-medium text-gray-700">Incident ID:</p>
+                  <p className="text-gray-900">{selectedTicket.incident_id || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Priority:</p>
+                  <p className="text-gray-900">{selectedTicket.priority || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Status:</p>
+                  <p className="text-gray-900">{selectedTicket.status || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Assignee:</p>
+                  <p className="text-gray-900">{selectedTicket.assignee || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Reported Date:</p>
+                  <p className="text-gray-900">{selectedTicket.reported_date1 || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Last Resolved Date:</p>
+                  <p className="text-gray-900">{selectedTicket.last_resolved_date || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Department:</p>
+                  <p className="text-gray-900">{selectedTicket.department || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Impact:</p>
+                  <p className="text-gray-900">{selectedTicket.impact || 'N/A'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="font-medium text-gray-700">Description:</p>
+                  <p className="text-gray-900">{selectedTicket.description || 'N/A'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="font-medium text-gray-700">Resolution:</p>
+                  <p className="text-gray-900">{selectedTicket.resolution || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
