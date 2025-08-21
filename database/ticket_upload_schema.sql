@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS uploaded_tickets (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     source_id UUID REFERENCES ticket_sources(id) ON DELETE CASCADE,
     mapping_id UUID REFERENCES ticket_upload_mappings(id) ON DELETE CASCADE,
-    incident_id VARCHAR(255) NOT NULL,
+    incident_id VARCHAR(255) NOT NULL UNIQUE,
     priority VARCHAR(50),
     region VARCHAR(255),
     assigned_support_organization VARCHAR(500),

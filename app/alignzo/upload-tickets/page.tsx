@@ -473,6 +473,9 @@ export default function UploadTicketsPage() {
       if (sessionError) throw sessionError;
       setCurrentSession(session);
 
+      // Create a cache for user mappings to avoid repeated database calls
+      const userMappingCache = new Map<string, string | null>();
+
        // Helper function to convert time format string to seconds
        const convertTimeToSeconds = (timeString: string): number | null => {
          if (!timeString || timeString.trim() === '') return null;
@@ -754,32 +757,33 @@ export default function UploadTicketsPage() {
                }
              };
 
-             // Helper function to get mapped user email from master mappings
-             const getMappedUserEmail = async (assigneeValue: string): Promise<string | null> => {
-               if (!assigneeValue || assigneeValue.trim() === '') return null;
-               
-               try {
-                 const { data: masterMapping, error } = await supabase
-                   .from('ticket_master_mappings')
-                   .select('mapped_user_email')
-                   .eq('source_id', selectedMapping.source_id)
-                   .eq('source_assignee_value', assigneeValue.trim())
-                   .eq('is_active', true)
-                   .single();
-
-                 if (error || !masterMapping) return null;
-                 return masterMapping.mapped_user_email;
-               } catch (error) {
-                 console.warn('Failed to get master mapping for assignee:', assigneeValue, error);
-                 return null;
-               }
-             };
-
              // Get mapped user email from master mappings only
              let mappedUserEmail = null;
              
-             if (ticket.assignee) {
-               mappedUserEmail = await getMappedUserEmail(ticket.assignee);
+             if (ticket.assignee && ticket.assignee.trim()) {
+               // Use the cached mapping if available, otherwise fetch it
+               const assigneeKey = ticket.assignee.trim();
+               if (!userMappingCache.has(assigneeKey)) {
+                 try {
+                   const { data: masterMapping, error } = await supabase
+                     .from('ticket_master_mappings')
+                     .select('mapped_user_email')
+                     .eq('source_id', selectedMapping.source_id)
+                     .eq('source_assignee_value', assigneeKey)
+                     .eq('is_active', true)
+                     .single();
+
+                   if (!error && masterMapping) {
+                     userMappingCache.set(assigneeKey, masterMapping.mapped_user_email);
+                   } else {
+                     userMappingCache.set(assigneeKey, null);
+                   }
+                 } catch (error) {
+                   console.warn('Failed to get master mapping for assignee:', assigneeKey, error);
+                   userMappingCache.set(assigneeKey, null);
+                 }
+               }
+               mappedUserEmail = userMappingCache.get(assigneeKey);
              }
 
              tickets.push({
