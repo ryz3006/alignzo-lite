@@ -11,7 +11,10 @@ const criticalDeps = [
   'react-dom',
   'tailwindcss',
   'autoprefixer',
-  'postcss'
+  'postcss',
+  'typescript',
+  '@types/react',
+  '@types/node'
 ];
 
 function checkDependency(dep) {
