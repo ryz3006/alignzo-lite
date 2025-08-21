@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials, searchAllJiraIssues } from '@/lib/jira';
+import { getJiraCredentials, searchJiraIssues } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userEmail, projectKey, maxResults = 100 } = await request.json();
+    const { userEmail, jql, maxResults = 100 } = await request.json();
 
     if (!userEmail) {
       return NextResponse.json(
@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!projectKey) {
+    if (!jql) {
       return NextResponse.json(
-        { error: 'Project key is required' },
+        { error: 'JQL query is required' },
         { status: 400 }
       );
     }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Search JIRA issues using the backend function
-    const result = await searchAllJiraIssues(credentials, projectKey, maxResults);
+    const result = await searchJiraIssues(credentials, jql, maxResults);
 
     if (!result.success) {
       return NextResponse.json(

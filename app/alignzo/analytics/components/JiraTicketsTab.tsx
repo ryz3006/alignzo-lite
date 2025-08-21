@@ -302,7 +302,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
           },
           body: JSON.stringify({
             userEmail: currentUser.email,
-            projectKey: jql.match(/project = "([^"]+)"/)?.[1] || '',
+            jql: jql,
             maxResults: 100
           }),
         });
