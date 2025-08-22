@@ -122,113 +122,56 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="absolute top-0 left-0 right-0 z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-            <span className="text-xl font-bold text-neutral-900">Alignzo</span>
-          </div>
-          <div className="hidden md:flex items-center space-x-6">
-            <a href="#features" className="text-neutral-600 hover:text-neutral-900 transition-colors">Features</a>
-            <a href="#about" className="text-neutral-600 hover:text-neutral-900 transition-colors">About</a>
-          </div>
+                     <div className="flex items-center space-x-3">
+             <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+             <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+           </div>
+                     <div className="hidden md:flex items-center space-x-6">
+             <a href="#features" className="text-neutral-600 hover:text-neutral-900 transition-colors">Features</a>
+           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-24 pb-16 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left Column - Content */}
-            <div className="text-center lg:text-left">
-              <div className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Professional Work Tracking Platform
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-6 leading-tight">
+             {/* Hero Section */}
+       <section className="relative pt-24 pb-16 px-6">
+         <div className="max-w-7xl mx-auto">
+           <div className="text-center max-w-4xl mx-auto">
+             <div className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
+               <CheckCircle className="h-4 w-4 mr-2" />
+               Professional Work Tracking Platform
+             </div>
+             
+                           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-6 leading-tight">
                 Welcome to{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-800">
-                  Alignzo
-                </span>
+                <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
               </h1>
-              
-              <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto lg:mx-0">
-                Professional work log tracking and productivity monitoring platform designed for modern teams.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link
-                  href="#login"
-                  className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
-                >
-                  <Chrome className="h-5 w-5" />
-                  <span>Get Started Now</span>
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-                
-                <Link
-                  href="/admin/login"
-                  className="btn-secondary text-lg px-8 py-4"
-                >
-                  Admin Access
-                </Link>
-              </div>
-            </div>
+             
+             <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
+               Professional work log tracking and productivity monitoring platform designed for modern teams.
+             </p>
+             
+             <div className="flex flex-col sm:flex-row gap-4 justify-center">
+               <button
+                 onClick={handleGoogleSignIn}
+                 className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
+               >
+                 <Chrome className="h-5 w-5" />
+                 <span>Get Started with Google</span>
+                 <ArrowRight className="h-5 w-5" />
+               </button>
+               
+               <Link
+                 href="/admin/login"
+                 className="btn-secondary text-lg px-8 py-4"
+               >
+                 Admin Access
+               </Link>
+             </div>
 
-                         {/* Right Column - Login Card */}
-             <div id="login" className="card max-w-md mx-auto lg:mx-0">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-8 w-8 text-primary-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-neutral-900 mb-2">
-                  Sign In to Your Workspace
-                </h2>
-                <p className="text-neutral-600">
-                  Access your productivity dashboard and start tracking
-                </p>
-              </div>
-
-              <div className="space-y-6">
-                <button
-                  onClick={handleGoogleSignIn}
-                  className="w-full flex items-center justify-center space-x-3 bg-white border-2 border-neutral-200 hover:border-neutral-300 text-neutral-700 font-medium px-6 py-4 rounded-xl transition-all duration-200 shadow-soft hover:shadow-medium"
-                >
-                  <Chrome className="h-5 w-5" />
-                  <span>Continue with Google</span>
-                </button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-neutral-200"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-neutral-500">or</span>
-                  </div>
-                </div>
-
-                <div className="text-center">
-                  <Link
-                    href="/admin/login"
-                    className="btn-secondary w-full"
-                  >
-                    Admin Login
-                  </Link>
-                </div>
-              </div>
-
-              <div className="mt-8 p-4 bg-primary-50 rounded-xl border border-primary-200">
-                <div className="flex items-start space-x-3">
-                  <Shield className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-primary-700">
-                    <p className="font-medium mb-1">Enterprise Security</p>
-                    <p>Your data is protected with bank-level security measures.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+             
+           </div>
+         </div>
+       </section>
 
       {/* Features Section */}
       <section id="features" className="py-16 px-6 bg-white">
@@ -298,10 +241,10 @@ export default function HomePage() {
       <footer className="bg-neutral-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
-            <div className="flex items-center justify-center space-x-3 mb-6">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-              <span className="text-xl font-bold">Alignzo</span>
-            </div>
+                         <div className="flex items-center justify-center space-x-3 mb-6">
+               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+             </div>
             <p className="text-neutral-400 mb-8 max-w-2xl mx-auto">
               Professional work log tracking and productivity monitoring platform designed for modern teams.
             </p>
@@ -333,9 +276,9 @@ export default function HomePage() {
           </div>
           
           <div className="border-t border-neutral-800 pt-8 text-center">
-            <p className="text-sm text-neutral-400">
-              &copy; 2024 Alignzo. All rights reserved.
-            </p>
+                         <p className="text-sm text-neutral-400">
+               &copy; {new Date().getFullYear()} All rights reserved.
+             </p>
           </div>
         </div>
       </footer>

@@ -16,10 +16,10 @@ export default function Footer() {
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-            <span className="text-xl font-bold">Alignzo</span>
-          </div>
+                       <div className="flex items-center justify-center space-x-3 mb-4">
+               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+             </div>
           <p className="text-neutral-400 mb-6">
             Professional work log tracking and productivity monitoring platform designed for modern teams.
           </p>
@@ -54,7 +54,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex items-center space-x-2 text-sm text-neutral-400">
-              <span>&copy; {currentYear} Alignzo. All rights reserved.</span>
+                             <span>&copy; {currentYear} All rights reserved.</span>
               <span className="hidden sm:inline">•</span>
               <span className="hidden sm:inline">Made with</span>
               <Heart className="h-4 w-4 text-red-500 hidden sm:inline" />

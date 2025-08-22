@@ -161,7 +161,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center space-x-3">
               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-8 flex-shrink-0" />
               {!sidebarCollapsed && (
-                <span className="text-xl font-bold text-neutral-900 dark:text-white">Alignzo</span>
+                <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
               )}
             </div>
             <div className="flex items-center space-x-2">
