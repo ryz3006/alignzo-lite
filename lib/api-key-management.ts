@@ -1,14 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { supabase } from './supabase';
-import { logSecurityEvent, SecurityEventType, LogLevel } from './logger';
-import { auditTrail, AuditEventType } from './audit-trail';
-import { monitoring } from './monitoring';
-import { hashPassword, verifyPassword, generateSecurePassword } from './password';
+import { supabaseClient } from './supabase-client';
+import crypto from 'crypto';
 
-// API key interface
-export interface APIKey {
-  id: string;
+export interface ApiKey {
+  id?: string;
   name: string;
   key_hash: string;
   user_email: string;
@@ -16,623 +10,503 @@ export interface APIKey {
   is_active: boolean;
   last_used?: string;
   expires_at?: string;
-  created_at: string;
-  created_by: string;
-  metadata?: any;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// API key usage interface
-export interface APIKeyUsage {
-  id: string;
+export interface ApiKeyUsage {
+  id?: string;
   api_key_id: string;
   endpoint: string;
   method: string;
-  user_email: string;
-  ip_address: string;
-  user_agent: string;
   response_status: number;
   response_time: number;
-  timestamp: string;
-  metadata?: any;
+  ip_address?: string;
+  user_agent?: string;
+  used_at?: string;
 }
 
-// API key permissions
-export enum APIKeyPermission {
-  READ_USERS = 'read_users',
-  WRITE_USERS = 'write_users',
-  READ_PROJECTS = 'read_projects',
-  WRITE_PROJECTS = 'write_projects',
-  READ_WORKLOGS = 'read_worklogs',
-  WRITE_WORKLOGS = 'write_worklogs',
-  READ_INTEGRATIONS = 'read_integrations',
-  WRITE_INTEGRATIONS = 'write_integrations',
-  ADMIN_ACCESS = 'admin_access',
-  EXPORT_DATA = 'export_data',
-  IMPORT_DATA = 'import_data'
+export interface ApiKeyPolicy {
+  maxKeysPerUser: number;
+  keyExpirationDays: number;
+  maxRequestsPerMinute: number;
+  allowedEndpoints: string[];
+  blockedEndpoints: string[];
 }
 
-// API key validation schemas
-export const apiKeySchemas = {
-  create: z.object({
-    name: z.string().min(1, 'API key name is required').max(100, 'Name too long'),
-    permissions: z.array(z.nativeEnum(APIKeyPermission)).min(1, 'At least one permission required'),
-    expires_at: z.string().datetime().optional(),
-    metadata: z.record(z.any()).optional()
-  }),
-  
-  update: z.object({
-    name: z.string().min(1, 'API key name is required').max(100, 'Name too long').optional(),
-    permissions: z.array(z.nativeEnum(APIKeyPermission)).optional(),
-    is_active: z.boolean().optional(),
-    expires_at: z.string().datetime().optional(),
-    metadata: z.record(z.any()).optional()
-  }),
-  
-  usage: z.object({
-    endpoint: z.string().min(1, 'Endpoint is required'),
-    method: z.string().min(1, 'Method is required'),
-    response_status: z.number().int().min(100).max(599),
-    response_time: z.number().positive(),
-    metadata: z.record(z.any()).optional()
-  })
-};
+export class ApiKeyManager {
+  private static instance: ApiKeyManager;
+  private policy: ApiKeyPolicy;
 
-// API key manager class
-export class APIKeyManager {
-  private readonly KEY_PREFIX = 'ak_';
-  private readonly KEY_LENGTH = 32;
-
-  // Generate a new API key
-  async generateAPIKey(
-    userEmail: string,
-    name: string,
-    permissions: APIKeyPermission[],
-    createdBy: string,
-    expiresAt?: string,
-    metadata?: any
-  ): Promise<{ apiKey: string; apiKeyRecord: APIKey }> {
-    // Generate secure API key
-    const apiKey = this.generateSecureAPIKey();
-    const keyHash = await hashPassword(apiKey);
-
-    // Create API key record
-    const apiKeyRecord: Omit<APIKey, 'id' | 'created_at'> = {
-      name,
-      key_hash: keyHash,
-      user_email: userEmail,
-      permissions,
-      is_active: true,
-      expires_at: expiresAt,
-      created_by: createdBy,
-      metadata
-    };
-
-    const { data, error } = await supabase
-      .from('api_keys')
-      .insert(apiKeyRecord)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create API key: ${error.message}`);
-    }
-
-    // Log API key creation
-    await auditTrail.logDataAccess(
-      createdBy,
-      AuditEventType.CREATE,
-      'api_keys',
-      data.id,
-      undefined,
-      { ...apiKeyRecord, key_hash: '[REDACTED]' }
-    );
-
-    return {
-      apiKey,
-      apiKeyRecord: data
+  private constructor() {
+    this.policy = {
+      maxKeysPerUser: parseInt(process.env.API_MAX_KEYS_PER_USER || '5'),
+      keyExpirationDays: parseInt(process.env.API_KEY_EXPIRATION_DAYS || '365'),
+      maxRequestsPerMinute: parseInt(process.env.API_MAX_REQUESTS_PER_MINUTE || '100'),
+      allowedEndpoints: process.env.API_ALLOWED_ENDPOINTS?.split(',') || ['*'],
+      blockedEndpoints: process.env.API_BLOCKED_ENDPOINTS?.split(',') || []
     };
   }
 
-  // Validate API key
-  async validateAPIKey(
-    apiKey: string,
-    requiredPermissions: APIKeyPermission[] = []
-  ): Promise<{ isValid: boolean; userEmail?: string; permissions?: string[]; error?: string }> {
+  public static getInstance(): ApiKeyManager {
+    if (!ApiKeyManager.instance) {
+      ApiKeyManager.instance = new ApiKeyManager();
+    }
+    return ApiKeyManager.instance;
+  }
+
+  async generateApiKey(
+    name: string,
+    userEmail: string,
+    permissions: string[] = ['read'],
+    expiresAt?: Date
+  ): Promise<{ key: string; apiKey: ApiKey } | null> {
     try {
-      // Find API key by hash
-      const { data: apiKeyRecord, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('is_active', true)
-        .single();
-
-      if (error || !apiKeyRecord) {
-        return { isValid: false, error: 'Invalid API key' };
+      // Check if user has too many active keys
+      const activeKeys = await this.getUserApiKeys(userEmail);
+      if (activeKeys.length >= this.policy.maxKeysPerUser) {
+        throw new Error(`User already has maximum number of API keys (${this.policy.maxKeysPerUser})`);
       }
 
-      // Verify API key hash
-      const isValidHash = await verifyPassword(apiKey, apiKeyRecord.key_hash);
-      if (!isValidHash) {
-        return { isValid: false, error: 'Invalid API key' };
+      // Generate API key
+      const key = `ak_${crypto.randomBytes(32).toString('hex')}`;
+      const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+      
+      // Set expiration
+      const expirationDate = expiresAt || new Date(Date.now() + this.policy.keyExpirationDays * 24 * 60 * 60 * 1000);
+
+      // Create API key record
+      const apiKey: Omit<ApiKey, 'id' | 'created_at' | 'updated_at'> = {
+        name,
+        key_hash: keyHash,
+        user_email: userEmail,
+        permissions,
+        is_active: true,
+        expires_at: expirationDate.toISOString()
+      };
+
+      const response = await supabaseClient.insert('api_keys', {
+        ...apiKey,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        console.error('Error creating API key:', response.error);
+        return null;
       }
 
-      // Check if expired
-      if (apiKeyRecord.expires_at && new Date(apiKeyRecord.expires_at) < new Date()) {
-        return { isValid: false, error: 'API key expired' };
+      return {
+        key,
+        apiKey: response.data
+      };
+    } catch (error) {
+      console.error('Error generating API key:', error);
+      return null;
+    }
+  }
+
+  async validateApiKey(key: string): Promise<{ valid: boolean; apiKey?: ApiKey; message: string }> {
+    try {
+      const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+      
+      const response = await supabaseClient.get('api_keys', {
+        select: '*',
+        filters: { key_hash: keyHash }
+      });
+
+      if (response.error || !response.data || response.data.length === 0) {
+        return {
+          valid: false,
+          message: 'Invalid API key'
+        };
       }
 
-      // Check permissions
-      if (requiredPermissions.length > 0) {
-        const hasRequiredPermissions = requiredPermissions.every(permission =>
-          apiKeyRecord.permissions.includes(permission)
-        );
+      const apiKey = response.data[0];
 
-        if (!hasRequiredPermissions) {
-          return { isValid: false, error: 'Insufficient permissions' };
-        }
+      // Check if key is active
+      if (!apiKey.is_active) {
+        return {
+          valid: false,
+          message: 'API key is inactive'
+        };
+      }
+
+      // Check if key is expired
+      if (apiKey.expires_at && new Date(apiKey.expires_at) < new Date()) {
+        return {
+          valid: false,
+          message: 'API key has expired'
+        };
       }
 
       // Update last used timestamp
-      await this.updateLastUsed(apiKeyRecord.id);
+      await this.updateApiKeyLastUsed(apiKey.id!);
 
       return {
-        isValid: true,
-        userEmail: apiKeyRecord.user_email,
-        permissions: apiKeyRecord.permissions
+        valid: true,
+        apiKey,
+        message: 'Valid API key'
       };
-
     } catch (error) {
-      console.error('API key validation error:', error);
-      return { isValid: false, error: 'Validation error' };
+      console.error('Error validating API key:', error);
+      return {
+        valid: false,
+        message: 'Error validating API key'
+      };
     }
   }
 
-  // Log API key usage
-  async logAPIKeyUsage(
+  async checkApiKeyPermissions(
+    key: string,
+    requiredPermissions: string[]
+  ): Promise<{ hasPermission: boolean; apiKey?: ApiKey; message: string }> {
+    try {
+      const validation = await this.validateApiKey(key);
+      if (!validation.valid) {
+        return {
+          hasPermission: false,
+          message: validation.message
+        };
+      }
+
+      const apiKey = validation.apiKey!;
+      
+      // Check if user has required permissions
+      const hasAllPermissions = requiredPermissions.every(permission => 
+        apiKey.permissions.includes(permission) || apiKey.permissions.includes('admin')
+      );
+
+      if (!hasAllPermissions) {
+        return {
+          hasPermission: false,
+          apiKey,
+          message: 'Insufficient permissions'
+        };
+      }
+
+      return {
+        hasPermission: true,
+        apiKey,
+        message: 'Permissions validated'
+      };
+    } catch (error) {
+      console.error('Error checking API key permissions:', error);
+      return {
+        hasPermission: false,
+        message: 'Error checking permissions'
+      };
+    }
+  }
+
+  async getUserApiKeys(userEmail: string): Promise<ApiKey[]> {
+    try {
+      const response = await supabaseClient.get('api_keys', {
+        select: '*',
+        filters: { user_email: userEmail },
+        order: { column: 'created_at', ascending: false }
+      });
+
+      if (response.error) {
+        console.error('Error getting user API keys:', response.error);
+        return [];
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting user API keys:', error);
+      return [];
+    }
+  }
+
+  async deactivateApiKey(keyId: string): Promise<boolean> {
+    try {
+      const response = await supabaseClient.update('api_keys', keyId, {
+        is_active: false,
+        updated_at: new Date().toISOString()
+      });
+
+      return !response.error;
+    } catch (error) {
+      console.error('Error deactivating API key:', error);
+      return false;
+    }
+  }
+
+  async deleteApiKey(keyId: string): Promise<boolean> {
+    try {
+      const response = await supabaseClient.delete('api_keys', keyId);
+      return !response.error;
+    } catch (error) {
+      console.error('Error deleting API key:', error);
+      return false;
+    }
+  }
+
+  async updateApiKeyPermissions(
+    keyId: string,
+    permissions: string[]
+  ): Promise<boolean> {
+    try {
+      const response = await supabaseClient.update('api_keys', keyId, {
+        permissions,
+        updated_at: new Date().toISOString()
+      });
+
+      return !response.error;
+    } catch (error) {
+      console.error('Error updating API key permissions:', error);
+      return false;
+    }
+  }
+
+  async updateApiKeyLastUsed(keyId: string): Promise<void> {
+    try {
+      await supabaseClient.update('api_keys', keyId, {
+        last_used: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating API key last used:', error);
+    }
+  }
+
+  async logApiKeyUsage(
     apiKeyId: string,
-    userEmail: string,
-    request: NextRequest,
+    endpoint: string,
+    method: string,
     responseStatus: number,
     responseTime: number,
-    metadata?: any
+    ipAddress?: string,
+    userAgent?: string
   ): Promise<void> {
-    const usage: Omit<APIKeyUsage, 'id' | 'timestamp'> = {
-      api_key_id: apiKeyId,
-      endpoint: request.url,
-      method: request.method,
-      user_email: userEmail,
-      ip_address: this.extractIP(request),
-      user_agent: this.extractUserAgent(request),
-      response_status: responseStatus,
-      response_time: responseTime,
-      metadata
-    };
+    try {
+      const usage: Omit<ApiKeyUsage, 'id' | 'used_at'> = {
+        api_key_id: apiKeyId,
+        endpoint,
+        method,
+        response_status: responseStatus,
+        response_time: responseTime,
+        ip_address: ipAddress,
+        user_agent: userAgent
+      };
 
-    const { error } = await supabase
-      .from('api_key_usage')
-      .insert(usage);
-
-    if (error) {
-      console.error('Failed to log API key usage:', error);
+      await supabaseClient.insert('api_key_usage', {
+        ...usage,
+        used_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error logging API key usage:', error);
     }
-
-    // Log to audit trail
-    await auditTrail.logDataAccess(
-      userEmail,
-      AuditEventType.READ,
-      'api_key_usage',
-      apiKeyId,
-      undefined,
-      { ...usage, api_key_id: '[REDACTED]' }
-    );
   }
 
-  // Get API keys for user
-  async getUserAPIKeys(userEmail: string): Promise<APIKey[]> {
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_email', userEmail)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch API keys: ${error.message}`);
-    }
-
-    return data || [];
-  }
-
-  // Update API key
-  async updateAPIKey(
+  async getApiKeyUsage(
     apiKeyId: string,
-    updates: Partial<APIKey>,
-    updatedBy: string
-  ): Promise<APIKey> {
-    // Get current API key
-    const { data: currentKey, error: fetchError } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('id', apiKeyId)
-      .single();
-
-    if (fetchError || !currentKey) {
-      throw new Error('API key not found');
-    }
-
-    // Update API key
-    const { data, error } = await supabase
-      .from('api_keys')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-        updated_by: updatedBy
-      })
-      .eq('id', apiKeyId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update API key: ${error.message}`);
-    }
-
-    // Log update
-    await auditTrail.logDataAccess(
-      updatedBy,
-      AuditEventType.UPDATE,
-      'api_keys',
-      apiKeyId,
-      currentKey,
-      data
-    );
-
-    return data;
-  }
-
-  // Deactivate API key
-  async deactivateAPIKey(apiKeyId: string, deactivatedBy: string): Promise<void> {
-    const { error } = await supabase
-      .from('api_keys')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-        updated_by: deactivatedBy
-      })
-      .eq('id', apiKeyId);
-
-    if (error) {
-      throw new Error(`Failed to deactivate API key: ${error.message}`);
-    }
-
-    // Log deactivation
-    await auditTrail.logDataAccess(
-      deactivatedBy,
-      AuditEventType.UPDATE,
-      'api_keys',
-      apiKeyId,
-      { is_active: true },
-      { is_active: false }
-    );
-  }
-
-  // Delete API key
-  async deleteAPIKey(apiKeyId: string, deletedBy: string): Promise<void> {
-    const { error } = await supabase
-      .from('api_keys')
-      .delete()
-      .eq('id', apiKeyId);
-
-    if (error) {
-      throw new Error(`Failed to delete API key: ${error.message}`);
-    }
-
-    // Log deletion
-    await auditTrail.logDataAccess(
-      deletedBy,
-      AuditEventType.DELETE,
-      'api_keys',
-      apiKeyId
-    );
-  }
-
-  // Get API key usage statistics
-  async getAPIKeyUsageStats(
-    apiKeyId?: string,
-    userEmail?: string,
-    startDate?: string,
-    endDate?: string
-  ): Promise<{
-    totalRequests: number;
-    successfulRequests: number;
-    failedRequests: number;
-    averageResponseTime: number;
-    requestsByEndpoint: Record<string, number>;
-    requestsByStatus: Record<string, number>;
-  }> {
-    let query = supabase
-      .from('api_key_usage')
-      .select('*');
-
-    if (apiKeyId) {
-      query = query.eq('api_key_id', apiKeyId);
-    }
-
-    if (userEmail) {
-      query = query.eq('user_email', userEmail);
-    }
-
-    if (startDate) {
-      query = query.gte('timestamp', startDate);
-    }
-
-    if (endDate) {
-      query = query.lte('timestamp', endDate);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch API key usage: ${error.message}`);
-    }
-
-    const usage = data || [];
-
-    const stats = {
-      totalRequests: usage.length,
-      successfulRequests: usage.filter(u => u.response_status < 400).length,
-      failedRequests: usage.filter(u => u.response_status >= 400).length,
-      averageResponseTime: usage.length > 0 
-        ? usage.reduce((sum, u) => sum + u.response_time, 0) / usage.length 
-        : 0,
-      requestsByEndpoint: {} as Record<string, number>,
-      requestsByStatus: {} as Record<string, number>
-    };
-
-    usage.forEach(u => {
-      // Count by endpoint
-      const endpoint = u.endpoint.split('?')[0]; // Remove query params
-      stats.requestsByEndpoint[endpoint] = (stats.requestsByEndpoint[endpoint] || 0) + 1;
+    startTime?: string,
+    endTime?: string,
+    limit: number = 100
+  ): Promise<ApiKeyUsage[]> {
+    try {
+      const filters: any = { api_key_id: apiKeyId };
       
-      // Count by status
-      const statusGroup = Math.floor(u.response_status / 100) * 100;
-      stats.requestsByStatus[statusGroup.toString()] = (stats.requestsByStatus[statusGroup.toString()] || 0) + 1;
-    });
+      if (startTime) filters.used_at = { gte: startTime };
+      if (endTime) filters.used_at = { lte: endTime };
 
-    return stats;
-  }
+      const response = await supabaseClient.get('api_key_usage', {
+        select: '*',
+        filters,
+        order: { column: 'used_at', ascending: false },
+        limit
+      });
 
-  // Rotate API key
-  async rotateAPIKey(
-    apiKeyId: string,
-    rotatedBy: string
-  ): Promise<{ newApiKey: string; apiKeyRecord: APIKey }> {
-    // Get current API key
-    const { data: currentKey, error: fetchError } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('id', apiKeyId)
-      .single();
+      if (response.error) {
+        console.error('Error getting API key usage:', response.error);
+        return [];
+      }
 
-    if (fetchError || !currentKey) {
-      throw new Error('API key not found');
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting API key usage:', error);
+      return [];
     }
+  }
 
-    // Generate new API key
-    const newApiKey = this.generateSecureAPIKey();
-    const newKeyHash = await hashPassword(newApiKey);
+  async checkRateLimit(apiKeyId: string): Promise<{ allowed: boolean; remaining: number; resetTime: string }> {
+    try {
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      
+      const response = await supabaseClient.get('api_key_usage', {
+        select: 'id',
+        filters: {
+          api_key_id: apiKeyId,
+          used_at: { gte: oneMinuteAgo.toISOString() }
+        }
+      });
 
-    // Update with new hash
-    const { data, error } = await supabase
-      .from('api_keys')
-      .update({
-        key_hash: newKeyHash,
-        updated_at: new Date().toISOString(),
-        updated_by: rotatedBy
-      })
-      .eq('id', apiKeyId)
-      .select()
-      .single();
+      if (response.error) {
+        return {
+          allowed: true,
+          remaining: this.policy.maxRequestsPerMinute,
+          resetTime: new Date(Date.now() + 60 * 1000).toISOString()
+        };
+      }
 
-    if (error) {
-      throw new Error(`Failed to rotate API key: ${error.message}`);
+      const usageCount = response.data?.length || 0;
+      const remaining = Math.max(0, this.policy.maxRequestsPerMinute - usageCount);
+      const resetTime = new Date(Date.now() + 60 * 1000).toISOString();
+
+      return {
+        allowed: remaining > 0,
+        remaining,
+        resetTime
+      };
+    } catch (error) {
+      console.error('Error checking rate limit:', error);
+      return {
+        allowed: true,
+        remaining: this.policy.maxRequestsPerMinute,
+        resetTime: new Date(Date.now() + 60 * 1000).toISOString()
+      };
     }
-
-    // Log rotation
-    await auditTrail.logDataAccess(
-      rotatedBy,
-      AuditEventType.UPDATE,
-      'api_keys',
-      apiKeyId,
-      { key_hash: '[REDACTED]' },
-      { key_hash: '[REDACTED]', updated_at: data.updated_at }
-    );
-
-    return {
-      newApiKey,
-      apiKeyRecord: data
-    };
   }
 
-  // Generate secure API key
-  private generateSecureAPIKey(): string {
-    const randomBytes = generateSecurePassword(this.KEY_LENGTH);
-    return this.KEY_PREFIX + randomBytes;
+  async cleanupExpiredKeys(): Promise<number> {
+    try {
+      const now = new Date();
+      
+      const response = await supabaseClient.get('api_keys', {
+        select: 'id',
+        filters: {
+          expires_at: { lt: now.toISOString() },
+          is_active: true
+        }
+      });
+
+      if (response.error || !response.data) {
+        return 0;
+      }
+
+      let cleanedCount = 0;
+      for (const key of response.data) {
+        if (await this.deactivateApiKey(key.id)) {
+          cleanedCount++;
+        }
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up expired API keys:', error);
+      return 0;
+    }
   }
 
-  // Update last used timestamp
-  private async updateLastUsed(apiKeyId: string): Promise<void> {
-    await supabase
-      .from('api_keys')
-      .update({ last_used: new Date().toISOString() })
-      .eq('id', apiKeyId);
+  async cleanupOldUsageLogs(retentionDays: number = 30): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      
+      const response = await supabaseClient.get('api_key_usage', {
+        select: 'id',
+        filters: {
+          used_at: { lt: cutoffDate.toISOString() }
+        }
+      });
+
+      if (response.error || !response.data) {
+        return 0;
+      }
+
+      let cleanedCount = 0;
+      for (const usage of response.data) {
+        await supabaseClient.delete('api_key_usage', usage.id);
+        cleanedCount++;
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up old usage logs:', error);
+      return 0;
+    }
   }
 
-  // Extract IP address from request
-  private extractIP(request: NextRequest): string {
-    return request.headers.get('x-forwarded-for') || 
-           request.headers.get('x-real-ip') || 
-           request.ip || 
-           'unknown';
+  async getApiKeyStats(userEmail?: string): Promise<{
+    totalKeys: number;
+    activeKeys: number;
+    expiredKeys: number;
+    totalUsage: number;
+  }> {
+    try {
+      const filters: any = {};
+      if (userEmail) filters.user_email = userEmail;
+
+      const keysResponse = await supabaseClient.get('api_keys', {
+        select: 'id,is_active,expires_at',
+        filters
+      });
+
+      if (keysResponse.error) {
+        return { totalKeys: 0, activeKeys: 0, expiredKeys: 0, totalUsage: 0 };
+      }
+
+      const keys = keysResponse.data || [];
+      const now = new Date();
+
+      const stats = {
+        totalKeys: keys.length,
+        activeKeys: keys.filter(k => k.is_active).length,
+        expiredKeys: keys.filter(k => k.expires_at && new Date(k.expires_at) < now).length,
+        totalUsage: 0
+      };
+
+      // Get total usage count
+      const usageResponse = await supabaseClient.get('api_key_usage', {
+        select: 'id',
+        filters: userEmail ? { 'api_keys.user_email': userEmail } : {}
+      });
+
+      if (!usageResponse.error && usageResponse.data) {
+        stats.totalUsage = usageResponse.data.length;
+      }
+
+      return stats;
+    } catch (error) {
+      console.error('Error getting API key stats:', error);
+      return { totalKeys: 0, activeKeys: 0, expiredKeys: 0, totalUsage: 0 };
+    }
   }
 
-  // Extract user agent from request
-  private extractUserAgent(request: NextRequest): string {
-    return request.headers.get('user-agent') || 'unknown';
+  async getPolicy(): Promise<ApiKeyPolicy> {
+    return this.policy;
+  }
+
+  async updatePolicy(newPolicy: Partial<ApiKeyPolicy>): Promise<void> {
+    this.policy = { ...this.policy, ...newPolicy };
   }
 }
 
 // Global API key manager instance
-export const apiKeyManager = new APIKeyManager();
+export const apiKeyManager = ApiKeyManager.getInstance();
 
-// API key middleware
-export function withAPIKeyAuth(
-  requiredPermissions: APIKeyPermission[] = []
-) {
-  return function(handler: (request: NextRequest, userEmail: string, permissions: string[]) => Promise<NextResponse>) {
-    return async function(request: NextRequest): Promise<NextResponse> {
-      const startTime = Date.now();
-      
-      try {
-        // Extract API key from request
-        const apiKey = extractAPIKey(request);
-        if (!apiKey) {
-          return NextResponse.json(
-            { error: 'API key required' },
-            { status: 401 }
-          );
-        }
-
-        // Validate API key
-        const validation = await apiKeyManager.validateAPIKey(apiKey, requiredPermissions);
-        if (!validation.isValid) {
-          // Log failed authentication
-          await logSecurityEvent(
-            SecurityEventType.UNAUTHORIZED_ACCESS,
-            {
-              endpoint: request.url,
-              method: request.method,
-              error: validation.error
-            },
-            request,
-            LogLevel.WARN
-          );
-
-          return NextResponse.json(
-            { error: validation.error || 'Invalid API key' },
-            { status: 401 }
-          );
-        }
-
-        // Process request
-        const response = await handler(request, validation.userEmail!, validation.permissions!);
-        
-        // Log successful usage
-        await apiKeyManager.logAPIKeyUsage(
-          'api-key-id', // You'll need to get this from the validation
-          validation.userEmail!,
-          request,
-          response.status,
-          Date.now() - startTime
-        );
-
-        return response;
-
-      } catch (error) {
-        // Log error
-        await logSecurityEvent(
-          SecurityEventType.SUSPICIOUS_ACTIVITY,
-          {
-            endpoint: request.url,
-            method: request.method,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          },
-          request,
-          LogLevel.ERROR
-        );
-
-        throw error;
-      }
-    };
-  };
+// Helper functions
+export async function generateApiKey(
+  name: string,
+  userEmail: string,
+  permissions?: string[]
+): Promise<{ key: string; apiKey: ApiKey } | null> {
+  return await apiKeyManager.generateApiKey(name, userEmail, permissions);
 }
 
-// Extract API key from request
-function extractAPIKey(request: NextRequest): string | null {
-  // Check Authorization header
-  const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7);
-  }
-
-  // Check X-API-Key header
-  const apiKeyHeader = request.headers.get('x-api-key');
-  if (apiKeyHeader) {
-    return apiKeyHeader;
-  }
-
-  // Check query parameter
-  const url = new URL(request.url);
-  const apiKeyParam = url.searchParams.get('api_key');
-  if (apiKeyParam) {
-    return apiKeyParam;
-  }
-
-  return null;
+export async function validateApiKey(key: string): Promise<{ valid: boolean; apiKey?: ApiKey; message: string }> {
+  return await apiKeyManager.validateApiKey(key);
 }
 
-// API key management endpoints
-export async function createAPIKeyEndpoint(request: NextRequest): Promise<NextResponse> {
-  try {
-    const body = await request.json();
-    const validatedData = apiKeySchemas.create.parse(body);
-
-    const { apiKey, apiKeyRecord } = await apiKeyManager.generateAPIKey(
-      'user@example.com', // Extract from auth
-      validatedData.name,
-      validatedData.permissions,
-      'user@example.com', // Extract from auth
-      validatedData.expires_at,
-      validatedData.metadata
-    );
-
-    return NextResponse.json({
-      message: 'API key created successfully',
-      apiKey,
-      apiKeyRecord: {
-        ...apiKeyRecord,
-        key_hash: '[REDACTED]'
-      }
-    });
-
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to create API key' },
-      { status: 500 }
-    );
-  }
+export async function checkApiKeyPermissions(
+  key: string,
+  requiredPermissions: string[]
+): Promise<{ hasPermission: boolean; apiKey?: ApiKey; message: string }> {
+  return await apiKeyManager.checkApiKeyPermissions(key, requiredPermissions);
 }
 
-export async function listAPIKeysEndpoint(request: NextRequest): Promise<NextResponse> {
-  try {
-    const apiKeys = await apiKeyManager.getUserAPIKeys('user@example.com'); // Extract from auth
-
-    return NextResponse.json({
-      apiKeys: apiKeys.map(key => ({
-        ...key,
-        key_hash: '[REDACTED]'
-      }))
-    });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to fetch API keys' },
-      { status: 500 }
-    );
-  }
+export async function getUserApiKeys(userEmail: string): Promise<ApiKey[]> {
+  return await apiKeyManager.getUserApiKeys(userEmail);
 }

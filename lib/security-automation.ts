@@ -1,734 +1,479 @@
-import { supabase } from './supabase';
-import { logSecurityEvent, SecurityEventType } from './logger';
-import { auditTrail, AuditEventType } from './audit-trail';
-import { getEncryption } from './encryption';
-import { getSessionManager } from './session-management';
-import { getPenetrationTesting } from './penetration-testing';
+import { supabaseClient } from './supabase-client';
 
-// Automation workflow configuration
-interface AutomationConfig {
-  enabled: boolean;
-  checkInterval: number; // minutes
-  autoBlockThreshold: number;
-  autoCleanupEnabled: boolean;
-  alertOnAnomaly: boolean;
-  maxRetries: number;
-}
-
-// Default automation configuration
-const defaultAutomationConfig: AutomationConfig = {
-  enabled: true,
-  checkInterval: 15, // 15 minutes
-  autoBlockThreshold: 5,
-  autoCleanupEnabled: true,
-  alertOnAnomaly: true,
-  maxRetries: 3
-};
-
-// Security automation workflow
-interface SecurityWorkflow {
-  id: string;
+export interface SecurityRule {
+  id?: string;
   name: string;
   description: string;
-  triggers: string[];
-  actions: string[];
-  conditions: any;
-  enabled: boolean;
-  last_run: string;
-  next_run: string;
-  status: 'active' | 'paused' | 'error';
+  rule_type: 'monitoring' | 'blocking' | 'alerting';
+  conditions: SecurityCondition[];
+  actions: SecurityAction[];
+  is_active: boolean;
+  priority: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// Automation action result
-interface AutomationResult {
-  workflow_id: string;
-  action: string;
-  status: 'success' | 'failed' | 'skipped';
-  details: any;
-  timestamp: string;
-  duration_ms: number;
+export interface SecurityCondition {
+  field: string;
+  operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'regex';
+  value: any;
 }
 
-export class SecurityAutomationFramework {
-  private config: AutomationConfig;
-  private workflows: Map<string, SecurityWorkflow> = new Map();
+export interface SecurityAction {
+  type: 'block_ip' | 'alert_admin' | 'log_event' | 'rate_limit' | 'require_2fa';
+  parameters?: Record<string, any>;
+}
+
+export interface SecurityEvent {
+  id?: string;
+  rule_id: string;
+  user_email?: string;
+  ip_address?: string;
+  event_type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  metadata?: any;
+  created_at?: string;
+  resolved_at?: string;
+  status: 'open' | 'investigating' | 'resolved' | 'false_positive';
+}
+
+export class SecurityAutomationManager {
+  private static instance: SecurityAutomationManager;
+  private rules: SecurityRule[] = [];
   private isRunning: boolean = false;
-  private intervalId: NodeJS.Timeout | null = null;
 
-  constructor(config: Partial<AutomationConfig> = {}) {
-    this.config = { ...defaultAutomationConfig, ...config };
-    this.initializeDefaultWorkflows();
-  }
+  private constructor() {}
 
-  // Initialize default security workflows
-  private initializeDefaultWorkflows(): void {
-    const defaultWorkflows: SecurityWorkflow[] = [
-      {
-        id: 'session_cleanup',
-        name: 'Session Cleanup',
-        description: 'Automatically clean up expired sessions',
-        triggers: ['scheduled'],
-        actions: ['cleanup_expired_sessions'],
-        conditions: { schedule: 'every_15_minutes' },
-        enabled: true,
-        last_run: '',
-        next_run: '',
-        status: 'active'
-      },
-      {
-        id: 'suspicious_activity_monitor',
-        name: 'Suspicious Activity Monitor',
-        description: 'Monitor and respond to suspicious activities',
-        triggers: ['security_event'],
-        actions: ['analyze_activity', 'block_if_needed', 'send_alert'],
-        conditions: { threshold: 3, time_window: '5_minutes' },
-        enabled: true,
-        last_run: '',
-        next_run: '',
-        status: 'active'
-      },
-      {
-        id: 'vulnerability_scan',
-        name: 'Vulnerability Scan',
-        description: 'Automated vulnerability scanning',
-        triggers: ['scheduled'],
-        actions: ['run_penetration_tests', 'analyze_results', 'create_report'],
-        conditions: { schedule: 'daily' },
-        enabled: true,
-        last_run: '',
-        next_run: '',
-        status: 'active'
-      },
-      {
-        id: 'data_archival',
-        name: 'Data Archival',
-        description: 'Automatically archive old data',
-        triggers: ['scheduled'],
-        actions: ['archive_old_data', 'cleanup_logs'],
-        conditions: { retention_days: 7 },
-        enabled: true,
-        last_run: '',
-        next_run: '',
-        status: 'active'
-      },
-      {
-        id: 'security_health_check',
-        name: 'Security Health Check',
-        description: 'Comprehensive security health monitoring',
-        triggers: ['scheduled'],
-        actions: ['check_security_status', 'validate_configurations', 'generate_report'],
-        conditions: { schedule: 'hourly' },
-        enabled: true,
-        last_run: '',
-        next_run: '',
-        status: 'active'
-      }
-    ];
-
-    defaultWorkflows.forEach(workflow => {
-      this.workflows.set(workflow.id, workflow);
-    });
-  }
-
-  // Start automation framework
-  async start(): Promise<void> {
-    if (this.isRunning) {
-      console.log('Security automation already running');
-      return;
+  public static getInstance(): SecurityAutomationManager {
+    if (!SecurityAutomationManager.instance) {
+      SecurityAutomationManager.instance = new SecurityAutomationManager();
     }
+    return SecurityAutomationManager.instance;
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      await this.loadRules();
+      await this.startMonitoring();
+    } catch (error) {
+      console.error('Error initializing security automation:', error);
+    }
+  }
+
+  async loadRules(): Promise<void> {
+    try {
+      const response = await supabaseClient.get('security_rules', {
+        select: '*',
+        filters: { is_active: true },
+        order: { column: 'priority', ascending: false }
+      });
+
+      if (response.error) {
+        console.error('Error loading security rules:', response.error);
+        return;
+      }
+
+      this.rules = response.data || [];
+      console.log(`Loaded ${this.rules.length} security rules`);
+    } catch (error) {
+      console.error('Error loading security rules:', error);
+    }
+  }
+
+  async createRule(rule: Omit<SecurityRule, 'id' | 'created_at' | 'updated_at'>): Promise<SecurityRule | null> {
+    try {
+      const response = await supabaseClient.insert('security_rules', {
+        ...rule,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        console.error('Error creating security rule:', response.error);
+        return null;
+      }
+
+      const newRule = response.data;
+      this.rules.push(newRule);
+      this.rules.sort((a, b) => b.priority - a.priority);
+
+      return newRule;
+    } catch (error) {
+      console.error('Error creating security rule:', error);
+      return null;
+    }
+  }
+
+  async updateRule(ruleId: string, updates: Partial<SecurityRule>): Promise<boolean> {
+    try {
+      const response = await supabaseClient.update('security_rules', ruleId, {
+        ...updates,
+        updated_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        console.error('Error updating security rule:', response.error);
+        return false;
+      }
+
+      // Update local rules
+      const index = this.rules.findIndex(r => r.id === ruleId);
+      if (index !== -1) {
+        this.rules[index] = { ...this.rules[index], ...updates };
+        this.rules.sort((a, b) => b.priority - a.priority);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating security rule:', error);
+      return false;
+    }
+  }
+
+  async deleteRule(ruleId: string): Promise<boolean> {
+    try {
+      const response = await supabaseClient.delete('security_rules', ruleId);
+
+      if (response.error) {
+        console.error('Error deleting security rule:', response.error);
+        return false;
+      }
+
+      // Remove from local rules
+      this.rules = this.rules.filter(r => r.id !== ruleId);
+      return true;
+    } catch (error) {
+      console.error('Error deleting security rule:', error);
+      return false;
+    }
+  }
+
+  async startMonitoring(): Promise<void> {
+    if (this.isRunning) return;
 
     this.isRunning = true;
-    console.log('Starting security automation framework...');
+    console.log('Security monitoring started');
 
-    // Run initial workflows
-    await this.runScheduledWorkflows();
-
-    // Set up periodic execution
-    this.intervalId = setInterval(async () => {
+    // Start monitoring loop
+    setInterval(async () => {
       if (this.isRunning) {
-        await this.runScheduledWorkflows();
+        await this.runSecurityChecks();
       }
-    }, this.config.checkInterval * 60 * 1000);
-
-    // Set up event listeners
-    this.setupEventListeners();
+    }, 30000); // Check every 30 seconds
   }
 
-  // Stop automation framework
-  stop(): void {
+  async stopMonitoring(): Promise<void> {
     this.isRunning = false;
-    
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-
-    console.log('Security automation framework stopped');
+    console.log('Security monitoring stopped');
   }
 
-  // Run scheduled workflows
-  private async runScheduledWorkflows(): Promise<void> {
-    const now = new Date();
-    
-    for (const workflow of Array.from(this.workflows.values())) {
-      if (!workflow.enabled || workflow.status !== 'active') {
-        continue;
-      }
+  private async runSecurityChecks(): Promise<void> {
+    try {
+      // Check for suspicious activities
+      await this.checkSuspiciousActivities();
+      
+      // Check for rate limit violations
+      await this.checkRateLimitViolations();
+      
+      // Check for unusual access patterns
+      await this.checkAccessPatterns();
+    } catch (error) {
+      console.error('Error running security checks:', error);
+    }
+  }
 
-      if (this.shouldRunWorkflow(workflow, now)) {
-        try {
-          await this.executeWorkflow(workflow);
-          workflow.last_run = now.toISOString();
-          workflow.next_run = this.calculateNextRun(workflow);
-        } catch (error) {
-          console.error(`Workflow ${workflow.name} failed:`, error);
-          workflow.status = 'error';
-          
-          await logSecurityEvent(
-            SecurityEventType.SUSPICIOUS_ACTIVITY,
-            {
-              message: `Security automation workflow failed: ${workflow.name}`,
-              workflow,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            }
-          );
+  private async checkSuspiciousActivities(): Promise<void> {
+    try {
+      // Get recent failed login attempts
+      const response = await supabaseClient.get('security_alerts', {
+        select: '*',
+        filters: {
+          alert_type: 'failed_login',
+          created_at: { gte: new Date(Date.now() - 5 * 60 * 1000).toISOString() } // Last 5 minutes
         }
-      }
-    }
-  }
+      });
 
-  // Execute a specific workflow
-  private async executeWorkflow(workflow: SecurityWorkflow): Promise<void> {
-    console.log(`Executing workflow: ${workflow.name}`);
-    const startTime = Date.now();
+      if (response.error || !response.data) return;
 
-    for (const action of workflow.actions) {
-      try {
-        await this.executeAction(action, workflow);
-        
-        // Log action result
-        await this.logAutomationResult({
-          workflow_id: workflow.id,
-          action,
-          status: 'success',
-          details: { workflow_name: workflow.name },
-          timestamp: new Date().toISOString(),
-          duration_ms: Date.now() - startTime
+      const failedLogins = response.data;
+      
+      // Check for brute force attempts
+      if (failedLogins.length > 10) {
+        await this.triggerSecurityAction('brute_force_detected', {
+          count: failedLogins.length,
+          timeWindow: '5 minutes'
         });
-
-      } catch (error) {
-        console.error(`Action ${action} failed in workflow ${workflow.name}:`, error);
-        
-        await this.logAutomationResult({
-          workflow_id: workflow.id,
-          action,
-          status: 'failed',
-          details: { 
-            workflow_name: workflow.name,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          },
-          timestamp: new Date().toISOString(),
-          duration_ms: Date.now() - startTime
-        });
-
-        throw error;
       }
+    } catch (error) {
+      console.error('Error checking suspicious activities:', error);
     }
   }
 
-  // Execute a specific action
-  private async executeAction(action: string, workflow: SecurityWorkflow): Promise<void> {
-    switch (action) {
-      case 'cleanup_expired_sessions':
-        await this.cleanupExpiredSessions();
-        break;
-      
-      case 'analyze_activity':
-        await this.analyzeSuspiciousActivity();
-        break;
-      
-      case 'block_if_needed':
-        await this.blockSuspiciousIPs();
-        break;
-      
-      case 'send_alert':
-        await this.sendSecurityAlert();
-        break;
-      
-      case 'run_penetration_tests':
-        await this.runPenetrationTests();
-        break;
-      
-      case 'analyze_results':
-        await this.analyzeTestResults();
-        break;
-      
-      case 'create_report':
-        await this.createSecurityReport();
-        break;
-      
-      case 'archive_old_data':
-        await this.archiveOldData();
-        break;
-      
-      case 'cleanup_logs':
-        await this.cleanupOldLogs();
-        break;
-      
-      case 'check_security_status':
-        await this.checkSecurityStatus();
-        break;
-      
-      case 'validate_configurations':
-        await this.validateSecurityConfigurations();
-        break;
-      
-      case 'generate_report':
-        await this.generateSecurityReport();
-        break;
-      
-      default:
-        throw new Error(`Unknown action: ${action}`);
-    }
-  }
-
-  // Action implementations
-  private async cleanupExpiredSessions(): Promise<void> {
-    const sessionManager = getSessionManager();
-    const cleanedCount = await sessionManager.cleanupExpiredSessions();
-    
-    if (cleanedCount > 0) {
-      console.log(`Cleaned up ${cleanedCount} expired sessions`);
-      
-      await auditTrail.logUserAction(
-        'system',
-        AuditEventType.CONFIGURATION_CHANGE,
-        `Cleaned up ${cleanedCount} expired sessions`,
-        undefined,
-        { cleanedCount }
-      );
-    }
-  }
-
-  private async analyzeSuspiciousActivity(): Promise<void> {
-    // Analyze recent security events for patterns
-    const { data: recentEvents } = await supabase
-      .from('security_alerts')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Last 5 minutes
-      .eq('acknowledged', false);
-
-    if (recentEvents && recentEvents.length > this.config.autoBlockThreshold) {
-      console.log(`Detected ${recentEvents.length} suspicious activities in the last 5 minutes`);
-      
-      await logSecurityEvent(
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        {
-          message: `High volume of suspicious activities detected: ${recentEvents.length} events`,
-          events: recentEvents
+  private async checkRateLimitViolations(): Promise<void> {
+    try {
+      // Get recent API calls
+      const response = await supabaseClient.get('audit_trail', {
+        select: '*',
+        filters: {
+          event_type: 'API_CALL',
+          created_at: { gte: new Date(Date.now() - 60 * 1000).toISOString() } // Last minute
         }
-      );
+      });
+
+      if (response.error || !response.data) return;
+
+      const apiCalls = response.data;
+      
+      // Group by IP address
+      const callsByIP: Record<string, number> = {};
+      apiCalls.forEach(call => {
+        const ip = call.ip_address || 'unknown';
+        callsByIP[ip] = (callsByIP[ip] || 0) + 1;
+      });
+
+      // Check for rate limit violations
+      Object.entries(callsByIP).forEach(([ip, count]) => {
+        if (count > 100) { // More than 100 calls per minute
+          this.triggerSecurityAction('rate_limit_violation', {
+            ip_address: ip,
+            call_count: count,
+            timeWindow: '1 minute'
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error checking rate limit violations:', error);
     }
   }
 
-  private async blockSuspiciousIPs(): Promise<void> {
-    if (!this.config.autoBlockThreshold) return;
+  private async checkAccessPatterns(): Promise<void> {
+    try {
+      // Get recent user access patterns
+      const response = await supabaseClient.get('audit_trail', {
+        select: '*',
+        filters: {
+          created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() } // Last 24 hours
+        },
+        order: { column: 'created_at', ascending: false }
+      });
 
-    // Get IPs with high suspicious activity
-    const { data: recentAlerts } = await supabase
-      .from('security_alerts')
-      .select('ip_address')
-      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+      if (response.error || !response.data) return;
 
-    // Count IPs manually
-    const ipCounts = new Map<string, number>();
-    if (recentAlerts) {
-      for (const alert of recentAlerts) {
-        ipCounts.set(alert.ip_address, (ipCounts.get(alert.ip_address) || 0) + 1);
-      }
+      const accessLogs = response.data;
+      
+      // Group by user
+      const accessByUser: Record<string, any[]> = {};
+      accessLogs.forEach(log => {
+        const user = log.user_email || 'anonymous';
+        if (!accessByUser[user]) {
+          accessByUser[user] = [];
+        }
+        accessByUser[user].push(log);
+      });
+
+      // Check for unusual patterns
+      Object.entries(accessByUser).forEach(([user, logs]) => {
+        if (logs.length > 1000) { // More than 1000 actions per day
+          this.triggerSecurityAction('unusual_activity', {
+            user_email: user,
+            action_count: logs.length,
+            timeWindow: '24 hours'
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error checking access patterns:', error);
     }
+  }
 
-    const suspiciousIPs = Array.from(ipCounts.entries())
-      .filter(([_, count]) => count >= this.config.autoBlockThreshold)
-      .map(([ip]) => ({ ip_address: ip }));
+  private async triggerSecurityAction(actionType: string, parameters: Record<string, any>): Promise<void> {
+    try {
+      // Find applicable rules
+      const applicableRules = this.rules.filter(rule => 
+        rule.conditions.some(condition => 
+          condition.field === 'action_type' && 
+          condition.operator === 'equals' && 
+          condition.value === actionType
+        )
+      );
 
-    if (suspiciousIPs) {
-      for (const ipData of suspiciousIPs) {
-        await this.blockIP(ipData.ip_address);
+      for (const rule of applicableRules) {
+        // Execute rule actions
+        for (const action of rule.actions) {
+          await this.executeAction(action, parameters);
+        }
+
+        // Log security event
+        await this.logSecurityEvent(rule, actionType, parameters);
       }
+    } catch (error) {
+      console.error('Error triggering security action:', error);
+    }
+  }
+
+  private async executeAction(action: SecurityAction, parameters: Record<string, any>): Promise<void> {
+    try {
+      switch (action.type) {
+        case 'block_ip':
+          await this.blockIP(parameters.ip_address);
+          break;
+        case 'alert_admin':
+          await this.alertAdmin(action, parameters);
+          break;
+        case 'log_event':
+          await this.logSecurityEvent(null, 'security_action', { action, parameters });
+          break;
+        case 'rate_limit':
+          await this.applyRateLimit(parameters.ip_address, action.parameters);
+          break;
+        case 'require_2fa':
+          await this.require2FA(parameters.user_email);
+          break;
+        default:
+          console.warn(`Unknown action type: ${action.type}`);
+      }
+    } catch (error) {
+      console.error('Error executing security action:', error);
     }
   }
 
   private async blockIP(ipAddress: string): Promise<void> {
-    // Add IP to blocked list
-    await supabase
-      .from('blocked_ips')
-      .upsert({
+    try {
+      // Add IP to blocked list
+      await supabaseClient.insert('blocked_ips', {
         ip_address: ipAddress,
-        reason: 'Automated blocking due to suspicious activity',
+        reason: 'Security automation',
         blocked_at: new Date().toISOString(),
-        blocked_by: 'security_automation'
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Block for 24 hours
       });
 
-    console.log(`Automatically blocked IP: ${ipAddress}`);
-    
-    await logSecurityEvent(
-      SecurityEventType.SUSPICIOUS_ACTIVITY,
-      {
-        message: `IP ${ipAddress} automatically blocked due to suspicious activity`,
-        ipAddress,
-        reason: 'Automated blocking'
+      console.log(`IP ${ipAddress} blocked by security automation`);
+    } catch (error) {
+      console.error('Error blocking IP:', error);
+    }
+  }
+
+  private async alertAdmin(action: SecurityAction, parameters: Record<string, any>): Promise<void> {
+    try {
+      // Create admin alert
+      await supabaseClient.insert('security_alerts', {
+        alert_type: 'admin_alert',
+        severity: 'high',
+        description: `Security automation triggered: ${action.type}`,
+        metadata: { action, parameters },
+        created_at: new Date().toISOString()
+      });
+
+      console.log('Admin alert created by security automation');
+    } catch (error) {
+      console.error('Error creating admin alert:', error);
+    }
+  }
+
+  private async applyRateLimit(ipAddress: string, rateLimitParams?: Record<string, any>): Promise<void> {
+    try {
+      const limit = rateLimitParams?.limit || 10;
+      const window = rateLimitParams?.window || 60; // seconds
+
+      // Add rate limit entry
+      await supabaseClient.insert('rate_limits', {
+        ip_address: ipAddress,
+        limit: limit,
+        window: window,
+        applied_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + window * 1000).toISOString()
+      });
+
+      console.log(`Rate limit applied to IP ${ipAddress}: ${limit} requests per ${window} seconds`);
+    } catch (error) {
+      console.error('Error applying rate limit:', error);
+    }
+  }
+
+  private async require2FA(userEmail: string): Promise<void> {
+    try {
+      // Update user to require 2FA
+      await supabaseClient.update('users', userEmail, {
+        require_2fa: true,
+        updated_at: new Date().toISOString()
+      });
+
+      console.log(`2FA required for user ${userEmail}`);
+    } catch (error) {
+      console.error('Error requiring 2FA:', error);
+    }
+  }
+
+  private async logSecurityEvent(
+    rule: SecurityRule | null,
+    eventType: string,
+    parameters: Record<string, any>
+  ): Promise<void> {
+    try {
+      await supabaseClient.insert('security_events', {
+        rule_id: rule?.id || 'system',
+        event_type: eventType,
+        severity: 'medium',
+        description: `Security automation event: ${eventType}`,
+        metadata: parameters,
+        created_at: new Date().toISOString(),
+        status: 'open'
+      });
+    } catch (error) {
+      console.error('Error logging security event:', error);
+    }
+  }
+
+  async getSecurityEvents(
+    filters?: {
+      rule_id?: string;
+      severity?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<SecurityEvent[]> {
+    try {
+      const queryFilters: any = {};
+      
+      if (filters?.rule_id) queryFilters.rule_id = filters.rule_id;
+      if (filters?.severity) queryFilters.severity = filters.severity;
+      if (filters?.status) queryFilters.status = filters.status;
+
+      const response = await supabaseClient.get('security_events', {
+        select: '*',
+        filters: queryFilters,
+        order: { column: 'created_at', ascending: false },
+        limit: filters?.limit || 100,
+        offset: filters?.offset || 0
+      });
+
+      if (response.error) {
+        console.error('Error getting security events:', response.error);
+        return [];
       }
-    );
-  }
 
-  private async sendSecurityAlert(): Promise<void> {
-    // Send alerts for critical security events
-    const { data: criticalAlerts } = await supabase
-      .from('security_alerts')
-      .select('*')
-      .eq('severity', 'CRITICAL')
-      .eq('acknowledged', false)
-      .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()); // Last hour
-
-    if (criticalAlerts && criticalAlerts.length > 0) {
-      console.log(`Sending alerts for ${criticalAlerts.length} critical security events`);
-      
-      // In a real implementation, you would send emails, Slack messages, etc.
-      await logSecurityEvent(
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        {
-          message: `Security alerts sent for ${criticalAlerts.length} critical events`,
-          alerts: criticalAlerts
-        }
-      );
-    }
-  }
-
-  private async runPenetrationTests(): Promise<void> {
-    const penTesting = getPenetrationTesting();
-    const results = await penTesting.runAllTests();
-    
-    console.log(`Penetration testing completed: ${results.length} tests run`);
-    
-    await auditTrail.logUserAction(
-      'system',
-      AuditEventType.SECURITY_EVENT,
-      `Automated penetration testing completed: ${results.length} tests`,
-      undefined,
-      { results }
-    );
-  }
-
-  private async analyzeTestResults(): Promise<void> {
-    // Analyze recent penetration test results
-    const { data: recentResults } = await supabase
-      .from('penetration_test_results')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
-      .eq('status', 'failed');
-
-    if (recentResults && recentResults.length > 0) {
-      console.log(`Found ${recentResults.length} failed penetration tests in the last 24 hours`);
-      
-      await logSecurityEvent(
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        {
-          message: `Penetration testing found ${recentResults.length} vulnerabilities`,
-          results: recentResults
-        }
-      );
-    }
-  }
-
-  private async createSecurityReport(): Promise<void> {
-    // Generate comprehensive security report
-    const report = {
-      timestamp: new Date().toISOString(),
-      security_status: await this.getSecurityStatus(),
-      recent_events: await this.getRecentSecurityEvents(),
-      recommendations: await this.generateRecommendations()
-    };
-
-    // Save report to database
-    await supabase
-      .from('security_reports')
-      .insert(report);
-
-    console.log('Security report generated and saved');
-  }
-
-  private async archiveOldData(): Promise<void> {
-    // Archive data older than retention period
-    const retentionDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
-    
-    // Archive old audit trail entries
-    const { data: archivedAudit } = await supabase
-      .from('audit_trail')
-      .select('*')
-      .lt('created_at', retentionDate.toISOString());
-
-    if (archivedAudit && archivedAudit.length > 0) {
-      // Move to archive table
-      await supabase
-        .from('audit_trail_archive')
-        .insert(archivedAudit);
-
-      // Delete from main table
-      await supabase
-        .from('audit_trail')
-        .delete()
-        .lt('created_at', retentionDate.toISOString());
-
-      console.log(`Archived ${archivedAudit.length} audit trail entries`);
-    }
-  }
-
-  private async cleanupOldLogs(): Promise<void> {
-    // Clean up old log files and database entries
-    const retentionDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
-    
-    // Clean up old security alerts
-    await supabase
-      .from('security_alerts')
-      .delete()
-      .lt('created_at', retentionDate.toISOString())
-      .eq('resolved', true);
-
-    console.log('Cleaned up old logs and resolved alerts');
-  }
-
-  private async checkSecurityStatus(): Promise<void> {
-    // Check overall security status
-    const status = await this.getSecurityStatus();
-    
-    if (status.overall_score < 8) {
-      await logSecurityEvent(
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        {
-          message: `Security status below threshold: ${status.overall_score}/10`,
-          status
-        }
-      );
-    }
-  }
-
-  private async validateSecurityConfigurations(): Promise<void> {
-    // Validate security configurations
-    const validations = [
-      this.validateEncryptionConfig(),
-      this.validateSessionConfig(),
-      this.validateRateLimitConfig()
-    ];
-
-    const results = await Promise.allSettled(validations);
-    const failedValidations = results.filter(r => r.status === 'rejected');
-
-    if (failedValidations.length > 0) {
-      await logSecurityEvent(
-        SecurityEventType.SUSPICIOUS_ACTIVITY,
-        {
-          message: `${failedValidations.length} security configuration validations failed`,
-          failedValidations
-        }
-      );
-    }
-  }
-
-  private async generateSecurityReport(): Promise<void> {
-    // Generate detailed security report
-    const report = {
-      timestamp: new Date().toISOString(),
-      security_metrics: await this.getSecurityMetrics(),
-      vulnerability_summary: await this.getVulnerabilitySummary(),
-      recommendations: await this.generateRecommendations()
-    };
-
-    await supabase
-      .from('security_reports')
-      .insert(report);
-
-    console.log('Detailed security report generated');
-  }
-
-  // Helper methods
-  private shouldRunWorkflow(workflow: SecurityWorkflow, now: Date): boolean {
-    if (!workflow.next_run) return true;
-    return new Date(workflow.next_run) <= now;
-  }
-
-  private calculateNextRun(workflow: SecurityWorkflow): string {
-    const now = new Date();
-    
-    switch (workflow.conditions.schedule) {
-      case 'every_15_minutes':
-        return new Date(now.getTime() + 15 * 60 * 1000).toISOString();
-      case 'hourly':
-        return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-      case 'daily':
-        return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-      default:
-        return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-    }
-  }
-
-  private setupEventListeners(): void {
-    // Set up event listeners for real-time triggers
-    // This would integrate with your existing event system
-    console.log('Security automation event listeners configured');
-  }
-
-  private async logAutomationResult(result: AutomationResult): Promise<void> {
-    await supabase
-      .from('automation_results')
-      .insert(result);
-  }
-
-  private async getSecurityStatus(): Promise<any> {
-    // Calculate overall security status
-    const { data: recentAlerts } = await supabase
-      .from('security_alerts')
-      .select('severity')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-    const criticalCount = recentAlerts?.filter(a => a.severity === 'CRITICAL').length || 0;
-    const highCount = recentAlerts?.filter(a => a.severity === 'HIGH').length || 0;
-
-    let score = 10;
-    if (criticalCount > 0) score -= 3;
-    if (highCount > 0) score -= 1;
-    if (criticalCount > 5) score -= 2;
-
-    return {
-      overall_score: Math.max(0, score),
-      critical_alerts: criticalCount,
-      high_alerts: highCount,
-      last_updated: new Date().toISOString()
-    };
-  }
-
-  private async getRecentSecurityEvents(): Promise<any[]> {
-    const { data: events } = await supabase
-      .from('security_alerts')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    return events || [];
-  }
-
-  private async generateRecommendations(): Promise<string[]> {
-    const recommendations: string[] = [];
-    const status = await this.getSecurityStatus();
-
-    if (status.overall_score < 8) {
-      recommendations.push('Review and address critical security alerts');
-    }
-
-    if (status.critical_alerts > 0) {
-      recommendations.push('Implement additional security monitoring');
-    }
-
-    return recommendations;
-  }
-
-  private async getSecurityMetrics(): Promise<any> {
-    // Get comprehensive security metrics
-    return {
-      total_alerts: await this.getTotalAlerts(),
-      resolved_alerts: await this.getResolvedAlerts(),
-      active_sessions: await this.getActiveSessions(),
-      blocked_ips: await this.getBlockedIPs()
-    };
-  }
-
-  private async getVulnerabilitySummary(): Promise<any> {
-    const { data: vulnerabilities } = await supabase
-      .from('penetration_test_results')
-      .select('severity, status')
-      .eq('status', 'failed')
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-    return {
-      total_vulnerabilities: vulnerabilities?.length || 0,
-      critical_vulnerabilities: vulnerabilities?.filter(v => v.severity === 'critical').length || 0,
-      high_vulnerabilities: vulnerabilities?.filter(v => v.severity === 'high').length || 0
-    };
-  }
-
-  private async validateEncryptionConfig(): Promise<boolean> {
-    try {
-      const encryption = getEncryption();
-      return encryption.validateConfig();
+      return response.data || [];
     } catch (error) {
-      return false;
+      console.error('Error getting security events:', error);
+      return [];
     }
-  }
-
-  private async validateSessionConfig(): Promise<boolean> {
-    try {
-      const sessionManager = getSessionManager();
-      // Add session configuration validation logic
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  private async validateRateLimitConfig(): Promise<boolean> {
-    // Add rate limit configuration validation logic
-    return true;
-  }
-
-  private async getTotalAlerts(): Promise<number> {
-    const { count } = await supabase
-      .from('security_alerts')
-      .select('*', { count: 'exact', head: true });
-    
-    return count || 0;
-  }
-
-  private async getResolvedAlerts(): Promise<number> {
-    const { count } = await supabase
-      .from('security_alerts')
-      .select('*', { count: 'exact', head: true })
-      .eq('resolved', true);
-    
-    return count || 0;
-  }
-
-  private async getActiveSessions(): Promise<number> {
-    const { count } = await supabase
-      .from('user_sessions')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
-    
-    return count || 0;
-  }
-
-  private async getBlockedIPs(): Promise<number> {
-    const { count } = await supabase
-      .from('blocked_ips')
-      .select('*', { count: 'exact', head: true });
-    
-    return count || 0;
   }
 }
 
-// Global automation instance
-let globalAutomation: SecurityAutomationFramework | null = null;
+// Global security automation manager instance
+export const securityAutomation = SecurityAutomationManager.getInstance();
 
-// Initialize global automation
-export function initializeSecurityAutomation(config?: Partial<AutomationConfig>): SecurityAutomationFramework {
-  globalAutomation = new SecurityAutomationFramework(config);
-  return globalAutomation;
+// Helper functions
+export async function initializeSecurityAutomation(): Promise<void> {
+  await securityAutomation.initialize();
 }
 
-// Get global automation
-export function getSecurityAutomation(): SecurityAutomationFramework {
-  if (!globalAutomation) {
-    throw new Error('Security automation not initialized. Call initializeSecurityAutomation() first.');
-  }
-  return globalAutomation;
+export async function createSecurityRule(rule: Omit<SecurityRule, 'id' | 'created_at' | 'updated_at'>): Promise<SecurityRule | null> {
+  return await securityAutomation.createRule(rule);
+}
+
+export async function getSecurityEvents(filters?: any): Promise<SecurityEvent[]> {
+  return await securityAutomation.getSecurityEvents(filters);
 }

@@ -1,346 +1,476 @@
-import winston from 'winston';
-import { NextRequest } from 'next/server';
+import { supabaseClient } from './supabase-client';
 
-// Log levels for different types of events
 export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  HTTP = 'http',
-  VERBOSE = 'verbose',
-  DEBUG = 'debug',
-  SILLY = 'silly'
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  CRITICAL = 'CRITICAL'
 }
 
-// Security event types
 export enum SecurityEventType {
-  LOGIN_ATTEMPT = 'login_attempt',
-  LOGIN_SUCCESS = 'login_success',
-  LOGIN_FAILED = 'login_failed',
-  LOGOUT = 'logout',
-  RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
-  CSRF_VIOLATION = 'csrf_violation',
-  INVALID_INPUT = 'invalid_input',
-  UNAUTHORIZED_ACCESS = 'unauthorized_access',
-  DATA_ACCESS = 'data_access',
-  API_KEY_USAGE = 'api_key_usage',
-  SUSPICIOUS_ACTIVITY = 'suspicious_activity'
+  LOGIN_ATTEMPT = 'LOGIN_ATTEMPT',
+  LOGIN_SUCCESS = 'LOGIN_SUCCESS',
+  LOGIN_FAILURE = 'LOGIN_FAILURE',
+  LOGOUT = 'LOGOUT',
+  ACCESS_DENIED = 'ACCESS_DENIED',
+  SUSPICIOUS_ACTIVITY = 'SUSPICIOUS_ACTIVITY',
+  DATA_ACCESS = 'DATA_ACCESS',
+  DATA_MODIFICATION = 'DATA_MODIFICATION',
+  CONFIGURATION_CHANGE = 'CONFIGURATION_CHANGE',
+  SYSTEM_ERROR = 'SYSTEM_ERROR'
 }
 
-// Create logs directory if it doesn't exist
-const fs = require('fs');
-const logsDir = './logs';
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+export interface LogEntry {
+  id?: string;
+  level: LogLevel;
+  message: string;
+  timestamp: string;
+  user_email?: string;
+  ip_address?: string;
+  user_agent?: string;
+  endpoint?: string;
+  metadata?: any;
+  stack_trace?: string;
 }
 
-// Custom log format
-const logFormat = winston.format.combine(
-  winston.format.timestamp({
-    format: 'YYYY-MM-DD HH:mm:ss'
-  }),
-  winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.prettyPrint()
-);
-
-// Create winston logger instance
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  defaultMeta: { 
-    service: 'alignzo-lite',
-    environment: process.env.NODE_ENV || 'development'
-  },
-  transports: [
-    // Error logs
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-    
-    // Security logs
-    new winston.transports.File({ 
-      filename: 'logs/security.log',
-      level: 'info',
-      maxsize: 5242880, // 5MB
-      maxFiles: 10,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-    
-    // Combined logs
-    new winston.transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    })
-  ]
-});
-
-// Add console logging in development
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
-  }));
+export interface SecurityLogEntry {
+  id?: string;
+  event_type: SecurityEventType;
+  user_email?: string;
+  ip_address?: string;
+  user_agent?: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  metadata?: any;
+  timestamp: string;
+  resolved: boolean;
+  resolved_at?: string;
+  resolved_by?: string;
 }
 
-// Extract client information from request
-function extractClientInfo(request: NextRequest) {
-  return {
-    ip: request.headers.get('x-forwarded-for') || 
-        request.headers.get('x-real-ip') || 
-        request.ip || 
-        'unknown',
-    userAgent: request.headers.get('user-agent') || 'unknown',
-    origin: request.headers.get('origin') || 'unknown',
-    referer: request.headers.get('referer') || 'unknown',
-    method: request.method,
-    url: request.url
-  };
-}
+export class Logger {
+  private static instance: Logger;
+  private logLevel: LogLevel;
+  private enableConsole: boolean;
+  private enableDatabase: boolean;
+  private enableFile: boolean;
 
-// Log security events
-export function logSecurityEvent(
-  eventType: SecurityEventType, 
-  details: any, 
-  request?: NextRequest,
-  severity: LogLevel = LogLevel.INFO
-) {
-  const clientInfo = request ? extractClientInfo(request) : {};
-  
-  const logEntry = {
-    event: 'SECURITY_EVENT',
-    eventType,
-    severity,
-    timestamp: new Date().toISOString(),
-    details,
-    client: clientInfo,
-    sessionId: generateSessionId(),
-  };
-
-  logger.log(severity, 'Security Event', logEntry);
-  
-  // Also log to security-specific file
-  if (severity === LogLevel.ERROR || severity === LogLevel.WARN) {
-    logger.error('Security Alert', logEntry);
+  private constructor() {
+    this.logLevel = (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO;
+    this.enableConsole = process.env.LOG_ENABLE_CONSOLE !== 'false';
+    this.enableDatabase = process.env.LOG_ENABLE_DATABASE !== 'false';
+    this.enableFile = process.env.LOG_ENABLE_FILE !== 'false';
   }
-}
 
-// Log user actions
-export function logUserAction(
-  userEmail: string, 
-  action: string, 
-  details: any = {}, 
-  request?: NextRequest
-) {
-  const clientInfo = request ? extractClientInfo(request) : {};
-  
-  const logEntry = {
-    event: 'USER_ACTION',
-    userEmail,
-    action,
-    timestamp: new Date().toISOString(),
-    details,
-    client: clientInfo,
-    sessionId: generateSessionId(),
-  };
+  public static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger();
+    }
+    return Logger.instance;
+  }
 
-  logger.info('User Action', logEntry);
-}
+  private shouldLog(level: LogLevel): boolean {
+    const levels = Object.values(LogLevel);
+    const currentLevelIndex = levels.indexOf(this.logLevel);
+    const messageLevelIndex = levels.indexOf(level);
+    return messageLevelIndex >= currentLevelIndex;
+  }
 
-// Log API access
-export function logAPIAccess(
-  endpoint: string, 
-  method: string, 
-  statusCode: number, 
-  responseTime: number,
-  request: NextRequest,
-  userEmail?: string
-) {
-  const clientInfo = extractClientInfo(request);
-  
-  const logEntry = {
-    event: 'API_ACCESS',
-    endpoint,
-    method,
-    statusCode,
-    responseTime,
-    timestamp: new Date().toISOString(),
-    userEmail: userEmail || 'anonymous',
-    client: clientInfo,
-    sessionId: generateSessionId(),
-  };
+  private formatMessage(level: LogLevel, message: string, metadata?: any): string {
+    const timestamp = new Date().toISOString();
+    const metadataStr = metadata ? ` | ${JSON.stringify(metadata)}` : '';
+    return `[${timestamp}] [${level}] ${message}${metadataStr}`;
+  }
 
-  logger.http('API Access', logEntry);
-}
+  async log(
+    level: LogLevel,
+    message: string,
+    metadata?: any,
+    userEmail?: string,
+    ipAddress?: string,
+    userAgent?: string,
+    endpoint?: string
+  ): Promise<void> {
+    if (!this.shouldLog(level)) return;
 
-// Log application errors
-export function logError(
-  error: Error, 
-  context: any = {}, 
-  request?: NextRequest,
-  userEmail?: string
-) {
-  const clientInfo = request ? extractClientInfo(request) : {};
-  
-  const logEntry = {
-    event: 'APPLICATION_ERROR',
-    error: {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    },
-    context,
-    timestamp: new Date().toISOString(),
-    userEmail: userEmail || 'anonymous',
-    client: clientInfo,
-    sessionId: generateSessionId(),
-  };
+    const logEntry: LogEntry = {
+      level,
+      message,
+      timestamp: new Date().toISOString(),
+      user_email: userEmail,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      endpoint,
+      metadata
+    };
 
-  logger.error('Application Error', logEntry);
-}
-
-// Log data access (for audit trail)
-export function logDataAccess(
-  userEmail: string,
-  operation: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE',
-  table: string,
-  recordId?: string,
-  request?: NextRequest
-) {
-  const clientInfo = request ? extractClientInfo(request) : {};
-  
-  const logEntry = {
-    event: 'DATA_ACCESS',
-    userEmail,
-    operation,
-    table,
-    recordId,
-    timestamp: new Date().toISOString(),
-    client: clientInfo,
-    sessionId: generateSessionId(),
-  };
-
-  logger.info('Data Access', logEntry);
-}
-
-// Log rate limiting events
-export function logRateLimitEvent(
-  request: NextRequest,
-  limitType: string,
-  limit: number,
-  current: number
-) {
-  const clientInfo = extractClientInfo(request);
-  
-  logSecurityEvent(
-    SecurityEventType.RATE_LIMIT_EXCEEDED,
-    {
-      limitType,
-      limit,
-      current,
-      exceeded: current >= limit
-    },
-    request,
-    LogLevel.WARN
-  );
-}
-
-// Log CSRF violations
-export function logCSRFViolation(request: NextRequest, details: any = {}) {
-  logSecurityEvent(
-    SecurityEventType.CSRF_VIOLATION,
-    {
-      ...details,
-      endpoint: request.url,
-      method: request.method
-    },
-    request,
-    LogLevel.WARN
-  );
-}
-
-// Log authentication attempts
-export function logAuthAttempt(
-  email: string,
-  success: boolean,
-  request: NextRequest,
-  details: any = {}
-) {
-  const eventType = success ? 
-    SecurityEventType.LOGIN_SUCCESS : 
-    SecurityEventType.LOGIN_FAILED;
-    
-  const severity = success ? LogLevel.INFO : LogLevel.WARN;
-  
-  logSecurityEvent(
-    eventType,
-    {
-      email,
-      success,
-      ...details
-    },
-    request,
-    severity
-  );
-}
-
-// Generate session ID for tracking related events
-function generateSessionId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-}
-
-// Utility to search logs (for monitoring)
-export function searchLogs(
-  query: string,
-  logType: 'error' | 'security' | 'combined' = 'combined',
-  limit: number = 100
-) {
-  // This is a basic implementation - in production, use proper log aggregation
-  try {
-    const logFile = `logs/${logType}.log`;
-    const logs = fs.readFileSync(logFile, 'utf8')
-      .split('\n')
-      .filter((line: string) => line.includes(query))
-      .slice(-limit);
-    
-    return logs.map((line: string) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return { raw: line };
+    // Console logging
+    if (this.enableConsole) {
+      const formattedMessage = this.formatMessage(level, message, metadata);
+      switch (level) {
+        case LogLevel.DEBUG:
+        case LogLevel.INFO:
+          console.log(formattedMessage);
+          break;
+        case LogLevel.WARN:
+          console.warn(formattedMessage);
+          break;
+        case LogLevel.ERROR:
+        case LogLevel.CRITICAL:
+          console.error(formattedMessage);
+          break;
       }
-    });
-  } catch (error) {
-    logger.error('Error searching logs', { error: error instanceof Error ? error.message : 'Unknown error', query });
-    return [];
+    }
+
+    // Database logging
+    if (this.enableDatabase) {
+      try {
+        await this.logToDatabase(logEntry);
+      } catch (error) {
+        console.error('Failed to log to database:', error);
+      }
+    }
+
+    // File logging
+    if (this.enableFile) {
+      try {
+        await this.logToFile(logEntry);
+      } catch (error) {
+        console.error('Failed to log to file:', error);
+      }
+    }
+  }
+
+  private async logToDatabase(logEntry: LogEntry): Promise<void> {
+    try {
+      await supabaseClient.insert('application_logs', logEntry);
+    } catch (error) {
+      console.error('Error logging to database:', error);
+    }
+  }
+
+  private async logToFile(logEntry: LogEntry): Promise<void> {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+
+      const logsDir = 'logs';
+      const logFile = path.join(logsDir, `app-${new Date().toISOString().split('T')[0]}.log`);
+
+      // Ensure logs directory exists
+      if (!fs.existsSync(logsDir)) {
+        fs.mkdirSync(logsDir, { recursive: true });
+      }
+
+      const logLine = JSON.stringify(logEntry) + '\n';
+      fs.appendFileSync(logFile, logLine);
+    } catch (error) {
+      console.error('Error logging to file:', error);
+    }
+  }
+
+  async debug(message: string, metadata?: any, userEmail?: string, ipAddress?: string, userAgent?: string, endpoint?: string): Promise<void> {
+    await this.log(LogLevel.DEBUG, message, metadata, userEmail, ipAddress, userAgent, endpoint);
+  }
+
+  async info(message: string, metadata?: any, userEmail?: string, ipAddress?: string, userAgent?: string, endpoint?: string): Promise<void> {
+    await this.log(LogLevel.INFO, message, metadata, userEmail, ipAddress, userAgent, endpoint);
+  }
+
+  async warn(message: string, metadata?: any, userEmail?: string, ipAddress?: string, userAgent?: string, endpoint?: string): Promise<void> {
+    await this.log(LogLevel.WARN, message, metadata, userEmail, ipAddress, userAgent, endpoint);
+  }
+
+  async error(message: string, metadata?: any, userEmail?: string, ipAddress?: string, userAgent?: string, endpoint?: string): Promise<void> {
+    await this.log(LogLevel.ERROR, message, metadata, userEmail, ipAddress, userAgent, endpoint);
+  }
+
+  async critical(message: string, metadata?: any, userEmail?: string, ipAddress?: string, userAgent?: string, endpoint?: string): Promise<void> {
+    await this.log(LogLevel.CRITICAL, message, metadata, userEmail, ipAddress, userAgent, endpoint);
+  }
+
+  async logUserAction(
+    userEmail: string,
+    action: string,
+    resourceType: string,
+    resourceId?: string,
+    metadata?: any,
+    ipAddress?: string,
+    userAgent?: string,
+    endpoint?: string
+  ): Promise<void> {
+    await this.info(
+      `User action: ${action}`,
+      { action, resourceType, resourceId, ...metadata },
+      userEmail,
+      ipAddress,
+      userAgent,
+      endpoint
+    );
+  }
+
+  async logDataAccess(
+    userEmail: string,
+    action: string,
+    resourceType: string,
+    resourceId?: string,
+    metadata?: any,
+    ipAddress?: string,
+    userAgent?: string,
+    endpoint?: string
+  ): Promise<void> {
+    await this.info(
+      `Data access: ${action}`,
+      { action, resourceType, resourceId, ...metadata },
+      userEmail,
+      ipAddress,
+      userAgent,
+      endpoint
+    );
+  }
+
+  async logSecurityEvent(
+    eventType: SecurityEventType,
+    metadata: any,
+    userEmail?: string,
+    ipAddress?: string,
+    userAgent?: string,
+    endpoint?: string
+  ): Promise<void> {
+    const severity = this.getSecurityEventSeverity(eventType);
+    const level = this.getLogLevelFromSeverity(severity);
+
+    await this.log(
+      level,
+      `Security event: ${eventType}`,
+      { eventType, ...metadata },
+      userEmail,
+      ipAddress,
+      userAgent,
+      endpoint
+    );
+
+    // Also log to security logs table
+    await this.logSecurityEventToDatabase(eventType, metadata, userEmail, ipAddress, userAgent, endpoint, severity);
+  }
+
+  private getSecurityEventSeverity(eventType: SecurityEventType): 'low' | 'medium' | 'high' | 'critical' {
+    switch (eventType) {
+      case SecurityEventType.LOGIN_SUCCESS:
+      case SecurityEventType.LOGOUT:
+        return 'low';
+      case SecurityEventType.LOGIN_ATTEMPT:
+      case SecurityEventType.DATA_ACCESS:
+        return 'medium';
+      case SecurityEventType.LOGIN_FAILURE:
+      case SecurityEventType.ACCESS_DENIED:
+      case SecurityEventType.DATA_MODIFICATION:
+        return 'high';
+      case SecurityEventType.SUSPICIOUS_ACTIVITY:
+      case SecurityEventType.SYSTEM_ERROR:
+        return 'critical';
+      default:
+        return 'medium';
+    }
+  }
+
+  private getLogLevelFromSeverity(severity: string): LogLevel {
+    switch (severity) {
+      case 'low':
+        return LogLevel.INFO;
+      case 'medium':
+        return LogLevel.WARN;
+      case 'high':
+        return LogLevel.ERROR;
+      case 'critical':
+        return LogLevel.CRITICAL;
+      default:
+        return LogLevel.INFO;
+    }
+  }
+
+  private async logSecurityEventToDatabase(
+    eventType: SecurityEventType,
+    metadata: any,
+    userEmail?: string,
+    ipAddress?: string,
+    userAgent?: string,
+    endpoint?: string,
+    severity: 'low' | 'medium' | 'high' | 'critical'
+  ): Promise<void> {
+    try {
+      const securityLogEntry: Omit<SecurityLogEntry, 'id'> = {
+        event_type: eventType,
+        user_email: userEmail,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        description: `Security event: ${eventType}`,
+        severity,
+        metadata,
+        timestamp: new Date().toISOString(),
+        resolved: false
+      };
+
+      await supabaseClient.insert('security_logs', securityLogEntry);
+    } catch (error) {
+      console.error('Error logging security event to database:', error);
+    }
+  }
+
+  async getLogs(
+    level?: LogLevel,
+    userEmail?: string,
+    startTime?: string,
+    endTime?: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<LogEntry[]> {
+    try {
+      const filters: any = {};
+      
+      if (level) filters.level = level;
+      if (userEmail) filters.user_email = userEmail;
+      if (startTime) filters.timestamp = { gte: startTime };
+      if (endTime) filters.timestamp = { lte: endTime };
+
+      const response = await supabaseClient.get('application_logs', {
+        select: '*',
+        filters,
+        order: { column: 'timestamp', ascending: false },
+        limit,
+        offset
+      });
+
+      if (response.error) {
+        console.error('Error getting logs:', response.error);
+        return [];
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting logs:', error);
+      return [];
+    }
+  }
+
+  async getSecurityLogs(
+    eventType?: SecurityEventType,
+    severity?: string,
+    userEmail?: string,
+    startTime?: string,
+    endTime?: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<SecurityLogEntry[]> {
+    try {
+      const filters: any = {};
+      
+      if (eventType) filters.event_type = eventType;
+      if (severity) filters.severity = severity;
+      if (userEmail) filters.user_email = userEmail;
+      if (startTime) filters.timestamp = { gte: startTime };
+      if (endTime) filters.timestamp = { lte: endTime };
+
+      const response = await supabaseClient.get('security_logs', {
+        select: '*',
+        filters,
+        order: { column: 'timestamp', ascending: false },
+        limit,
+        offset
+      });
+
+      if (response.error) {
+        console.error('Error getting security logs:', response.error);
+        return [];
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Error getting security logs:', error);
+      return [];
+    }
+  }
+
+  async cleanupOldLogs(retentionDays: number = 30): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+      // Clean up application logs
+      const appLogsResponse = await supabaseClient.get('application_logs', {
+        select: 'id',
+        filters: {
+          timestamp: { lt: cutoffDate.toISOString() }
+        }
+      });
+
+      let cleanedCount = 0;
+
+      if (!appLogsResponse.error && appLogsResponse.data) {
+        for (const log of appLogsResponse.data) {
+          await supabaseClient.delete('application_logs', log.id);
+          cleanedCount++;
+        }
+      }
+
+      // Clean up security logs
+      const securityLogsResponse = await supabaseClient.get('security_logs', {
+        select: 'id',
+        filters: {
+          timestamp: { lt: cutoffDate.toISOString() }
+        }
+      });
+
+      if (!securityLogsResponse.error && securityLogsResponse.data) {
+        for (const log of securityLogsResponse.data) {
+          await supabaseClient.delete('security_logs', log.id);
+          cleanedCount++;
+        }
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up old logs:', error);
+      return 0;
+    }
   }
 }
 
-// Health check for logging system
-export function logHealthCheck() {
-  logger.info('Logging System Health Check', {
-    timestamp: new Date().toISOString(),
-    status: 'healthy',
-    environment: process.env.NODE_ENV,
-    logLevel: logger.level
-  });
+// Global logger instance
+export const logger = Logger.getInstance();
+
+// Convenience functions
+export async function logInfo(message: string, metadata?: any, userEmail?: string): Promise<void> {
+  await logger.info(message, metadata, userEmail);
 }
 
-export default logger;
+export async function logError(message: string, metadata?: any, userEmail?: string): Promise<void> {
+  await logger.error(message, metadata, userEmail);
+}
+
+export async function logWarning(message: string, metadata?: any, userEmail?: string): Promise<void> {
+  await logger.warn(message, metadata, userEmail);
+}
+
+export async function logDebug(message: string, metadata?: any, userEmail?: string): Promise<void> {
+  await logger.debug(message, metadata, userEmail);
+}
+
+export async function logUserAction(
+  userEmail: string,
+  action: string,
+  resourceType: string,
+  resourceId?: string,
+  metadata?: any
+): Promise<void> {
+  await logger.logUserAction(userEmail, action, resourceType, resourceId, metadata);
+}
+
+export async function logSecurityEvent(
+  eventType: SecurityEventType,
+  metadata: any,
+  userEmail?: string
+): Promise<void> {
+  await logger.logSecurityEvent(eventType, metadata, userEmail);
+}

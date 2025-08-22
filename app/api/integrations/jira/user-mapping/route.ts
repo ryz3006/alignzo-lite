@@ -1,54 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 
-// GET - Retrieve user mappings for a specific integration user
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const integrationUserEmail = searchParams.get('integrationUserEmail');
-    const projectKey = searchParams.get('projectKey');
+    const userEmail = searchParams.get('userEmail');
 
-    if (!integrationUserEmail) {
+    if (!userEmail) {
       return NextResponse.json(
-        { error: 'Integration user email is required' },
+        { error: 'User email is required' },
         { status: 400 }
       );
     }
 
-    // Query ticket_master_mappings instead of jira_user_mappings
-    // Since we simplified to use only Master Mappings
-    let query = supabase
-      .from('ticket_master_mappings')
-      .select('*')
-      .eq('is_active', true);
+    // Get user's Jira user mappings
+    const response = await supabaseClient.get('jira_user_mappings', {
+      select: '*',
+      filters: { 
+        integration_user_email: userEmail
+      }
+    });
 
-    // Note: ticket_master_mappings doesn't have integration_user_email or jira_project_key
-    // It's a global mapping table that applies to all sources
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Database error:', error);
+    if (response.error) {
+      console.error('Error fetching Jira user mappings:', response.error);
       return NextResponse.json(
         { error: 'Failed to fetch user mappings' },
         { status: 500 }
       );
     }
 
-    // Transform the data to match the expected format
-    const transformedMappings = (data || []).map(mapping => ({
-      id: mapping.id,
-      user_email: mapping.mapped_user_email,
-      jira_assignee_name: mapping.source_assignee_value,
-      jira_reporter_name: mapping.source_assignee_value, // Use same value for reporter
-      integration_user_email: integrationUserEmail, // Add this for compatibility
-      created_at: mapping.created_at,
-      updated_at: mapping.updated_at
-    }));
+    return NextResponse.json({
+      success: true,
+      mappings: response.data || []
+    });
 
-    return NextResponse.json({ mappings: transformedMappings });
   } catch (error) {
-    console.error('Error fetching user mappings:', error);
+    console.error('Error in Jira user mappings API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -76,12 +63,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if mapping already exists
-    const { data: existingMappings, error: checkError } = await supabase
-      .from('jira_user_mappings')
-      .select('id')
-      .eq('user_email', user_email)
-      .eq('jira_project_key', jira_project_key || null)
-      .eq('integration_user_email', integration_user_email);
+    const { data: existingMappings, error: checkError } = await supabaseClient
+      .get('jira_user_mappings', {
+        select: 'id',
+        filters: {
+          user_email: user_email,
+          jira_project_key: jira_project_key || null,
+          integration_user_email: integration_user_email
+        }
+      });
 
     if (checkError) {
       console.error('Error checking existing mapping:', checkError);
@@ -96,45 +86,36 @@ export async function POST(request: NextRequest) {
     let result;
     if (existingMapping) {
       // Update existing mapping
-      const { data, error } = await supabase
-        .from('jira_user_mappings')
-        .update({
-          jira_assignee_name: jira_assignee_name,
-          jira_reporter_name: jira_reporter_name,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingMapping.id)
-        .select()
-        .single();
+      const response = await supabaseClient.update('jira_user_mappings', existingMapping.id, {
+        jira_assignee_name: jira_assignee_name,
+        jira_reporter_name: jira_reporter_name,
+        updated_at: new Date().toISOString()
+      });
 
-      if (error) throw error;
-      result = data;
+      if (response.error) throw new Error(response.error);
+      result = response.data;
     } else {
       // Create new mapping
-      const { data, error } = await supabase
-        .from('jira_user_mappings')
-        .insert({
-          user_email: user_email,
-          jira_assignee_name: jira_assignee_name,
-          jira_reporter_name: jira_reporter_name,
-          jira_project_key: jira_project_key,
-          integration_user_email: integration_user_email
-        })
-        .select()
-        .single();
+      const response = await supabaseClient.insert('jira_user_mappings', {
+        user_email: user_email,
+        jira_assignee_name: jira_assignee_name,
+        jira_reporter_name: jira_reporter_name,
+        jira_project_key: jira_project_key,
+        integration_user_email: integration_user_email
+      });
 
-      if (error) throw error;
-      result = data;
+      if (response.error) throw new Error(response.error);
+      result = response.data;
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      mapping: result 
+    return NextResponse.json({
+      message: existingMapping ? 'User mapping updated successfully' : 'User mapping created successfully',
+      mapping: result
     });
   } catch (error) {
     console.error('Error saving user mapping:', error);
     return NextResponse.json(
-      { error: 'Failed to save user mapping' },
+      { error: `Failed to save user mapping: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
@@ -144,7 +125,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const mappingId = searchParams.get('id');
+    const mappingId = searchParams.get('mappingId');
 
     if (!mappingId) {
       return NextResponse.json(
@@ -153,20 +134,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
-      .from('jira_user_mappings')
-      .delete()
-      .eq('id', mappingId);
+    // Delete mapping
+    const response = await supabaseClient.delete('jira_user_mappings', mappingId);
 
-    if (error) {
-      console.error('Database error:', error);
+    if (response.error) {
+      console.error('Error deleting user mapping:', response.error);
       return NextResponse.json(
         { error: 'Failed to delete user mapping' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      message: 'User mapping deleted successfully'
+    });
   } catch (error) {
     console.error('Error deleting user mapping:', error);
     return NextResponse.json(

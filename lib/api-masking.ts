@@ -1,481 +1,434 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logSecurityEvent, SecurityEventType } from './logger';
+import { supabaseClient } from './supabase-client';
 
-// API Masking and Proxy Configuration
-interface MaskingConfig {
-  enabled: boolean;
-  maskSensitiveFields: boolean;
-  logOriginalRequests: boolean;
-  allowedDomains: string[];
-  blockedDomains: string[];
-  rateLimitByDomain: Record<string, number>;
+export interface MaskingRule {
+  id?: string;
+  field_pattern: string;
+  mask_type: 'full' | 'partial' | 'hash' | 'custom';
+  replacement: string;
+  is_active: boolean;
+  priority: number;
+  created_at?: string;
 }
 
-// Default masking configuration
-const defaultMaskingConfig: MaskingConfig = {
-  enabled: true,
-  maskSensitiveFields: true,
-  logOriginalRequests: false, // Don't log sensitive data
-  allowedDomains: [
-    'api.atlassian.net',
-    'supabase.co',
-    'supabase.io',
-    'firebaseapp.com',
-    'googleapis.com'
-  ],
-  blockedDomains: [
-    'malicious-site.com',
-    'suspicious-domain.net'
-  ],
-  rateLimitByDomain: {
-    'api.atlassian.net': 100, // JIRA API
-    'supabase.co': 200,       // Supabase
-    'supabase.io': 200,       // Supabase
-    'firebaseapp.com': 50,    // Firebase
-    'googleapis.com': 50      // Google APIs
-  }
-};
+export interface MaskingConfig {
+  enabled: boolean;
+  defaultMaskType: 'full' | 'partial' | 'hash' | 'custom';
+  defaultReplacement: string;
+  preserveLength: boolean;
+  logMasking: boolean;
+}
 
-export class APIMaskingManager {
+export class ApiMaskingManager {
+  private static instance: ApiMaskingManager;
+  private rules: MaskingRule[] = [];
   private config: MaskingConfig;
-  private requestCounts: Map<string, { count: number; resetTime: number }> = new Map();
 
-  constructor(config: Partial<MaskingConfig> = {}) {
-    this.config = { ...defaultMaskingConfig, ...config };
-  }
-
-  // Mask external API response data
-  public maskResponse(data: any, apiType: 'jira' | 'supabase' | 'firebase' | 'generic'): any {
-    if (!this.config.enabled || !this.config.maskSensitiveFields) {
-      return data;
-    }
-
-    return this.applyMasking(data, apiType);
-  }
-
-  // Mask external API request data
-  public maskRequest(data: any, apiType: 'jira' | 'supabase' | 'firebase' | 'generic'): any {
-    if (!this.config.enabled || !this.config.maskSensitiveFields) {
-      return data;
-    }
-
-    return this.applyMasking(data, apiType, true);
-  }
-
-  // Check if domain is allowed
-  public isDomainAllowed(url: string): boolean {
-    try {
-      const domain = new URL(url).hostname;
-      
-      // Check if domain is blocked
-      if (this.config.blockedDomains.some(blocked => domain.includes(blocked))) {
-        return false;
-      }
-
-      // Check if domain is in allowed list
-      return this.config.allowedDomains.some(allowed => domain.includes(allowed));
-    } catch {
-      return false;
-    }
-  }
-
-  // Apply rate limiting for external API calls
-  public async checkRateLimit(url: string, userEmail: string): Promise<boolean> {
-    try {
-      const domain = new URL(url).hostname;
-      const key = `${domain}:${userEmail}`;
-      const now = Date.now();
-      const windowMs = 60 * 60 * 1000; // 1 hour window
-
-      let rateLimitData = this.requestCounts.get(key);
-
-      if (!rateLimitData || rateLimitData.resetTime < now) {
-        // Reset count if window expired or new key
-        rateLimitData = {
-          count: 1,
-          resetTime: now + windowMs,
-        };
-        this.requestCounts.set(key, rateLimitData);
-        return true; // Allow request
-      }
-
-      const limit = this.config.rateLimitByDomain[domain] || 50; // Default limit
-      
-      if (rateLimitData.count >= limit) {
-        // Rate limit exceeded
-        await logSecurityEvent(
-          SecurityEventType.RATE_LIMIT_EXCEEDED,
-          {
-            domain: domain,
-            userEmail: userEmail,
-            currentCount: rateLimitData.count,
-            limit: limit,
-            resetTime: new Date(rateLimitData.resetTime).toISOString()
-          }
-        );
-        return false;
-      }
-
-      // Increment count and allow request
-      rateLimitData.count++;
-      this.requestCounts.set(key, rateLimitData);
-      return true;
-
-    } catch {
-      return false;
-    }
-  }
-
-  // Apply data masking based on API type
-  private applyMasking(data: any, apiType: string, isRequest: boolean = false): any {
-    if (!data || typeof data !== 'object') {
-      return data;
-    }
-
-    // Clone data to avoid modifying original
-    const masked = JSON.parse(JSON.stringify(data));
-
-    switch (apiType) {
-      case 'jira':
-        return this.maskJiraData(masked, isRequest);
-      case 'supabase':
-        return this.maskSupabaseData(masked, isRequest);
-      case 'firebase':
-        return this.maskFirebaseData(masked, isRequest);
-      default:
-        return this.maskGenericData(masked, isRequest);
-    }
-  }
-
-  // Mask JIRA-specific sensitive data
-  private maskJiraData(data: any, isRequest: boolean): any {
-    const sensitiveJiraFields = [
-      'api_token',
-      'api_key',
-      'token',
-      'password',
-      'secret',
-      'key',
-      'authentication',
-      'authorization',
-      'credentials'
-    ];
-
-    return this.maskSensitiveFields(data, sensitiveJiraFields, isRequest);
-  }
-
-  // Mask Supabase-specific sensitive data
-  private maskSupabaseData(data: any, isRequest: boolean): any {
-    const sensitiveSupabaseFields = [
-      'anon_key',
-      'service_role_key',
-      'jwt_secret',
-      'password',
-      'access_token',
-      'refresh_token',
-      'api_key'
-    ];
-
-    return this.maskSensitiveFields(data, sensitiveSupabaseFields, isRequest);
-  }
-
-  // Mask Firebase-specific sensitive data
-  private maskFirebaseData(data: any, isRequest: boolean): any {
-    const sensitiveFirebaseFields = [
-      'api_key',
-      'private_key',
-      'client_secret',
-      'access_token',
-      'refresh_token',
-      'id_token',
-      'auth_token'
-    ];
-
-    return this.maskSensitiveFields(data, sensitiveFirebaseFields, isRequest);
-  }
-
-  // Mask generic sensitive data
-  private maskGenericData(data: any, isRequest: boolean): any {
-    const genericSensitiveFields = [
-      'password',
-      'secret',
-      'key',
-      'token',
-      'api_key',
-      'access_token',
-      'refresh_token',
-      'private_key',
-      'public_key',
-      'certificate',
-      'credential',
-      'auth'
-    ];
-
-    return this.maskSensitiveFields(data, genericSensitiveFields, isRequest);
-  }
-
-  // Core masking function
-  private maskSensitiveFields(obj: any, sensitiveFields: string[], isRequest: boolean): any {
-    if (typeof obj !== 'object' || obj === null) {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.maskSensitiveFields(item, sensitiveFields, isRequest));
-    }
-
-    const result: any = {};
-    
-    for (const [key, value] of Object.entries(obj)) {
-      const lowerKey = key.toLowerCase();
-      
-      // Check if field should be masked
-      const shouldMask = sensitiveFields.some(field => 
-        lowerKey.includes(field.toLowerCase())
-      );
-
-      if (shouldMask) {
-        if (typeof value === 'string' && value.length > 0) {
-          // Mask string values
-          if (value.length <= 4) {
-            result[key] = '*'.repeat(value.length);
-          } else {
-            // Show first 2 and last 2 characters
-            result[key] = value.substring(0, 2) + '*'.repeat(value.length - 4) + value.substring(value.length - 2);
-          }
-        } else {
-          result[key] = '[MASKED]';
-        }
-      } else {
-        // Recursively process nested objects
-        result[key] = this.maskSensitiveFields(value, sensitiveFields, isRequest);
-      }
-    }
-
-    return result;
-  }
-
-  // Create a masked proxy for external API calls
-  public createMaskedProxy(
-    targetUrl: string,
-    apiType: 'jira' | 'supabase' | 'firebase' | 'generic',
-    userEmail: string
-  ) {
-    return async (request: NextRequest): Promise<NextResponse> => {
-      try {
-        // Check if domain is allowed
-        if (!this.isDomainAllowed(targetUrl)) {
-          await logSecurityEvent(
-            SecurityEventType.UNAUTHORIZED_ACCESS,
-            {
-              targetUrl: targetUrl,
-              userEmail: userEmail,
-              reason: 'Domain not allowed'
-            },
-            request
-          );
-
-          return NextResponse.json(
-            { error: 'Access to this domain is not allowed' },
-            { status: 403 }
-          );
-        }
-
-        // Check rate limiting
-        const rateLimitOk = await this.checkRateLimit(targetUrl, userEmail);
-        if (!rateLimitOk) {
-          return NextResponse.json(
-            { error: 'Rate limit exceeded for this API' },
-            { status: 429 }
-          );
-        }
-
-        // Get request body and mask it
-        let requestBody;
-        try {
-          requestBody = await request.json();
-          requestBody = this.maskRequest(requestBody, apiType);
-        } catch {
-          // No JSON body or already consumed
-        }
-
-        // Make the external API call
-        const response = await fetch(targetUrl, {
-          method: request.method,
-          headers: {
-            'Authorization': request.headers.get('authorization') || '',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: requestBody ? JSON.stringify(requestBody) : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          
-          await logSecurityEvent(
-            SecurityEventType.SUSPICIOUS_ACTIVITY,
-            {
-              targetUrl: targetUrl,
-              userEmail: userEmail,
-              statusCode: response.status,
-              error: this.maskGenericData({ error: errorText }, false)
-            },
-            request
-          );
-
-          return NextResponse.json(
-            { 
-              error: `External API error: ${response.status}`,
-              details: this.maskGenericData({ details: errorText }, false)
-            },
-            { status: response.status }
-          );
-        }
-
-        // Get response data and mask it
-        const responseData = await response.json();
-        const maskedResponse = this.maskResponse(responseData, apiType);
-
-        // Log successful API call (with masked data)
-        await logSecurityEvent(
-          SecurityEventType.DATA_ACCESS,
-          {
-            targetUrl: this.maskUrl(targetUrl),
-            userEmail: userEmail,
-            statusCode: response.status,
-            method: request.method,
-            responseSize: JSON.stringify(maskedResponse).length
-          },
-          request
-        );
-
-        return NextResponse.json(maskedResponse);
-
-      } catch (error) {
-        await logSecurityEvent(
-          SecurityEventType.SUSPICIOUS_ACTIVITY,
-          {
-            targetUrl: this.maskUrl(targetUrl),
-            userEmail: userEmail,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          },
-          request
-        );
-
-        return NextResponse.json(
-          { error: 'Internal proxy error' },
-          { status: 500 }
-        );
-      }
+  private constructor() {
+    this.config = {
+      enabled: process.env.API_MASKING_ENABLED !== 'false',
+      defaultMaskType: (process.env.API_MASKING_DEFAULT_TYPE as any) || 'partial',
+      defaultReplacement: process.env.API_MASKING_DEFAULT_REPLACEMENT || '***',
+      preserveLength: process.env.API_MASKING_PRESERVE_LENGTH === 'true',
+      logMasking: process.env.API_MASKING_LOG === 'true'
     };
   }
 
-  // Mask URLs to hide sensitive information
-  private maskUrl(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      
-      // Mask query parameters that might contain sensitive data
-      const sensitiveParams = ['token', 'key', 'secret', 'password', 'auth'];
-      
-      sensitiveParams.forEach(param => {
-        if (urlObj.searchParams.has(param)) {
-          const value = urlObj.searchParams.get(param);
-          if (value && value.length > 4) {
-            urlObj.searchParams.set(param, value.substring(0, 2) + '***' + value.substring(value.length - 2));
-          } else {
-            urlObj.searchParams.set(param, '***');
-          }
-        }
-      });
+  public static getInstance(): ApiMaskingManager {
+    if (!ApiMaskingManager.instance) {
+      ApiMaskingManager.instance = new ApiMaskingManager();
+    }
+    return ApiMaskingManager.instance;
+  }
 
-      return urlObj.toString();
-    } catch {
-      return '[MASKED_URL]';
+  async initialize(): Promise<void> {
+    try {
+      await this.loadMaskingRules();
+    } catch (error) {
+      console.error('Error initializing API masking:', error);
     }
   }
 
-  // Get masking statistics
-  public getStats(): {
-    totalRequests: number;
-    requestsByDomain: Record<string, number>;
-    rateLimitViolations: number;
-    blockedRequests: number;
-  } {
-    const requestsByDomain: Record<string, number> = {};
-    let totalRequests = 0;
+  async loadMaskingRules(): Promise<void> {
+    try {
+      const response = await supabaseClient.get('masking_rules', {
+        select: '*',
+        filters: { is_active: true },
+        order: { column: 'priority', ascending: false }
+      });
 
-    for (const [key, data] of Array.from(this.requestCounts.entries())) {
-      const domain = key.split(':')[0];
-      requestsByDomain[domain] = (requestsByDomain[domain] || 0) + data.count;
-      totalRequests += data.count;
+      if (response.error) {
+        console.error('Error loading masking rules:', response.error);
+        return;
+      }
+
+      this.rules = response.data || [];
+      console.log(`Loaded ${this.rules.length} masking rules`);
+    } catch (error) {
+      console.error('Error loading masking rules:', error);
+    }
+  }
+
+  async createMaskingRule(rule: Omit<MaskingRule, 'id' | 'created_at'>): Promise<MaskingRule | null> {
+    try {
+      const response = await supabaseClient.insert('masking_rules', {
+        ...rule,
+        created_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        console.error('Error creating masking rule:', response.error);
+        return null;
+      }
+
+      const newRule = response.data;
+      this.rules.push(newRule);
+      this.rules.sort((a, b) => b.priority - a.priority);
+
+      return newRule;
+    } catch (error) {
+      console.error('Error creating masking rule:', error);
+      return null;
+    }
+  }
+
+  async updateMaskingRule(ruleId: string, updates: Partial<MaskingRule>): Promise<boolean> {
+    try {
+      const response = await supabaseClient.update('masking_rules', ruleId, {
+        ...updates,
+        updated_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        console.error('Error updating masking rule:', response.error);
+        return false;
+      }
+
+      // Update local rules
+      const index = this.rules.findIndex(r => r.id === ruleId);
+      if (index !== -1) {
+        this.rules[index] = { ...this.rules[index], ...updates };
+        this.rules.sort((a, b) => b.priority - a.priority);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating masking rule:', error);
+      return false;
+    }
+  }
+
+  async deleteMaskingRule(ruleId: string): Promise<boolean> {
+    try {
+      const response = await supabaseClient.delete('masking_rules', ruleId);
+
+      if (response.error) {
+        console.error('Error deleting masking rule:', response.error);
+        return false;
+      }
+
+      // Remove from local rules
+      this.rules = this.rules.filter(r => r.id !== ruleId);
+      return true;
+    } catch (error) {
+      console.error('Error deleting masking rule:', error);
+      return false;
+    }
+  }
+
+  maskData(data: any, context?: string): any {
+    if (!this.config.enabled || !data) {
+      return data;
+    }
+
+    try {
+      if (typeof data === 'string') {
+        return this.maskString(data, context);
+      }
+
+      if (Array.isArray(data)) {
+        return data.map(item => this.maskData(item, context));
+      }
+
+      if (typeof data === 'object' && data !== null) {
+        const masked: any = {};
+        for (const [key, value] of Object.entries(data)) {
+          masked[key] = this.maskData(value, `${context ? context + '.' : ''}${key}`);
+        }
+        return masked;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error masking data:', error);
+      return data;
+    }
+  }
+
+  private maskString(value: string, context?: string): string {
+    if (!value || typeof value !== 'string') {
+      return value;
+    }
+
+    // Find applicable masking rule
+    const rule = this.findApplicableRule(context || '');
+    if (!rule) {
+      return this.applyDefaultMasking(value);
+    }
+
+    return this.applyMaskingRule(value, rule);
+  }
+
+  private findApplicableRule(context: string): MaskingRule | null {
+    for (const rule of this.rules) {
+      if (this.matchesPattern(context, rule.field_pattern)) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  private matchesPattern(context: string, pattern: string): boolean {
+    // Simple pattern matching - can be enhanced with regex support
+    if (pattern === '*') return true;
+    if (pattern === context) return true;
+    if (context.includes(pattern)) return true;
+    
+    // Check if pattern is a wildcard pattern
+    const wildcardPattern = pattern.replace(/\*/g, '.*');
+    try {
+      const regex = new RegExp(`^${wildcardPattern}$`, 'i');
+      return regex.test(context);
+    } catch {
+      return false;
+    }
+  }
+
+  private applyMaskingRule(value: string, rule: MaskingRule): string {
+    switch (rule.mask_type) {
+      case 'full':
+        return rule.replacement;
+      
+      case 'partial':
+        return this.maskPartial(value, rule.replacement);
+      
+      case 'hash':
+        return this.hashValue(value);
+      
+      case 'custom':
+        return this.applyCustomMasking(value, rule.replacement);
+      
+      default:
+        return this.applyDefaultMasking(value);
+    }
+  }
+
+  private maskPartial(value: string, replacement: string): string {
+    if (value.length <= 2) {
+      return replacement;
+    }
+
+    if (this.config.preserveLength) {
+      return replacement.repeat(Math.ceil(value.length / replacement.length)).substring(0, value.length);
+    }
+
+    const visibleChars = Math.max(1, Math.floor(value.length * 0.2));
+    const start = value.substring(0, visibleChars);
+    const end = value.substring(value.length - visibleChars);
+    return `${start}${replacement}${end}`;
+  }
+
+  private hashValue(value: string): string {
+    // Simple hash function - in production, use a proper cryptographic hash
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+      const char = value.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return `hash_${Math.abs(hash).toString(36)}`;
+  }
+
+  private applyCustomMasking(value: string, replacement: string): string {
+    // Custom masking logic based on replacement pattern
+    if (replacement.includes('{length}')) {
+      return replacement.replace('{length}', value.length.toString());
+    }
+    
+    if (replacement.includes('{first}')) {
+      return replacement.replace('{first}', value.charAt(0));
+    }
+    
+    if (replacement.includes('{last}')) {
+      return replacement.replace('{last}', value.charAt(value.length - 1));
+    }
+    
+    return replacement;
+  }
+
+  private applyDefaultMasking(value: string): string {
+    switch (this.config.defaultMaskType) {
+      case 'full':
+        return this.config.defaultReplacement;
+      
+      case 'partial':
+        return this.maskPartial(value, this.config.defaultReplacement);
+      
+      case 'hash':
+        return this.hashValue(value);
+      
+      default:
+        return this.maskPartial(value, this.config.defaultReplacement);
+    }
+  }
+
+  async maskApiResponse(
+    response: any,
+    endpoint: string,
+    method: string
+  ): Promise<any> {
+    if (!this.config.enabled) {
+      return response;
+    }
+
+    const context = `${method.toUpperCase()}:${endpoint}`;
+    const maskedResponse = this.maskData(response, context);
+
+    if (this.config.logMasking) {
+      await this.logMaskingEvent(endpoint, method, 'response');
+    }
+
+    return maskedResponse;
+  }
+
+  async maskApiRequest(
+    request: any,
+    endpoint: string,
+    method: string
+  ): Promise<any> {
+    if (!this.config.enabled) {
+      return request;
+    }
+
+    const context = `${method.toUpperCase()}:${endpoint}`;
+    const maskedRequest = this.maskData(request, context);
+
+    if (this.config.logMasking) {
+      await this.logMaskingEvent(endpoint, method, 'request');
+    }
+
+    return maskedRequest;
+  }
+
+  private async logMaskingEvent(endpoint: string, method: string, type: string): Promise<void> {
+    try {
+      await supabaseClient.insert('masking_logs', {
+        endpoint,
+        method,
+        type,
+        masked_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error logging masking event:', error);
+    }
+  }
+
+  async getMaskingRules(): Promise<MaskingRule[]> {
+    return [...this.rules];
+  }
+
+  async getMaskingConfig(): Promise<MaskingConfig> {
+    return { ...this.config };
+  }
+
+  async updateMaskingConfig(newConfig: Partial<MaskingConfig>): Promise<void> {
+    this.config = { ...this.config, ...newConfig };
+  }
+
+  async testMaskingRules(testData: any, context: string): Promise<{
+    original: any;
+    masked: any;
+    appliedRules: string[];
+  }> {
+    const original = JSON.parse(JSON.stringify(testData));
+    const masked = this.maskData(testData, context);
+    
+    const appliedRules: string[] = [];
+    for (const rule of this.rules) {
+      if (this.matchesPattern(context, rule.field_pattern)) {
+        appliedRules.push(`${rule.field_pattern} (${rule.mask_type})`);
+      }
     }
 
     return {
-      totalRequests,
-      requestsByDomain,
-      rateLimitViolations: 0, // Would need to track this separately
-      blockedRequests: 0      // Would need to track this separately
+      original,
+      masked,
+      appliedRules
     };
+  }
+
+  async cleanupOldMaskingLogs(retentionDays: number = 30): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      
+      const response = await supabaseClient.get('masking_logs', {
+        select: 'id',
+        filters: {
+          masked_at: { lt: cutoffDate.toISOString() }
+        }
+      });
+
+      if (response.error || !response.data) {
+        return 0;
+      }
+
+      let cleanedCount = 0;
+      for (const log of response.data) {
+        await supabaseClient.delete('masking_logs', log.id);
+        cleanedCount++;
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up old masking logs:', error);
+      return 0;
+    }
   }
 }
 
 // Global API masking manager instance
-export const apiMaskingManager = new APIMaskingManager({
-  enabled: process.env.API_MASKING_ENABLED !== 'false',
-  allowedDomains: process.env.ALLOWED_API_DOMAINS?.split(',') || undefined,
-  blockedDomains: process.env.BLOCKED_API_DOMAINS?.split(',') || undefined,
-});
+export const apiMaskingManager = ApiMaskingManager.getInstance();
 
-// Helper function to create masked API wrapper
-export function withAPIMasking(
-  apiType: 'jira' | 'supabase' | 'firebase' | 'generic'
-) {
-  return function(handler: (request: NextRequest) => Promise<NextResponse>) {
-    return async function(request: NextRequest): Promise<NextResponse> {
-      // Extract user email
-      const userEmail = extractUserFromRequest(request);
-
-      try {
-        // Execute handler
-        const response = await handler(request);
-
-        // If response contains external API data, mask it
-        if (response.headers.get('content-type')?.includes('application/json')) {
-          const responseData = await response.clone().json();
-          const maskedData = apiMaskingManager.maskResponse(responseData, apiType);
-          
-          return NextResponse.json(maskedData, {
-            status: response.status,
-            headers: response.headers,
-          });
-        }
-
-        return response;
-
-      } catch (error) {
-        // Log error without exposing sensitive information
-        await logSecurityEvent(
-          SecurityEventType.SUSPICIOUS_ACTIVITY,
-          {
-            apiType: apiType,
-            userEmail: userEmail,
-            error: 'Masked API call failed'
-          },
-          request
-        );
-
-        throw error;
-      }
-    };
-  };
+// Helper functions
+export function maskData(data: any, context?: string): any {
+  return apiMaskingManager.maskData(data, context);
 }
 
-// Helper to extract user from request
-function extractUserFromRequest(request: NextRequest): string {
-  const searchParams = new URL(request.url).searchParams;
-  return searchParams.get('userEmail') || 
-         request.headers.get('x-user-email') || 
-         'anonymous';
+export async function maskApiResponse(
+  response: any,
+  endpoint: string,
+  method: string
+): Promise<any> {
+  return await apiMaskingManager.maskApiResponse(response, endpoint, method);
+}
+
+export async function maskApiRequest(
+  request: any,
+  endpoint: string,
+  method: string
+): Promise<any> {
+  return await apiMaskingManager.maskApiRequest(request, endpoint, method);
+}
+
+export async function testMaskingRules(
+  testData: any,
+  context: string
+): Promise<{
+  original: any;
+  masked: any;
+  appliedRules: string[];
+}> {
+  return await apiMaskingManager.testMaskingRules(testData, context);
 }

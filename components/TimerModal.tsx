@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, Project, ProjectCategory } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Project, ProjectCategory } from '@/lib/supabase';
 import { useTimer } from './TimerContext';
 import { getCurrentUser } from '@/lib/auth';
 import { X, Play } from 'lucide-react';
@@ -44,50 +45,46 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
       if (!currentUser?.email) return;
 
       // Get user's team memberships
-      const { data: teamMemberships, error: teamError } = await supabase
-        .from('team_members')
-        .select(`
-          team_id,
-          users!inner(*)
-        `)
-        .eq('users.email', currentUser.email);
+      const teamResponse = await supabaseClient.get('team_members', {
+        select: 'team_id,users!inner(*)',
+        filters: { 'users.email': currentUser.email }
+      });
 
-      if (teamError) throw teamError;
+      if (teamResponse.error) throw new Error(teamResponse.error);
 
       // Get projects assigned to user's teams
-      const userTeamIds = teamMemberships?.map(membership => membership.team_id) || [];
+      const userTeamIds = teamResponse.data?.map(membership => membership.team_id) || [];
       
-      let projectsQuery = supabase
-        .from('projects')
-        .select('*')
-        .order('name');
-
       if (userTeamIds.length > 0) {
         // Get projects assigned to user's teams
-        const { data: assignedProjects, error: assignedError } = await supabase
-          .from('team_project_assignments')
-          .select(`
-            project_id,
-            projects (*)
-          `)
-          .in('team_id', userTeamIds);
+        const assignedResponse = await supabaseClient.get('team_project_assignments', {
+          select: 'project_id,projects(*)',
+          filters: { team_id: userTeamIds }
+        });
 
-        if (assignedError) throw assignedError;
+        if (assignedResponse.error) throw new Error(assignedResponse.error);
 
-        const projectIds = assignedProjects?.map(assignment => assignment.project_id) || [];
+        const projectIds = assignedResponse.data?.map(assignment => assignment.project_id) || [];
         
         if (projectIds.length > 0) {
-          const { data, error } = await projectsQuery.in('id', projectIds);
-          if (error) throw error;
-          setProjects(data || []);
+          const response = await supabaseClient.get('projects', {
+            select: '*',
+            filters: { id: projectIds },
+            order: { column: 'name', ascending: true }
+          });
+          if (response.error) throw new Error(response.error);
+          setProjects(response.data || []);
         } else {
           setProjects([]);
         }
       } else {
         // If user is not in any teams, show all projects (fallback)
-        const { data, error } = await projectsQuery;
-        if (error) throw error;
-        setProjects(data || []);
+        const response = await supabaseClient.get('projects', {
+          select: '*',
+          order: { column: 'name', ascending: true }
+        });
+        if (response.error) throw new Error(response.error);
+        setProjects(response.data || []);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
@@ -97,16 +94,16 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
 
   const loadProjectCategories = async (projectId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('project_categories')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('name');
+      const response = await supabaseClient.get('project_categories', {
+        select: '*',
+        filters: { project_id: projectId }
+      });
 
-      if (error) throw error;
-      setProjectCategories(data || []);
+      if (response.error) throw new Error(response.error);
+      setProjectCategories(response.data || []);
     } catch (error) {
       console.error('Error loading project categories:', error);
+      toast.error('Failed to load project categories');
     }
   };
 

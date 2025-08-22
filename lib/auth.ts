@@ -1,6 +1,6 @@
 import { auth, googleProvider } from './firebase';
 import { signInWithPopup, signInWithEmailAndPassword, signOut, User as FirebaseUser, Auth } from 'firebase/auth';
-import { supabase } from './supabase';
+import { supabaseClient } from './supabase-client';
 
 export async function signInWithGoogle() {
   try {
@@ -75,18 +75,17 @@ export async function signOutUser() {
 
 export async function checkUserAccess(userEmail: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('email')
-      .eq('email', userEmail)
-      .single();
+    const response = await supabaseClient.get('users', {
+      select: 'email',
+      filters: { email: userEmail }
+    });
 
-    if (error) {
-      console.error('Error checking user access:', error);
+    if (response.error) {
+      console.error('Error checking user access:', response.error);
       return false;
     }
 
-    return !!data;
+    return response.data && response.data.length > 0;
   } catch (error) {
     console.error('Error checking user access:', error);
     return false;
@@ -95,9 +94,8 @@ export async function checkUserAccess(userEmail: string): Promise<boolean> {
 
 export async function getUserAccessControls(userEmail: string) {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select(`
+    const response = await supabaseClient.get('users', {
+      select: `
         access_dashboard,
         access_work_report,
         access_analytics,
@@ -110,13 +108,34 @@ export async function getUserAccessControls(userEmail: string) {
         access_upload_tickets,
         access_master_mappings,
         access_integrations
-      `)
-      .eq('email', userEmail)
-      .single();
+      `,
+      filters: { email: userEmail }
+    });
 
-    if (error) {
-      console.error('Error getting user access controls for', userEmail, ':', error);
+    if (response.error) {
+      console.error('Error getting user access controls for', userEmail, ':', response.error);
       // Return default access controls if user not found or error occurs
+      return {
+        access_dashboard: true,
+        access_work_report: false,
+        access_analytics: false,
+        access_analytics_workload: false,
+        access_analytics_project_health: false,
+        access_analytics_tickets: false,
+        access_analytics_operational: false,
+        access_analytics_team_insights: false,
+        access_analytics_remedy: false,
+        access_upload_tickets: false,
+        access_master_mappings: false,
+        access_integrations: false,
+      };
+    }
+
+    // Get the first user (should be unique by email)
+    const userData = response.data && response.data.length > 0 ? response.data[0] : null;
+
+    if (!userData) {
+      // Return default access controls if user not found
       return {
         access_dashboard: true,
         access_work_report: false,
@@ -135,21 +154,19 @@ export async function getUserAccessControls(userEmail: string) {
 
     // Ensure all boolean values are properly set
     const accessControls = {
-      access_dashboard: data?.access_dashboard ?? true,
-      access_work_report: data?.access_work_report ?? false,
-      access_analytics: data?.access_analytics ?? false,
-      access_analytics_workload: data?.access_analytics_workload ?? false,
-      access_analytics_project_health: data?.access_analytics_project_health ?? false,
-      access_analytics_tickets: data?.access_analytics_tickets ?? false,
-      access_analytics_operational: data?.access_analytics_operational ?? false,
-      access_analytics_team_insights: data?.access_analytics_team_insights ?? false,
-      access_analytics_remedy: data?.access_analytics_remedy ?? false,
-      access_upload_tickets: data?.access_upload_tickets ?? false,
-      access_master_mappings: data?.access_master_mappings ?? false,
-      access_integrations: data?.access_integrations ?? false,
+      access_dashboard: userData?.access_dashboard ?? true,
+      access_work_report: userData?.access_work_report ?? false,
+      access_analytics: userData?.access_analytics ?? false,
+      access_analytics_workload: userData?.access_analytics_workload ?? false,
+      access_analytics_project_health: userData?.access_analytics_project_health ?? false,
+      access_analytics_tickets: userData?.access_analytics_tickets ?? false,
+      access_analytics_operational: userData?.access_analytics_operational ?? false,
+      access_analytics_team_insights: userData?.access_analytics_team_insights ?? false,
+      access_analytics_remedy: userData?.access_analytics_remedy ?? false,
+      access_upload_tickets: userData?.access_upload_tickets ?? false,
+      access_master_mappings: userData?.access_master_mappings ?? false,
+      access_integrations: userData?.access_integrations ?? false,
     };
-
-
 
     return accessControls;
   } catch (error) {
@@ -174,18 +191,18 @@ export async function getUserAccessControls(userEmail: string) {
 
 export async function getUserIdFromEmail(userEmail: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', userEmail)
-      .single();
+    const response = await supabaseClient.get('users', {
+      select: 'id',
+      filters: { email: userEmail }
+    });
 
-    if (error) {
-      console.error('Error getting user ID from email:', error);
+    if (response.error) {
+      console.error('Error getting user ID from email:', response.error);
       return null;
     }
 
-    return data?.id || null;
+    const userData = response.data && response.data.length > 0 ? response.data[0] : null;
+    return userData?.id || null;
   } catch (error) {
     console.error('Error getting user ID from email:', error);
     return null;

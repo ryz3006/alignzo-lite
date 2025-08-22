@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, Project, ProjectCategory } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Project, ProjectCategory } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials } from '@/lib/jira';
 import { X, Save, Search, Plus, ExternalLink } from 'lucide-react';
@@ -141,10 +142,18 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
-      const credentials = await getJiraCredentials(currentUser.email);
-      setHasJiraIntegration(!!credentials);
+      const response = await supabaseClient.get('user_integrations', {
+        select: 'is_verified',
+        filters: { 
+          user_email: currentUser.email,
+          integration_type: 'jira'
+        }
+      });
+
+      if (response.error) throw new Error(response.error);
+      setHasJiraIntegration(response.data && response.data.length > 0 && response.data[0].is_verified);
     } catch (error) {
-      console.error('Error checking JIRA integration:', error);
+      console.error('Error checking Jira integration:', error);
       setHasJiraIntegration(false);
     }
   };
@@ -155,50 +164,46 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       if (!currentUser?.email) return;
 
       // Get user's team memberships
-      const { data: teamMemberships, error: teamError } = await supabase
-        .from('team_members')
-        .select(`
-          team_id,
-          users!inner(*)
-        `)
-        .eq('users.email', currentUser.email);
+      const teamResponse = await supabaseClient.get('team_members', {
+        select: 'team_id,users!inner(*)',
+        filters: { 'users.email': currentUser.email }
+      });
 
-      if (teamError) throw teamError;
+      if (teamResponse.error) throw new Error(teamResponse.error);
 
       // Get projects assigned to user's teams
-      const userTeamIds = teamMemberships?.map(membership => membership.team_id) || [];
+      const userTeamIds = teamResponse.data?.map((membership: any) => membership.team_id) || [];
       
-      let projectsQuery = supabase
-        .from('projects')
-        .select('*')
-        .order('name');
-
       if (userTeamIds.length > 0) {
         // Get projects assigned to user's teams
-        const { data: assignedProjects, error: assignedError } = await supabase
-          .from('team_project_assignments')
-          .select(`
-            project_id,
-            projects (*)
-          `)
-          .in('team_id', userTeamIds);
+        const assignedResponse = await supabaseClient.get('team_project_assignments', {
+          select: 'project_id,projects(*)',
+          filters: { team_id: userTeamIds }
+        });
 
-        if (assignedError) throw assignedError;
+        if (assignedResponse.error) throw new Error(assignedResponse.error);
 
-        const projectIds = assignedProjects?.map(assignment => assignment.project_id) || [];
+        const projectIds = assignedResponse.data?.map((assignment: any) => assignment.project_id) || [];
         
         if (projectIds.length > 0) {
-          const { data, error } = await projectsQuery.in('id', projectIds);
-          if (error) throw error;
-          setProjects(data || []);
+          const response = await supabaseClient.get('projects', {
+            select: '*',
+            filters: { id: projectIds },
+            order: { column: 'name', ascending: true }
+          });
+          if (response.error) throw new Error(response.error);
+          setProjects(response.data || []);
         } else {
           setProjects([]);
         }
       } else {
         // If user is not in any teams, show all projects (fallback)
-        const { data, error } = await projectsQuery;
-        if (error) throw error;
-        setProjects(data || []);
+        const response = await supabaseClient.get('projects', {
+          select: '*',
+          order: { column: 'name', ascending: true }
+        });
+        if (response.error) throw new Error(response.error);
+        setProjects(response.data || []);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
@@ -208,36 +213,36 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
 
   const loadProjectCategories = async (projectId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('project_categories')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('name');
+      const response = await supabaseClient.get('project_categories', {
+        select: '*',
+        filters: { project_id: projectId }
+      });
 
-      if (error) throw error;
-      setProjectCategories(data || []);
+      if (response.error) throw new Error(response.error);
+      setProjectCategories(response.data || []);
     } catch (error) {
       console.error('Error loading project categories:', error);
+      toast.error('Failed to load project categories');
     }
   };
 
   const loadJiraProjectMappings = async () => {
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser?.email || !selectedProject) return;
+      if (!currentUser?.email) return;
 
-      const response = await fetch(`/api/integrations/jira/project-mapping?integrationUserEmail=${encodeURIComponent(currentUser.email)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const mappings = data.mappings || [];
-        // Filter mappings for the selected project
-        const projectMappings = mappings.filter((mapping: JiraProjectMapping) => 
-          mapping.dashboard_project_id === selectedProject
-        );
-        setJiraProjectMappings(projectMappings);
-      }
+      const response = await supabaseClient.get('jira_project_mappings', {
+        select: '*,project:projects(*)',
+        filters: { 
+          dashboard_project_id: selectedProject,
+          integration_user_email: currentUser.email
+        }
+      });
+
+      if (response.error) throw new Error(response.error);
+      setJiraProjectMappings(response.data || []);
     } catch (error) {
-      console.error('Error loading JIRA project mappings:', error);
+      console.error('Error loading Jira project mappings:', error);
     }
   };
 
@@ -442,19 +447,17 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       const durationSeconds = calculateDuration();
 
       // Save work log to database
-      const { error } = await supabase
-        .from('work_logs')
-        .insert({
-          user_email: currentUser.email,
-          project_id: selectedProject,
-          ticket_id: formData.ticket_id,
-          task_detail: formData.task_detail,
-          start_time: new Date(formData.start_datetime).toISOString(),
-          end_time: new Date(formData.end_datetime).toISOString(),
-          total_pause_duration_seconds: 0,
-          logged_duration_seconds: durationSeconds,
-          dynamic_category_selections: formData.dynamic_category_selections
-        });
+      const { error } = await supabaseClient.insert('work_logs', {
+        user_email: currentUser.email,
+        project_id: selectedProject,
+        ticket_id: formData.ticket_id,
+        task_detail: formData.task_detail,
+        start_time: new Date(formData.start_datetime).toISOString(),
+        end_time: new Date(formData.end_datetime).toISOString(),
+        total_pause_duration_seconds: 0,
+        logged_duration_seconds: durationSeconds,
+        dynamic_category_selections: formData.dynamic_category_selections
+      });
 
       if (error) throw error;
 

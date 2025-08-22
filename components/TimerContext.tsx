@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, Timer, Project, ProjectCategory } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Timer, Project, ProjectCategory } from '@/lib/supabase';
 import { formatDuration } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -25,16 +26,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadTimers();
-    // Set up real-time subscription for timers
-    const subscription = supabase
-      .channel('timers')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'timers' }, () => {
-        loadTimers();
-      })
-      .subscribe();
+    // Note: Real-time subscriptions are not supported through the proxy
+    // We'll implement polling instead for now
+    const interval = setInterval(() => {
+      loadTimers();
+    }, 5000); // Poll every 5 seconds
 
     return () => {
-      subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, []);
 
@@ -43,16 +42,15 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
-      const { data, error } = await supabase
-        .from('timers')
-        .select('*')
-        .eq('user_email', currentUser.email)
-        .or('is_running.eq.true,is_paused.eq.true')
-        .order('created_at', { ascending: false });
+      const response = await supabaseClient.get('timers', {
+        select: '*',
+        filters: { user_email: currentUser.email },
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
-      const timersData = data || [];
+      const timersData = response.data || [];
       setTimers(timersData);
       setActiveTimers(timersData.filter(timer => timer.is_running || timer.is_paused));
     } catch (error) {
@@ -77,13 +75,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         total_pause_duration_seconds: 0,
       };
 
-      const { data, error } = await supabase
-        .from('timers')
-        .insert([newTimer])
-        .select()
-        .single();
+      const response = await supabaseClient.insert('timers', newTimer);
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
       toast.success('Timer started successfully');
       await loadTimers();
@@ -95,16 +89,13 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
   const pauseTimer = async (timerId: string) => {
     try {
-      const { error } = await supabase
-        .from('timers')
-        .update({
-          is_running: false,
-          is_paused: true,
-          pause_start_time: new Date().toISOString(),
-        })
-        .eq('id', timerId);
+      const response = await supabaseClient.update('timers', timerId, {
+        is_running: false,
+        is_paused: true,
+        pause_start_time: new Date().toISOString()
+      });
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
       toast.success('Timer paused');
       await loadTimers();
@@ -119,21 +110,18 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       const timer = timers.find(t => t.id === timerId);
       if (!timer) throw new Error('Timer not found');
 
-      const pauseDuration = timer.pause_start_time 
-        ? Math.floor((new Date().getTime() - new Date(timer.pause_start_time).getTime()) / 1000)
-        : 0;
+      const now = new Date();
+      const pauseStart = timer.pause_start_time ? new Date(timer.pause_start_time) : now;
+      const pauseDuration = Math.floor((now.getTime() - pauseStart.getTime()) / 1000);
 
-      const { error } = await supabase
-        .from('timers')
-        .update({
-          is_running: true,
-          is_paused: false,
-          pause_start_time: null,
-          total_pause_duration_seconds: (timer.total_pause_duration_seconds || 0) + pauseDuration,
-        })
-        .eq('id', timerId);
+      const response = await supabaseClient.update('timers', timerId, {
+        is_running: true,
+        is_paused: false,
+        pause_start_time: null,
+        total_pause_duration_seconds: (timer.total_pause_duration_seconds || 0) + pauseDuration
+      });
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
       toast.success('Timer resumed');
       await loadTimers();
@@ -148,39 +136,33 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       const timer = timers.find(t => t.id === timerId);
       if (!timer) throw new Error('Timer not found');
 
-      const endTime = new Date();
+      const now = new Date();
       const startTime = new Date(timer.start_time);
-      const totalDuration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-      const loggedDuration = totalDuration - (timer.total_pause_duration_seconds || 0);
+      const totalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+      const netDuration = totalDuration - (timer.total_pause_duration_seconds || 0);
+
+      const response = await supabaseClient.update('timers', timerId, {
+        is_running: false,
+        is_paused: false,
+        end_time: now.toISOString()
+      });
+
+      if (response.error) throw new Error(response.error);
 
       // Create work log entry
-      const workLog = {
+      await supabaseClient.insert('work_logs', {
         user_email: timer.user_email,
         project_id: timer.project_id,
         ticket_id: timer.ticket_id,
         task_detail: timer.task_detail,
-        dynamic_category_selections: timer.dynamic_category_selections,
+        dynamic_category_selections: timer.dynamic_category_selections || {},
         start_time: timer.start_time,
-        end_time: endTime.toISOString(),
+        end_time: now.toISOString(),
         total_pause_duration_seconds: timer.total_pause_duration_seconds || 0,
-        logged_duration_seconds: loggedDuration,
-      };
+        logged_duration_seconds: netDuration
+      });
 
-      const { error: workLogError } = await supabase
-        .from('work_logs')
-        .insert([workLog]);
-
-      if (workLogError) throw workLogError;
-
-      // Delete timer
-      const { error: timerError } = await supabase
-        .from('timers')
-        .delete()
-        .eq('id', timerId);
-
-      if (timerError) throw timerError;
-
-      toast.success('Timer stopped and work log created');
+      toast.success('Timer stopped and work logged');
       await loadTimers();
     } catch (error: any) {
       console.error('Error stopping timer:', error);

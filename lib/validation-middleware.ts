@@ -1,323 +1,430 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z, ZodSchema, ZodError } from 'zod';
-import { logSecurityEvent, SecurityEventType, LogLevel } from './logger';
+import { supabaseClient } from './supabase-client';
 
-// Validation middleware configuration
-interface ValidationConfig {
-  body?: ZodSchema;
-  query?: ZodSchema;
-  params?: ZodSchema;
-  headers?: ZodSchema;
-  requireAuth?: boolean;
-  requireAdmin?: boolean;
-  rateLimit?: boolean;
-  logValidation?: boolean;
+export interface ValidationRule {
+  field: string;
+  type: 'required' | 'email' | 'minLength' | 'maxLength' | 'pattern' | 'custom';
+  value?: any;
+  message: string;
+  validator?: (value: any) => boolean | Promise<boolean>;
 }
 
-// Validation result interface
-interface ValidationResult {
+export interface ValidationResult {
   isValid: boolean;
-  errors?: ZodError;
-  data?: {
-    body?: any;
-    query?: any;
-    params?: any;
-    headers?: any;
-  };
+  errors: string[];
+  fieldErrors: Record<string, string[]>;
 }
 
-// Centralized validation middleware
-export function withValidation(config: ValidationConfig) {
-  return function(handler: (request: NextRequest, validatedData?: any) => Promise<NextResponse>) {
-    return async function(request: NextRequest): Promise<NextResponse> {
-      const startTime = Date.now();
-      
-      try {
-        // Validate request components
-        const validationResult = await validateRequest(request, config);
-        
-        if (!validationResult.isValid) {
-          // Log validation failure
-          if (config.logValidation !== false) {
-            logSecurityEvent(
-              SecurityEventType.INVALID_INPUT,
-              {
-                endpoint: request.url,
-                method: request.method,
-                validationErrors: validationResult.errors?.errors,
-                clientInfo: extractClientInfo(request)
-              },
-              request,
-              LogLevel.WARN
-            );
-          }
-          
-          return NextResponse.json(
-            {
-              error: 'Validation failed',
-              message: 'Request data validation failed',
-              details: validationResult.errors?.errors || []
-            },
-            { status: 400 }
-          );
-        }
-        
-        // Log successful validation
-        if (config.logValidation !== false) {
-          logSecurityEvent(
-            SecurityEventType.DATA_ACCESS,
-            {
-              endpoint: request.url,
-              method: request.method,
-              validationPassed: true,
-              responseTime: Date.now() - startTime
-            },
-            request,
-            LogLevel.INFO
-          );
-        }
-        
-        // Call the handler with validated data
-        return await handler(request, validationResult.data);
-        
-      } catch (error) {
-        // Log validation error
-        logSecurityEvent(
-          SecurityEventType.INVALID_INPUT,
-          {
-            endpoint: request.url,
-            method: request.method,
-            error: error instanceof Error ? error.message : 'Unknown validation error',
-            responseTime: Date.now() - startTime
-          },
-          request,
-          LogLevel.ERROR
-        );
-        
-        return NextResponse.json(
-          {
-            error: 'Validation error',
-            message: 'An error occurred during request validation'
-          },
-          { status: 500 }
-        );
-      }
-    };
-  };
+export interface ValidationConfig {
+  rules: ValidationRule[];
+  stopOnFirstError: boolean;
+  sanitizeInput: boolean;
 }
 
-// Validate request components
-async function validateRequest(request: NextRequest, config: ValidationConfig): Promise<ValidationResult> {
-  const result: ValidationResult = { isValid: true, data: {} };
-  
-  try {
-    // Validate body if schema provided
-    if (config.body) {
-      const body = await request.json().catch(() => ({}));
-      const validatedBody = config.body.parse(body);
-      result.data!.body = validatedBody;
-    }
-    
-    // Validate query parameters
-    if (config.query) {
-      const url = new URL(request.url);
-      const queryParams: Record<string, string> = {};
-      url.searchParams.forEach((value, key) => {
-        queryParams[key] = value;
-      });
-      const validatedQuery = config.query.parse(queryParams);
-      result.data!.query = validatedQuery;
-    }
-    
-    // Validate URL parameters (for dynamic routes)
-    if (config.params) {
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split('/').filter(Boolean);
-      const params: Record<string, string> = {};
-      
-      // Extract parameters from path (basic implementation)
-      // This would need to be enhanced based on your routing structure
-      if (pathParts.length > 0) {
-        params.id = pathParts[pathParts.length - 1];
-      }
-      
-      const validatedParams = config.params.parse(params);
-      result.data!.params = validatedParams;
-    }
-    
-    // Validate headers
-    if (config.headers) {
-      const headers: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-      const validatedHeaders = config.headers.parse(headers);
-      result.data!.headers = validatedHeaders;
-    }
-    
-  } catch (error) {
-    if (error instanceof ZodError) {
-      result.isValid = false;
-      result.errors = error;
-    } else {
-      throw error;
-    }
+export class ValidationMiddleware {
+  private static instance: ValidationMiddleware;
+  private configs: Map<string, ValidationConfig> = new Map();
+
+  private constructor() {
+    this.initializeDefaultConfigs();
   }
-  
-  return result;
-}
 
-// Extract client information for logging
-function extractClientInfo(request: NextRequest) {
-  return {
-    ip: request.headers.get('x-forwarded-for') || 
-        request.headers.get('x-real-ip') || 
-        request.ip || 
-        'unknown',
-    userAgent: request.headers.get('user-agent') || 'unknown',
-    origin: request.headers.get('origin') || 'unknown',
-    referer: request.headers.get('referer') || 'unknown'
-  };
-}
+  public static getInstance(): ValidationMiddleware {
+    if (!ValidationMiddleware.instance) {
+      ValidationMiddleware.instance = new ValidationMiddleware();
+    }
+    return ValidationMiddleware.instance;
+  }
 
-// Predefined validation schemas for common use cases
-export const commonSchemas = {
-  // Pagination schema
-  pagination: z.object({
-    page: z.string().optional().transform(val => parseInt(val || '1')),
-    limit: z.string().optional().transform(val => parseInt(val || '10')),
-    sortBy: z.string().optional(),
-    sortOrder: z.enum(['asc', 'desc']).optional().default('desc')
-  }),
-  
-  // ID parameter schema
-  idParam: z.object({
-    id: z.string().min(1, 'ID is required')
-  }),
-  
-  // Email schema
-  email: z.string().email('Invalid email format'),
-  
-  // Password schema
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  
-  // Date range schema
-  dateRange: z.object({
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional()
-  }),
-  
-  // Search schema
-  search: z.object({
-    query: z.string().min(1, 'Search query is required'),
-    filters: z.record(z.any()).optional()
-  }),
-  
-  // File upload schema
-  fileUpload: z.object({
-    filename: z.string().min(1, 'Filename is required'),
-    size: z.number().positive('File size must be positive'),
-    type: z.string().min(1, 'File type is required')
-  })
-};
+  private initializeDefaultConfigs(): void {
+    // User registration validation
+    this.configs.set('userRegistration', {
+      rules: [
+        {
+          field: 'email',
+          type: 'required',
+          message: 'Email is required'
+        },
+        {
+          field: 'email',
+          type: 'email',
+          message: 'Invalid email format'
+        },
+        {
+          field: 'password',
+          type: 'required',
+          message: 'Password is required'
+        },
+        {
+          field: 'password',
+          type: 'minLength',
+          value: 8,
+          message: 'Password must be at least 8 characters long'
+        },
+        {
+          field: 'name',
+          type: 'required',
+          message: 'Name is required'
+        },
+        {
+          field: 'name',
+          type: 'minLength',
+          value: 2,
+          message: 'Name must be at least 2 characters long'
+        }
+      ],
+      stopOnFirstError: false,
+      sanitizeInput: true
+    });
 
-// Enhanced validation with custom error messages
-export function createValidationSchema(
-  schema: ZodSchema,
-  customMessages?: Record<string, string>
-): ZodSchema {
-  if (!customMessages) return schema;
-  
-  // Apply custom error messages
-  return schema.transform((data, ctx) => {
+    // User login validation
+    this.configs.set('userLogin', {
+      rules: [
+        {
+          field: 'email',
+          type: 'required',
+          message: 'Email is required'
+        },
+        {
+          field: 'email',
+          type: 'email',
+          message: 'Invalid email format'
+        },
+        {
+          field: 'password',
+          type: 'required',
+          message: 'Password is required'
+        }
+      ],
+      stopOnFirstError: false,
+      sanitizeInput: true
+    });
+
+    // Project creation validation
+    this.configs.set('projectCreation', {
+      rules: [
+        {
+          field: 'name',
+          type: 'required',
+          message: 'Project name is required'
+        },
+        {
+          field: 'name',
+          type: 'minLength',
+          value: 3,
+          message: 'Project name must be at least 3 characters long'
+        },
+        {
+          field: 'description',
+          type: 'maxLength',
+          value: 500,
+          message: 'Project description must be less than 500 characters'
+        }
+      ],
+      stopOnFirstError: false,
+      sanitizeInput: true
+    });
+
+    // Team creation validation
+    this.configs.set('teamCreation', {
+      rules: [
+        {
+          field: 'name',
+          type: 'required',
+          message: 'Team name is required'
+        },
+        {
+          field: 'name',
+          type: 'minLength',
+          value: 2,
+          message: 'Team name must be at least 2 characters long'
+        },
+        {
+          field: 'description',
+          type: 'maxLength',
+          value: 300,
+          message: 'Team description must be less than 300 characters'
+        }
+      ],
+      stopOnFirstError: false,
+      sanitizeInput: true
+    });
+  }
+
+  async validate(
+    data: Record<string, any>,
+    configName: string
+  ): Promise<ValidationResult> {
     try {
-      return schema.parse(data);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        error.errors.forEach(err => {
-          const path = err.path.join('.');
-          if (customMessages[path]) {
-            err.message = customMessages[path];
-          }
-        });
+      const config = this.configs.get(configName);
+      if (!config) {
+        throw new Error(`Validation config '${configName}' not found`);
       }
-      throw error;
+
+      const result: ValidationResult = {
+        isValid: true,
+        errors: [],
+        fieldErrors: {}
+      };
+
+      // Sanitize input if configured
+      const sanitizedData = config.sanitizeInput ? this.sanitizeInput(data) : data;
+
+      for (const rule of config.rules) {
+        const fieldValue = sanitizedData[rule.field];
+        const fieldError = await this.validateField(fieldValue, rule);
+
+        if (fieldError) {
+          result.isValid = false;
+          result.errors.push(fieldError);
+
+          if (!result.fieldErrors[rule.field]) {
+            result.fieldErrors[rule.field] = [];
+          }
+          result.fieldErrors[rule.field].push(fieldError);
+
+          if (config.stopOnFirstError) {
+            break;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Validation error:', error);
+      return {
+        isValid: false,
+        errors: ['Validation failed due to system error'],
+        fieldErrors: {}
+      };
     }
-  });
-}
-
-// Validation middleware with authentication check
-export function withAuthValidation(
-  config: ValidationConfig & { 
-    requireAuth: true; 
-    requireAdmin?: boolean;
   }
-) {
-  return withValidation({
-    ...config,
-    requireAuth: true,
-    requireAdmin: config.requireAdmin
-  });
+
+  private async validateField(value: any, rule: ValidationRule): Promise<string | null> {
+    try {
+      switch (rule.type) {
+        case 'required':
+          if (value === undefined || value === null || value === '') {
+            return rule.message;
+          }
+          break;
+
+        case 'email':
+          if (value && !this.isValidEmail(value)) {
+            return rule.message;
+          }
+          break;
+
+        case 'minLength':
+          if (value && typeof value === 'string' && value.length < rule.value!) {
+            return rule.message;
+          }
+          break;
+
+        case 'maxLength':
+          if (value && typeof value === 'string' && value.length > rule.value!) {
+            return rule.message;
+          }
+          break;
+
+        case 'pattern':
+          if (value && rule.value && !rule.value.test(value)) {
+            return rule.message;
+          }
+          break;
+
+        case 'custom':
+          if (rule.validator) {
+            const isValid = await rule.validator(value);
+            if (!isValid) {
+              return rule.message;
+            }
+          }
+          break;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error validating field ${rule.field}:`, error);
+      return `Validation error for ${rule.field}`;
+    }
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  private sanitizeInput(data: Record<string, any>): Record<string, any> {
+    const sanitized: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string') {
+        // Remove HTML tags and trim whitespace
+        sanitized[key] = value.replace(/<[^>]*>/g, '').trim();
+      } else if (typeof value === 'object' && value !== null) {
+        // Recursively sanitize nested objects
+        sanitized[key] = this.sanitizeInput(value);
+      } else {
+        // Keep other types as-is
+        sanitized[key] = value;
+      }
+    }
+
+    return sanitized;
+  }
+
+  async addValidationConfig(
+    name: string,
+    config: ValidationConfig
+  ): Promise<void> {
+    this.configs.set(name, config);
+  }
+
+  async getValidationConfig(name: string): Promise<ValidationConfig | undefined> {
+    return this.configs.get(name);
+  }
+
+  async removeValidationConfig(name: string): Promise<boolean> {
+    return this.configs.delete(name);
+  }
+
+  async validateUniqueField(
+    table: string,
+    field: string,
+    value: any,
+    excludeId?: string
+  ): Promise<boolean> {
+    try {
+      const filters: any = { [field]: value };
+      
+      if (excludeId) {
+        filters.id = { neq: excludeId };
+      }
+
+      const response = await supabaseClient.get(table, {
+        select: 'id',
+        filters,
+        limit: 1
+      });
+
+      if (response.error) {
+        console.error('Error checking unique field:', response.error);
+        return false;
+      }
+
+      return !response.data || response.data.length === 0;
+    } catch (error) {
+      console.error('Error validating unique field:', error);
+      return false;
+    }
+  }
+
+  async validateUserAccess(
+    userEmail: string,
+    resourceType: string,
+    resourceId?: string
+  ): Promise<boolean> {
+    try {
+      // Check if user exists and is active
+      const userResponse = await supabaseClient.get('users', {
+        select: 'id,is_active',
+        filters: { email: userEmail }
+      });
+
+      if (userResponse.error || !userResponse.data || userResponse.data.length === 0) {
+        return false;
+      }
+
+      const user = userResponse.data[0];
+      if (!user.is_active) {
+        return false;
+      }
+
+      // Check if user is admin
+      const adminResponse = await supabaseClient.get('admin_users', {
+        select: 'id',
+        filters: { user_email: userEmail }
+      });
+
+      if (!adminResponse.error && adminResponse.data && adminResponse.data.length > 0) {
+        return true; // Admin has access to everything
+      }
+
+      // Check resource-specific permissions
+      if (resourceType && resourceId) {
+        return await this.checkResourcePermission(userEmail, resourceType, resourceId);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error validating user access:', error);
+      return false;
+    }
+  }
+
+  private async checkResourcePermission(
+    userEmail: string,
+    resourceType: string,
+    resourceId: string
+  ): Promise<boolean> {
+    try {
+      switch (resourceType) {
+        case 'project':
+          // Check if user is member of team assigned to project
+          const projectResponse = await supabaseClient.get('team_project_assignments', {
+            select: 'team_id,teams!inner(team_members!inner(user_email))',
+            filters: { project_id: resourceId }
+          });
+
+          if (projectResponse.error) return false;
+
+          return projectResponse.data?.some((assignment: any) =>
+            assignment.teams?.team_members?.some((member: any) => member.user_email === userEmail)
+          ) || false;
+
+        case 'team':
+          // Check if user is member of team
+          const teamResponse = await supabaseClient.get('team_members', {
+            select: 'id',
+            filters: { team_id: resourceId, user_email: userEmail }
+          });
+
+          return !teamResponse.error && teamResponse.data && teamResponse.data.length > 0;
+
+        default:
+          return false;
+      }
+    } catch (error) {
+      console.error('Error checking resource permission:', error);
+      return false;
+    }
+  }
 }
 
-// Validation middleware for admin-only endpoints
-export function withAdminValidation(config: Omit<ValidationConfig, 'requireAdmin'>) {
-  return withValidation({
-    ...config,
-    requireAuth: true,
-    requireAdmin: true
-  });
+// Global validation middleware instance
+export const validationMiddleware = ValidationMiddleware.getInstance();
+
+// Helper functions
+export async function validateData(
+  data: Record<string, any>,
+  configName: string
+): Promise<ValidationResult> {
+  return await validationMiddleware.validate(data, configName);
 }
 
-// Validation middleware for public endpoints
-export function withPublicValidation(config: Omit<ValidationConfig, 'requireAuth' | 'requireAdmin'>) {
-  return withValidation({
-    ...config,
-    requireAuth: false,
-    requireAdmin: false
-  });
+export async function validateUniqueField(
+  table: string,
+  field: string,
+  value: any,
+  excludeId?: string
+): Promise<boolean> {
+  return await validationMiddleware.validateUniqueField(table, field, value, excludeId);
 }
 
-// Utility function to create endpoint-specific validation
-export function createEndpointValidation(
-  endpoint: string,
-  method: string,
-  config: ValidationConfig
-) {
-  return {
-    endpoint,
-    method,
-    config,
-    middleware: withValidation(config)
-  };
-}
-
-// Validation error formatter
-export function formatValidationErrors(errors: ZodError) {
-  return errors.errors.map(error => ({
-    field: error.path.join('.'),
-    message: error.message,
-    code: error.code
-  }));
-}
-
-// Request sanitization (basic implementation)
-export function sanitizeRequest(request: NextRequest): NextRequest {
-  // This is a basic implementation - enhance based on your needs
-  const url = new URL(request.url);
-  
-  // Remove potentially dangerous query parameters
-  const dangerousParams = ['script', 'javascript', 'vbscript', 'onload', 'onerror'];
-  dangerousParams.forEach(param => {
-    url.searchParams.delete(param);
-  });
-  
-  // Create new request with sanitized URL
-  const sanitizedRequest = new NextRequest(url.toString(), {
-    method: request.method,
-    headers: request.headers,
-    body: request.body
-  });
-  
-  return sanitizedRequest;
+export async function validateUserAccess(
+  userEmail: string,
+  resourceType: string,
+  resourceId?: string
+): Promise<boolean> {
+  return await validationMiddleware.validateUserAccess(userEmail, resourceType, resourceId);
 }

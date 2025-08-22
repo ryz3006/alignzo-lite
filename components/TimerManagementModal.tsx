@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, Timer, Project } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Timer, Project } from '@/lib/supabase';
 import { useTimer } from './TimerContext';
 import { X, Play, Pause, Square, Clock } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
@@ -39,12 +40,12 @@ export default function TimerManagementModal({ isOpen, onClose }: TimerManagemen
 
   const loadProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*');
+      const response = await supabaseClient.get('projects', {
+        select: '*'
+      });
 
-      if (error) throw error;
-      setProjects(data || []);
+      if (response.error) throw new Error(response.error);
+      setProjects(response.data || []);
     } catch (error) {
       console.error('Error loading projects:', error);
     }

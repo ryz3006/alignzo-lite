@@ -1,253 +1,374 @@
+import { supabaseClient } from './supabase-client';
 import crypto from 'crypto';
 
-// Encryption configuration
-interface EncryptionConfig {
+export interface EncryptionKey {
+  id?: string;
+  name: string;
+  key_hash: string;
   algorithm: string;
-  keyLength: number;
-  ivLength: number;
-  saltLength: number;
-  iterations: number;
+  key_size: number;
+  created_at?: string;
+  expires_at?: string;
+  is_active: boolean;
 }
 
-// Default encryption configuration
-const defaultConfig: EncryptionConfig = {
-  algorithm: 'aes-256-cbc',
-  keyLength: 32,
-  ivLength: 16,
-  saltLength: 16,
-  iterations: 100000
-};
-
-// Encrypted data structure
-interface EncryptedData {
-  encrypted: string;
+export interface EncryptedData {
+  id?: string;
+  encrypted_data: string;
   iv: string;
-  salt: string;
-  tag: string;
-  version: string;
+  key_id: string;
+  algorithm: string;
+  created_at?: string;
 }
 
-export class DatabaseEncryption {
-  private config: EncryptionConfig;
+export class EncryptionManager {
+  private static instance: EncryptionManager;
   private masterKey: string;
+  private algorithm: string;
+  private keySize: number;
 
-  constructor(masterKey: string, config: Partial<EncryptionConfig> = {}) {
-    this.config = { ...defaultConfig, ...config };
-    this.masterKey = masterKey;
+  private constructor() {
+    this.masterKey = process.env.ENCRYPTION_MASTER_KEY || this.generateMasterKey();
+    this.algorithm = 'aes-256-gcm';
+    this.keySize = 32;
   }
 
-  // Generate encryption key from master key and salt
-  private deriveKey(salt: Buffer): Buffer {
-    return crypto.pbkdf2Sync(
-      this.masterKey,
-      salt,
-      this.config.iterations,
-      this.config.keyLength,
-      'sha256'
-    );
+  public static getInstance(): EncryptionManager {
+    if (!EncryptionManager.instance) {
+      EncryptionManager.instance = new EncryptionManager();
+    }
+    return EncryptionManager.instance;
   }
 
-  // Encrypt sensitive data
-  encrypt(data: string): EncryptedData {
+  private generateMasterKey(): string {
+    const key = crypto.randomBytes(32).toString('hex');
+    console.warn('No ENCRYPTION_MASTER_KEY found, generated temporary key. Set this environment variable in production.');
+    return key;
+  }
+
+  async generateKey(name: string, expiresAt?: Date): Promise<EncryptionKey | null> {
     try {
-      // Generate salt and IV
-      const salt = crypto.randomBytes(this.config.saltLength);
-      const iv = crypto.randomBytes(this.config.ivLength);
+      const key = crypto.randomBytes(this.keySize);
+      const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+      
+      const expiresDate = expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year default
 
-      // Derive encryption key
-      const key = this.deriveKey(salt);
+      const response = await supabaseClient.insert('encryption_keys', {
+        name,
+        key_hash: keyHash,
+        algorithm: this.algorithm,
+        key_size: this.keySize,
+        expires_at: expiresDate.toISOString(),
+        is_active: true
+      });
 
-      // Create cipher
-      const cipher = crypto.createCipher(this.config.algorithm, key, iv);
+      if (response.error) {
+        console.error('Error creating encryption key:', response.error);
+        return null;
+      }
 
-      // Encrypt data
-      let encrypted = cipher.update(data, 'utf8', 'hex');
-      encrypted += cipher.final('hex');
-
-      return {
-        encrypted,
-        iv: iv.toString('hex'),
-        salt: salt.toString('hex'),
-        tag: '', // Not used for CBC mode
-        version: '1.0'
-      };
+      return response.data;
     } catch (error) {
-      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error generating encryption key:', error);
+      return null;
     }
   }
 
-  // Decrypt sensitive data
-  decrypt(encryptedData: EncryptedData): string {
+  async getKey(keyId: string): Promise<EncryptionKey | null> {
     try {
-      // Parse encrypted data
-      const iv = Buffer.from(encryptedData.iv, 'hex');
-      const salt = Buffer.from(encryptedData.salt, 'hex');
+      const response = await supabaseClient.get('encryption_keys', {
+        select: '*',
+        filters: { id: keyId }
+      });
 
-      // Derive decryption key
-      const key = this.deriveKey(salt);
+      if (response.error || !response.data || response.data.length === 0) {
+        return null;
+      }
 
-      // Create decipher
-      const decipher = crypto.createDecipher(this.config.algorithm, key, iv);
+      const key = response.data[0];
+      
+      // Check if key is expired
+      if (key.expires_at && new Date(key.expires_at) < new Date()) {
+        await this.deactivateKey(keyId);
+        return null;
+      }
 
-      // Decrypt data
-      let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+      return key;
+    } catch (error) {
+      console.error('Error getting encryption key:', error);
+      return null;
+    }
+  }
+
+  async deactivateKey(keyId: string): Promise<boolean> {
+    try {
+      const response = await supabaseClient.update('encryption_keys', keyId, {
+        is_active: false,
+        updated_at: new Date().toISOString()
+      });
+
+      return !response.error;
+    } catch (error) {
+      console.error('Error deactivating encryption key:', error);
+      return false;
+    }
+  }
+
+  async encrypt(data: string, keyId: string): Promise<EncryptedData | null> {
+    try {
+      const key = await this.getKey(keyId);
+      if (!key || !key.is_active) {
+        throw new Error('Invalid or inactive encryption key');
+      }
+
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipher(this.algorithm, this.masterKey);
+      
+      let encrypted = cipher.update(data, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      // For compatibility, use a simpler approach without auth tag
+      const encryptedData: Omit<EncryptedData, 'id' | 'created_at'> = {
+        encrypted_data: encrypted,
+        iv: iv.toString('hex'),
+        key_id: keyId,
+        algorithm: this.algorithm
+      };
+
+      const response = await supabaseClient.insert('encrypted_data', {
+        ...encryptedData,
+        created_at: new Date().toISOString()
+      });
+
+      if (response.error) {
+        throw new Error(`Failed to store encrypted data: ${response.error}`);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error encrypting data:', error);
+      return null;
+    }
+  }
+
+  async decrypt(encryptedDataId: string): Promise<string | null> {
+    try {
+      const response = await supabaseClient.get('encrypted_data', {
+        select: '*',
+        filters: { id: encryptedDataId }
+      });
+
+      if (response.error || !response.data || response.data.length === 0) {
+        throw new Error('Encrypted data not found');
+      }
+
+      const encryptedRecord = response.data[0];
+      const key = await this.getKey(encryptedRecord.key_id);
+      
+      if (!key || !key.is_active) {
+        throw new Error('Invalid or inactive encryption key');
+      }
+
+      const iv = Buffer.from(encryptedRecord.iv, 'hex');
+      const encryptedData = encryptedRecord.encrypted_data;
+
+      const decipher = crypto.createDecipher(this.algorithm, this.masterKey);
+      
+      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
 
       return decrypted;
     } catch (error) {
-      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error decrypting data:', error);
+      return null;
     }
   }
 
-  // Encrypt object fields selectively
-  encryptObject(obj: any, fieldsToEncrypt: string[]): any {
-    const encrypted = { ...obj };
-
-    for (const field of fieldsToEncrypt) {
-      if (obj[field] && typeof obj[field] === 'string') {
-        const encryptedData = this.encrypt(obj[field]);
-        encrypted[field] = JSON.stringify(encryptedData);
-      }
-    }
-
-    return encrypted;
-  }
-
-  // Decrypt object fields selectively
-  decryptObject(obj: any, fieldsToDecrypt: string[]): any {
-    const decrypted = { ...obj };
-
-    for (const field of fieldsToDecrypt) {
-      if (obj[field] && typeof obj[field] === 'string') {
-        try {
-          const encryptedData = JSON.parse(obj[field]) as EncryptedData;
-          decrypted[field] = this.decrypt(encryptedData);
-        } catch (error) {
-          // If parsing fails, assume it's not encrypted
-          console.warn(`Field ${field} is not encrypted or corrupted`);
+  async encryptField(data: any, fieldsToEncrypt: string[], keyId: string): Promise<any> {
+    try {
+      const encryptedData = { ...data };
+      
+      for (const field of fieldsToEncrypt) {
+        if (data[field] && typeof data[field] === 'string') {
+          const encrypted = await this.encrypt(data[field], keyId);
+          if (encrypted) {
+            encryptedData[field] = encrypted.id;
+            encryptedData[`${field}_encrypted`] = true;
+          }
         }
       }
-    }
-
-    return decrypted;
-  }
-
-  // Generate a new master key
-  static generateMasterKey(): string {
-    return crypto.randomBytes(32).toString('base64');
-  }
-
-  // Validate encryption configuration
-  validateConfig(): boolean {
-    try {
-      // Test encryption/decryption with sample data
-      const testData = 'test-encryption-data';
-      const encrypted = this.encrypt(testData);
-      const decrypted = this.decrypt(encrypted);
       
-      return decrypted === testData;
+      return encryptedData;
     } catch (error) {
-      console.error('Encryption configuration validation failed:', error);
-      return false;
+      console.error('Error encrypting fields:', error);
+      return data;
+    }
+  }
+
+  async decryptFields(data: any, fieldsToDecrypt: string[]): Promise<any> {
+    try {
+      const decryptedData = { ...data };
+      
+      for (const field of fieldsToDecrypt) {
+        if (data[`${field}_encrypted`] && data[field]) {
+          const decrypted = await this.decrypt(data[field]);
+          if (decrypted !== null) {
+            decryptedData[field] = decrypted;
+            delete decryptedData[`${field}_encrypted`];
+          }
+        }
+      }
+      
+      return decryptedData;
+    } catch (error) {
+      console.error('Error decrypting fields:', error);
+      return data;
+    }
+  }
+
+  async rotateKeys(): Promise<number> {
+    try {
+      // Get all active keys
+      const response = await supabaseClient.get('encryption_keys', {
+        select: '*',
+        filters: { is_active: true }
+      });
+
+      if (response.error || !response.data) {
+        return 0;
+      }
+
+      let rotatedCount = 0;
+      const now = new Date();
+
+      for (const key of response.data) {
+        // Check if key is close to expiration (within 30 days)
+        if (key.expires_at) {
+          const expirationDate = new Date(key.expires_at);
+          const daysUntilExpiry = (expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          
+          if (daysUntilExpiry < 30) {
+            // Generate new key
+            const newKey = await this.generateKey(key.name, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+            if (newKey) {
+              // Re-encrypt data with new key
+              await this.reEncryptData(key.id!, newKey.id!);
+              
+              // Deactivate old key
+              await this.deactivateKey(key.id!);
+              
+              rotatedCount++;
+            }
+          }
+        }
+      }
+
+      return rotatedCount;
+    } catch (error) {
+      console.error('Error rotating keys:', error);
+      return 0;
+    }
+  }
+
+  private async reEncryptData(oldKeyId: string, newKeyId: string): Promise<void> {
+    try {
+      // Get all data encrypted with old key
+      const response = await supabaseClient.get('encrypted_data', {
+        select: '*',
+        filters: { key_id: oldKeyId }
+      });
+
+      if (response.error || !response.data) return;
+
+      for (const encryptedRecord of response.data) {
+        try {
+          // Decrypt with old key
+          const decrypted = await this.decrypt(encryptedRecord.id!);
+          
+          if (decrypted !== null) {
+            // Encrypt with new key
+            const reEncrypted = await this.encrypt(decrypted, newKeyId);
+            
+            if (reEncrypted) {
+              // Update the record to use new key
+              await supabaseClient.update('encrypted_data', encryptedRecord.id!, {
+                key_id: newKeyId,
+                updated_at: new Date().toISOString()
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error re-encrypting data ${encryptedRecord.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error re-encrypting data:', error);
+    }
+  }
+
+  async getKeyUsage(keyId: string): Promise<number> {
+    try {
+      const response = await supabaseClient.get('encrypted_data', {
+        select: 'id',
+        filters: { key_id: keyId }
+      });
+
+      if (response.error) return 0;
+      return response.data?.length || 0;
+    } catch (error) {
+      console.error('Error getting key usage:', error);
+      return 0;
+    }
+  }
+
+  async cleanupExpiredKeys(): Promise<number> {
+    try {
+      const now = new Date();
+      
+      const response = await supabaseClient.get('encryption_keys', {
+        select: 'id',
+        filters: {
+          expires_at: { lt: now.toISOString() },
+          is_active: true
+        }
+      });
+
+      if (response.error || !response.data) {
+        return 0;
+      }
+
+      let cleanedCount = 0;
+      for (const key of response.data) {
+        if (await this.deactivateKey(key.id)) {
+          cleanedCount++;
+        }
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up expired keys:', error);
+      return 0;
     }
   }
 }
 
-// Global encryption instance
-let globalEncryption: DatabaseEncryption | null = null;
+// Global encryption manager instance
+export const encryptionManager = EncryptionManager.getInstance();
 
-// Initialize global encryption
-export function initializeEncryption(masterKey: string): DatabaseEncryption {
-  if (!masterKey) {
-    throw new Error('Master key is required for encryption');
-  }
-
-  globalEncryption = new DatabaseEncryption(masterKey);
-  
-  // Validate configuration
-  if (!globalEncryption.validateConfig()) {
-    throw new Error('Encryption configuration validation failed');
-  }
-
-  return globalEncryption;
+// Helper functions
+export async function encryptData(data: string, keyId: string): Promise<EncryptedData | null> {
+  return await encryptionManager.encrypt(data, keyId);
 }
 
-// Get global encryption instance
-export function getEncryption(): DatabaseEncryption {
-  if (!globalEncryption) {
-    throw new Error('Encryption not initialized. Call initializeEncryption() first.');
-  }
-  return globalEncryption;
+export async function decryptData(encryptedDataId: string): Promise<string | null> {
+  return await encryptionManager.decrypt(encryptedDataId);
 }
 
-// Encrypt sensitive fields in database operations
-export function encryptSensitiveFields(data: any, fields: string[]): any {
-  const encryption = getEncryption();
-  return encryption.encryptObject(data, fields);
+export async function generateEncryptionKey(name: string, expiresAt?: Date): Promise<EncryptionKey | null> {
+  return await encryptionManager.generateKey(name, expiresAt);
 }
 
-// Decrypt sensitive fields in database operations
-export function decryptSensitiveFields(data: any, fields: string[]): any {
-  const encryption = getEncryption();
-  return encryption.decryptObject(data, fields);
+export async function rotateEncryptionKeys(): Promise<number> {
+  return await encryptionManager.rotateKeys();
 }
 
-// Fields that should be encrypted by default
-export const DEFAULT_ENCRYPTED_FIELDS = [
-  'api_token',
-  'password',
-  'secret_key',
-  'private_key',
-  'access_token',
-  'refresh_token',
-  'encryption_key',
-  'sensitive_data',
-  'personal_info',
-  'financial_data'
-];
-
-// Encryption utilities for specific data types
-export class EncryptionUtils {
-  // Encrypt API tokens
-  static encryptApiToken(token: string): string {
-    const encryption = getEncryption();
-    const encryptedData = encryption.encrypt(token);
-    return JSON.stringify(encryptedData);
-  }
-
-  // Decrypt API tokens
-  static decryptApiToken(encryptedToken: string): string {
-    const encryption = getEncryption();
-    const encryptedData = JSON.parse(encryptedToken) as EncryptedData;
-    return encryption.decrypt(encryptedData);
-  }
-
-  // Encrypt user passwords (additional layer)
-  static encryptPassword(password: string): string {
-    const encryption = getEncryption();
-    const encryptedData = encryption.encrypt(password);
-    return JSON.stringify(encryptedData);
-  }
-
-  // Decrypt user passwords
-  static decryptPassword(encryptedPassword: string): string {
-    const encryption = getEncryption();
-    const encryptedData = JSON.parse(encryptedPassword) as EncryptedData;
-    return encryption.decrypt(encryptedData);
-  }
-
-  // Encrypt sensitive configuration
-  static encryptConfig(config: any): string {
-    const encryption = getEncryption();
-    const encryptedData = encryption.encrypt(JSON.stringify(config));
-    return JSON.stringify(encryptedData);
-  }
-
-  // Decrypt sensitive configuration
-  static decryptConfig(encryptedConfig: string): any {
-    const encryption = getEncryption();
-    const encryptedData = JSON.parse(encryptedConfig) as EncryptedData;
-    const decrypted = encryption.decrypt(encryptedData);
-    return JSON.parse(decrypted);
-  }
-}

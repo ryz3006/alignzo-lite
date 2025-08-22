@@ -233,5 +233,5 @@ class SupabaseClient {
 // Export singleton instance
 export const supabaseClient = new SupabaseClient();
 
-// For backward compatibility, export the old supabase instance
-export { supabase } from './supabase';
+// Remove the old supabase export to prevent connection issues
+// export { supabase } from './supabase';

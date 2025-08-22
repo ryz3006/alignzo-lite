@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Team, ShiftType } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Team, ShiftType } from '@/lib/supabase';
 import { getUserIdFromEmail } from '@/lib/auth';
 import { Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -52,17 +53,14 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
       }
 
       // First get the user's team memberships
-      const { data: teamMembers, error } = await supabase
-        .from('team_members')
-        .select(`
-          team_id,
-          teams (*)
-        `)
-        .eq('user_id', userId);
+      const response = await supabaseClient.get('team_members', {
+        select: 'team_id,teams(*)',
+        filters: { user_id: userId }
+      });
 
-      if (error) throw error;
+      if (response.error) throw new Error(response.error);
 
-      const userTeams = teamMembers?.map(tm => tm.teams as any).filter(Boolean) || [];
+      const userTeams = response.data?.map((tm: any) => tm.teams).filter(Boolean) || [];
       setTeams(userTeams);
       
       if (userTeams.length > 0) {
@@ -82,36 +80,37 @@ export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: Shif
       const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
       const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${daysInMonth}`;
 
-      const { data: shifts, error } = await supabase
-        .from('shift_schedules')
-        .select('*')
-        .eq('team_id', selectedTeam)
-        .gte('shift_date', startDate)
-        .lte('shift_date', endDate)
-        .order('shift_date');
+      const shiftsResponse = await supabaseClient.get('shift_schedules', {
+        select: '*',
+        filters: { 
+          team_id: selectedTeam,
+          shift_date: { gte: startDate, lte: endDate }
+        },
+        order: { column: 'shift_date', ascending: true }
+      });
 
-      if (error) throw error;
+      if (shiftsResponse.error) throw new Error(shiftsResponse.error);
 
       // Get unique user emails from shifts
-      const userEmails = Array.from(new Set(shifts?.map(shift => shift.user_email) || []));
+      const userEmails = Array.from(new Set(shiftsResponse.data?.map((shift: any) => shift.user_email) || []));
       
       // Get user details for all emails
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('email, full_name')
-        .in('email', userEmails);
+      const usersResponse = await supabaseClient.get('users', {
+        select: 'email,full_name',
+        filters: { email: userEmails }
+      });
 
-      if (usersError) throw usersError;
+      if (usersResponse.error) throw new Error(usersResponse.error);
 
       // Create a map of email to user details
       const userMap = new Map();
-      users?.forEach(user => {
+      usersResponse.data?.forEach((user: any) => {
         userMap.set(user.email, user);
       });
 
       // Group by user and date
       const userShifts: { [key: string]: any } = {};
-      shifts?.forEach(shift => {
+      shiftsResponse.data?.forEach((shift: any) => {
         const userEmail = shift.user_email;
         const userDetails = userMap.get(userEmail);
         

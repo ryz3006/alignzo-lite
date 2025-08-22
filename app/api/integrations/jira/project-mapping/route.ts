@@ -1,54 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 
-// GET - Retrieve project mappings for a specific integration user
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const integrationUserEmail = searchParams.get('integrationUserEmail');
-    const dashboardProjectId = searchParams.get('dashboardProjectId');
+    const userEmail = searchParams.get('userEmail');
 
-    if (!integrationUserEmail) {
+    if (!userEmail) {
       return NextResponse.json(
-        { error: 'Integration user email is required' },
+        { error: 'User email is required' },
         { status: 400 }
       );
     }
 
-    let query = supabase
-      .from('jira_project_mappings')
-      .select(`
-        *,
-        project:projects(id, name, product, country)
-      `)
-      .eq('integration_user_email', integrationUserEmail);
-
-    if (dashboardProjectId) {
-      query = query.eq('dashboard_project_id', dashboardProjectId);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Database error:', error);
-      
-      // Check if it's a table not found error
-      if (error.message.includes('relation "jira_project_mappings" does not exist')) {
-        return NextResponse.json(
-          { error: 'Project mapping table not found. Please run the database setup script first.' },
-          { status: 500 }
-        );
+    // Get user's Jira project mappings
+    const response = await supabaseClient.get('jira_project_mappings', {
+      select: '*,project:projects(*)',
+      filters: { 
+        integration_user_email: userEmail
       }
-      
+    });
+
+    if (response.error) {
+      console.error('Error fetching Jira project mappings:', response.error);
       return NextResponse.json(
-        { error: `Failed to fetch project mappings: ${error.message}` },
+        { error: 'Failed to fetch project mappings' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ mappings: data || [] });
+    return NextResponse.json({
+      success: true,
+      mappings: response.data || []
+    });
+
   } catch (error) {
-    console.error('Error fetching project mappings:', error);
+    console.error('Error in Jira project mappings API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -75,12 +62,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if mapping already exists
-    const { data: existingMappings, error: checkError } = await supabase
-      .from('jira_project_mappings')
-      .select('id')
-      .eq('dashboard_project_id', dashboard_project_id)
-      .eq('jira_project_key', jira_project_key)
-      .eq('integration_user_email', integration_user_email);
+    const { data: existingMappings, error: checkError } = await supabaseClient
+      .get('jira_project_mappings', {
+        select: 'id',
+        filters: {
+          dashboard_project_id: dashboard_project_id,
+          jira_project_key: jira_project_key,
+          integration_user_email: integration_user_email
+        }
+      });
 
     if (checkError) {
       console.error('Error checking existing mapping:', checkError);
@@ -92,61 +82,53 @@ export async function POST(request: NextRequest) {
 
     const existingMapping = existingMappings && existingMappings.length > 0 ? existingMappings[0] : null;
 
-    let result;
     if (existingMapping) {
       // Update existing mapping
-      const { data, error } = await supabase
-        .from('jira_project_mappings')
-        .update({
-          jira_project_name: jira_project_name,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingMapping.id)
-        .select(`
-          *,
-          project:projects(id, name, product, country)
-        `)
-        .single();
+      const response = await supabaseClient.update('jira_project_mappings', existingMapping.id, {
+        jira_project_name: jira_project_name,
+        updated_at: new Date().toISOString()
+      });
 
-      if (error) throw error;
-      result = data;
+      if (response.error) {
+        console.error('Error updating project mapping:', response.error);
+        return NextResponse.json(
+          { error: 'Failed to update project mapping' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Project mapping updated successfully',
+        mapping: response.data
+      });
     } else {
       // Create new mapping
-      const { data, error } = await supabase
-        .from('jira_project_mappings')
-        .insert({
-          dashboard_project_id: dashboard_project_id,
-          jira_project_key: jira_project_key,
-          jira_project_name: jira_project_name,
-          integration_user_email: integration_user_email
-        })
-        .select(`
-          *,
-          project:projects(id, name, product, country)
-        `)
-        .single();
+      const response = await supabaseClient.insert('jira_project_mappings', {
+        dashboard_project_id: dashboard_project_id,
+        jira_project_key: jira_project_key,
+        jira_project_name: jira_project_name,
+        integration_user_email: integration_user_email
+      });
 
-      if (error) throw error;
-      result = data;
+      if (response.error) {
+        console.error('Error creating project mapping:', response.error);
+        return NextResponse.json(
+          { error: 'Failed to create project mapping' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Project mapping created successfully',
+        mapping: response.data
+      });
     }
-
-    return NextResponse.json({
-      message: existingMapping ? 'Project mapping updated successfully' : 'Project mapping created successfully',
-      mapping: result
-    });
   } catch (error) {
-    console.error('Error saving project mapping:', error);
-    
-    // Check if it's a table not found error
-    if (error instanceof Error && error.message.includes('relation "jira_project_mappings" does not exist')) {
-      return NextResponse.json(
-        { error: 'Project mapping table not found. Please run the database setup script first.' },
-        { status: 500 }
-      );
-    }
-    
+    console.error('Error in project mapping operation:', error);
     return NextResponse.json(
-      { error: `Failed to save project mapping: ${error instanceof Error ? error.message : 'Unknown error'}` },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -156,7 +138,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const mappingId = searchParams.get('mappingId');
+    const mappingId = searchParams.get('id');
 
     if (!mappingId) {
       return NextResponse.json(
@@ -165,21 +147,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
-      .from('jira_project_mappings')
-      .delete()
-      .eq('id', mappingId);
+    // Delete mapping
+    const response = await supabaseClient.delete('jira_project_mappings', mappingId);
 
-    if (error) {
-      console.error('Error deleting project mapping:', error);
+    if (response.error) {
+      console.error('Error deleting project mapping:', response.error);
       return NextResponse.json(
         { error: 'Failed to delete project mapping' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      message: 'Project mapping deleted successfully'
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Project mapping deleted successfully' 
     });
   } catch (error) {
     console.error('Error deleting project mapping:', error);

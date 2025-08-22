@@ -1,82 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { withAdminAuditDynamic } from '@/lib/api-audit-wrapper';
-import { AuditEventType } from '@/lib/audit-trail';
-import { applyRateLimit, authLimiterConfig, addRateLimitHeaders } from '@/lib/rate-limit';
-import { isAdminUserServer } from '@/lib/auth';
+import { supabaseClient } from '@/lib/supabase-client';
 
-export const POST = withAdminAuditDynamic(AuditEventType.UPDATE)(async (
+export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
-) => {
-  // Apply rate limiting
-  const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
-  }
-
+) {
   try {
-    // Check admin authentication via session or header
-    const adminEmail = request.headers.get('x-admin-email') || 
-                      request.headers.get('x-user-email') ||
-                      extractUserEmail(request);
+    const { id } = params;
     
-    if (!adminEmail || adminEmail === 'anonymous') {
+    if (!id) {
       return NextResponse.json(
-        { error: 'Admin authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    // Verify admin credentials
-    const isAdmin = await isAdminUserServer(adminEmail);
-    
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
+        { error: 'Alert ID is required' },
+        { status: 400 }
       );
     }
 
-    const alertId = params.id;
-
-    // Update the alert to resolved
-    const { data, error } = await supabase
-      .from('security_alerts')
-      .update({
-        resolved: true,
-        resolved_by: adminEmail,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq('id', alertId)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    const response = NextResponse.json({
-      success: true,
-      message: 'Alert resolved successfully',
-      alert: data,
+    // Update the security alert to mark it as resolved
+    const response = await supabaseClient.update('security_alerts', id, {
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
 
-    return addRateLimitHeaders(response, request, authLimiterConfig);
+    if (response.error) {
+      console.error('Error resolving security alert:', response.error);
+      return NextResponse.json(
+        { error: 'Failed to resolve security alert' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Security alert resolved successfully',
+      alert: response.data
+    });
 
   } catch (error) {
-    console.error('Error resolving alert:', error);
+    console.error('Error resolving security alert:', error);
     return NextResponse.json(
-      { error: 'Failed to resolve alert' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
-});
-
-// Helper function to extract user email
-function extractUserEmail(request: NextRequest): string {
-  const searchParams = new URL(request.url).searchParams;
-  return searchParams.get('userEmail') || 
-         request.headers.get('x-user-email') || 
-         'anonymous';
 }

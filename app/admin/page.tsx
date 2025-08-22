@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, getCurrentAdmin, isAdminUser, signOutUser } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
 
@@ -79,12 +79,12 @@ export default function AdminPage() {
       // Check database tables
       if (supabaseConfigured) {
         try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('id')
-            .limit(1);
+          const response = await supabaseClient.get('users', {
+            select: 'id',
+            limit: 1
+          });
 
-          if (!error) {
+          if (!response.error) {
             setConfigStatus(prev => ({ ...prev, database: true }));
           }
         } catch (error) {

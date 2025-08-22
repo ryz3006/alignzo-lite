@@ -11,14 +11,31 @@ function getSupabaseConfig() {
   // Server-side: Use environment variables directly
   if (!isClient) {
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables not found on server-side');
-      throw new Error('Supabase environment variables not configured on server-side');
+      console.error('Supabase environment variables not found on server-side:', {
+        url: supabaseUrl ? 'SET' : 'NOT SET',
+        key: supabaseAnonKey ? 'SET' : 'NOT SET'
+      });
+      
+      // In development, provide a helpful error
+      if (process.env.NODE_ENV === 'development') {
+        throw new Error('Supabase environment variables not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY in your .env.local file');
+      }
+      
+      // In production, return placeholder config to prevent crashes
+      console.warn('Using placeholder Supabase config in production - this will cause API errors');
+      return {
+        url: 'https://placeholder.supabase.co',
+        key: 'placeholder-key',
+        isClient: false,
+        isPlaceholder: true
+      };
     }
     
     return {
       url: supabaseUrl,
       key: supabaseAnonKey,
-      isClient: false
+      isClient: false,
+      isPlaceholder: false
     };
   }
   
@@ -29,7 +46,8 @@ function getSupabaseConfig() {
     return {
       url: 'https://placeholder.supabase.co', // This will be replaced by API
       key: 'placeholder-key', // This will be replaced by API
-      isClient: true
+      isClient: true,
+      isPlaceholder: true
     };
   }
   
