@@ -3,18 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInAsAdmin } from '@/lib/auth';
+import { Shield, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-
-  // Check if admin credentials are configured
-  // Note: Admin credentials are server-side only, so we can't check them from client-side
-  // The actual verification happens on the server in the API route
-  const adminConfigured = true; // We'll let the server handle the verification
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,29 +32,37 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 min-h-full">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="mx-auto flex items-center justify-center">
-            <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-16 w-auto" />
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Admin Login
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to access the admin panel
-          </p>
-          <div className="mt-4 p-3 bg-blue-100 border border-blue-400 rounded-md">
-            <p className="text-sm text-blue-700">
-              ℹ️ Admin credentials are configured server-side for security
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Back to Main Login */}
+        <div className="mb-8 text-center">
+          <Link
+            href="/"
+            className="inline-flex items-center space-x-2 text-neutral-600 hover:text-neutral-900 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to main login</span>
+          </Link>
+        </div>
+
+        {/* Login Card */}
+        <div className="card">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Shield className="h-8 w-8 text-primary-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-neutral-900 mb-2">
+              Admin Access
+            </h2>
+            <p className="text-neutral-600">
+              Sign in to access the administrative panel
             </p>
           </div>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="form-group">
+              <label htmlFor="email" className="form-label">
+                Email Address
               </label>
               <input
                 id="email"
@@ -64,49 +70,89 @@ export default function AdminLoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                className="input-modern"
+                placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
+
+            <div className="form-group">
+              <label htmlFor="password" className="form-label">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  className="input-modern pr-12"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full flex items-center justify-center space-x-2"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? (
+                <>
+                  <div className="loading-spinner h-4 w-4"></div>
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4" />
+                  <span>Sign in to Admin Panel</span>
+                </>
+              )}
             </button>
+          </form>
+
+          {/* Security Notice */}
+          <div className="mt-8 p-4 bg-warning-50 rounded-xl border border-warning-200">
+            <div className="flex items-start space-x-3">
+              <Shield className="h-5 w-5 text-warning-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-warning-700">
+                <p className="font-medium mb-1">Security Notice</p>
+                <p>Admin credentials are configured server-side for enhanced security. Contact your system administrator for access.</p>
+              </div>
+            </div>
           </div>
-        </form>
-        
-        {/* Go back to user login link */}
-        <div className="text-center mt-4">
-          <a
-            href="/"
-            className="text-sm text-blue-600 hover:text-blue-500 transition-colors underline"
-          >
-            ← Go back to user login
-          </a>
+
+          {/* Additional Security Info */}
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-neutral-50 rounded-xl">
+              <Lock className="h-6 w-6 text-neutral-600 mx-auto mb-2" />
+              <p className="text-xs text-neutral-600 font-medium">Encrypted</p>
+              <p className="text-xs text-neutral-500">End-to-end encryption</p>
+            </div>
+            <div className="text-center p-4 bg-neutral-50 rounded-xl">
+              <Shield className="h-6 w-6 text-neutral-600 mx-auto mb-2" />
+              <p className="text-xs text-neutral-600 font-medium">Secure</p>
+              <p className="text-xs text-neutral-500">Role-based access</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-sm text-neutral-500">
+            Need help? Contact your system administrator
+          </p>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getCurrentUser, getUserIdFromEmail } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
 import { WorkLog, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
-import { Clock, TrendingUp, Calendar, BarChart3, RefreshCw, Users, Eye } from 'lucide-react';
+import { Clock, TrendingUp, Calendar, BarChart3, RefreshCw, Users, Eye, Activity, Target, Zap, X } from 'lucide-react';
 import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
@@ -355,82 +355,90 @@ export default function UserDashboardPage() {
       title: 'Today',
       value: `${stats.todayHours}h`,
       icon: Clock,
-      color: 'bg-blue-500',
+      gradient: 'gradient-primary',
+      description: 'Hours worked today'
     },
     {
       title: 'This Week',
       value: `${stats.weekHours}h`,
       icon: Calendar,
-      color: 'bg-green-500',
+      gradient: 'gradient-success',
+      description: 'Hours worked this week'
     },
     {
       title: 'This Month',
       value: `${stats.monthHours}h`,
       icon: TrendingUp,
-      color: 'bg-yellow-500',
+      gradient: 'gradient-warning',
+      description: 'Hours worked this month'
     },
     {
       title: 'Total',
       value: `${stats.totalHours}h`,
       icon: BarChart3,
-      color: 'bg-purple-500',
+      gradient: 'gradient-danger',
+      description: 'Total hours tracked'
     },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+        <div className="text-center">
+          <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
+          <p className="text-neutral-600 font-medium">Loading your dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="space-y-8 animate-fade-in">
       {/* Header with Welcome and Refresh */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={loadDashboardData}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-              title="Refresh Dashboard"
-            >
-              <RefreshCw className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Welcome, {user?.full_name || user?.email?.split('@')[0] || 'User'}!
-              </h1>
-              <p className="text-gray-600">Here's your work summary and shift information.</p>
-            </div>
-          </div>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex items-center space-x-4">
           <button
-            onClick={() => setShowShiftSchedule(true)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+            onClick={loadDashboardData}
+            className="p-3 text-neutral-600 hover:text-neutral-900 bg-white rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all duration-200 shadow-soft hover:shadow-medium"
+            title="Refresh Dashboard"
           >
-            <Eye className="h-4 w-4 mr-2" />
-            View Shift Schedule
+            <RefreshCw className="h-5 w-5" />
           </button>
+          <div>
+            <h1 className="text-3xl font-bold text-neutral-900">
+              Welcome back, {user?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
+            </h1>
+            <p className="text-neutral-600 mt-1">Here's your work summary and shift information.</p>
+          </div>
         </div>
+        <button
+          onClick={() => setShowShiftSchedule(true)}
+          className="btn-primary flex items-center space-x-2"
+        >
+          <Eye className="h-4 w-4" />
+          <span>View Shift Schedule</span>
+        </button>
       </div>
 
       {/* Shift Information Cards */}
       {userShift && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card card-hover">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Today's Shift</h3>
-                <p className="text-2xl font-bold" style={{ color: userShift.todayShiftColor }}>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-success-500 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-neutral-900">Today's Shift</h3>
+                </div>
+                <p className="text-3xl font-bold mb-1" style={{ color: userShift.todayShiftColor }}>
                   {userShift.todayShiftName}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-neutral-600">
                   {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
               <div 
-                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
+                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
                 style={{ backgroundColor: userShift.todayShiftColor }}
               >
                 {userShift.todayShift}
@@ -438,19 +446,22 @@ export default function UserDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card card-hover">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Tomorrow's Shift</h3>
-                <p className="text-2xl font-bold" style={{ color: userShift.tomorrowShiftColor }}>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                  <h3 className="text-lg font-semibold text-neutral-900">Tomorrow's Shift</h3>
+                </div>
+                <p className="text-3xl font-bold mb-1" style={{ color: userShift.tomorrowShiftColor }}>
                   {userShift.tomorrowShiftName}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-neutral-600">
                   {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
               <div 
-                className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
+                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
                 style={{ backgroundColor: userShift.tomorrowShiftColor }}
               >
                 {userShift.tomorrowShift}
@@ -461,29 +472,38 @@ export default function UserDashboardPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat) => (
-          <div key={stat.title} className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className={`p-3 rounded-full ${stat.color}`}>
+          <div key={stat.title} className="stats-card group">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl ${stat.gradient} shadow-medium`}>
                 <stat.icon className="h-6 w-6 text-white" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-neutral-900 group-hover:text-primary-600 transition-colors">
+                  {stat.value}
+                </p>
+                <p className="text-sm text-neutral-600">{stat.title}</p>
               </div>
             </div>
+            <p className="text-xs text-neutral-500">{stat.description}</p>
           </div>
         ))}
       </div>
 
       {/* Team Availability Table */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Today's Team Availability</h2>
-          <p className="text-sm text-gray-500">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-neutral-900">Today's Team Availability</h2>
+            <p className="text-sm text-neutral-600 mt-1">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+            <Users className="h-4 w-4" />
+            <span>{teamAvailability.length} teams</span>
+          </div>
         </div>
         
         {(() => {
@@ -506,43 +526,43 @@ export default function UserDashboardPage() {
             
             return teamAvailability.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="table-modern">
+                  <thead>
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="text-left">
                         Team
                       </th>
                       {uniqueShiftTypes.map(([shiftType, shiftName]) => (
-                        <th key={shiftType} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th key={shiftType} className="text-center">
                           {shiftName}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody>
                     {teamAvailability.map((team) => (
                       <tr key={team.teamName}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="font-medium text-neutral-900">
                           {team.teamName}
                         </td>
                         {uniqueShiftTypes.map(([shiftType]) => {
                           const users = team.shifts[shiftType] || [];
                           return (
-                            <td key={shiftType} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                            <td key={shiftType} className="text-center">
                               {users.length > 0 ? (
                                 <div className="flex flex-col space-y-1">
                                   {users.map((email, index) => (
                                     <button
                                       key={index}
                                       onClick={() => showUserDetails(email)}
-                                      className="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 transition-colors cursor-pointer"
+                                      className="badge badge-primary hover:bg-primary-200 transition-colors cursor-pointer text-xs"
                                     >
                                       {email.split('@')[0]}
                                     </button>
                                   ))}
                                 </div>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-neutral-400">-</span>
                               )}
                             </td>
                           );
@@ -553,80 +573,108 @@ export default function UserDashboardPage() {
                 </table>
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p>No team availability data found.</p>
+              <div className="text-center py-12">
+                <Users className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
+                <p className="text-neutral-600 font-medium">No team availability data found.</p>
+                <p className="text-sm text-neutral-500 mt-1">Team schedules will appear here once configured.</p>
               </div>
             );
           })()}
       </div>
 
       {/* Project Breakdown Chart */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Hours by Project</h2>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-neutral-900">Hours by Project</h2>
+            <p className="text-sm text-neutral-600 mt-1">Your time distribution across projects</p>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+            <BarChart3 className="h-4 w-4" />
+            <span>{projectHours.length} projects</span>
+          </div>
+        </div>
         {projectHours.length > 0 ? (
-          <div className="h-64">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={projectHours}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="projectName" 
                   angle={-45}
                   textAnchor="end"
                   height={80}
                   fontSize={12}
+                  tick={{ fill: '#6b7280' }}
                 />
-                <YAxis />
+                <YAxis tick={{ fill: '#6b7280' }} />
                 <Tooltip 
                   formatter={(value: any) => [`${value} hours`, 'Duration']}
                   labelFormatter={(label) => `Project: ${label}`}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
                 />
-                <Bar dataKey="hours" fill="#3b82f6" />
+                <Bar dataKey="hours" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <BarChart3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <p>No work logs found. Start tracking your time to see project breakdown.</p>
+          <div className="text-center py-12">
+            <BarChart3 className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
+            <p className="text-neutral-600 font-medium">No work logs found</p>
+            <p className="text-sm text-neutral-500 mt-1">Start tracking your time to see project breakdown.</p>
           </div>
         )}
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-neutral-900">Recent Activity</h2>
+            <p className="text-sm text-neutral-600 mt-1">Your latest work sessions</p>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+            <Activity className="h-4 w-4" />
+            <span>{recentWorkLogs.length} activities</span>
+          </div>
+        </div>
         <div className="space-y-4">
           {recentWorkLogs.length > 0 ? (
             recentWorkLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div key={log.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-primary-600" />
+                  <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 truncate">
+                    <h4 className="text-sm font-medium text-neutral-900 truncate">
                       {log.project?.name || 'Unknown Project'}
                     </h4>
-                    <p className="text-sm text-gray-600 truncate">
+                    <p className="text-sm text-neutral-600 truncate">
                       {log.ticket_id} - {log.task_detail}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-neutral-500 mt-1">
                       {formatDateTime(log.start_time)} • {formatDuration(log.logged_duration_seconds)}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-neutral-500">
                     {formatTimeAgo(log.created_at)}
                   </p>
                 </div>
               </div>
             ))
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p>No recent activity. Start a timer to begin tracking your work.</p>
+            <div className="text-center py-12">
+              <Clock className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
+              <p className="text-neutral-600 font-medium">No recent activity</p>
+              <p className="text-sm text-neutral-500 mt-1">Start a timer to begin tracking your work.</p>
             </div>
           )}
         </div>
@@ -643,33 +691,30 @@ export default function UserDashboardPage() {
 
       {/* User Details Modal */}
       {showUserDetailsModal && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">User Details</h2>
+        <div className="modal-overlay" onClick={() => setShowUserDetailsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+              <h2 className="text-xl font-semibold text-neutral-900">User Details</h2>
               <button
                 onClick={() => setShowUserDetailsModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-md"
+                className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition-colors"
               >
-                <span className="sr-only">Close</span>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-6">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Name</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedUser.full_name}</p>
+                  <label className="form-label">Name</label>
+                  <p className="text-sm text-neutral-900">{selectedUser.full_name}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedUser.email}</p>
+                  <label className="form-label">Email</label>
+                  <p className="text-sm text-neutral-900">{selectedUser.email}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedUser.phone_number || 'Not provided'}</p>
+                  <label className="form-label">Phone Number</label>
+                  <p className="text-sm text-neutral-900">{selectedUser.phone_number || 'Not provided'}</p>
                 </div>
               </div>
             </div>

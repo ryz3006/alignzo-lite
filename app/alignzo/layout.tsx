@@ -17,7 +17,11 @@ import {
   Database,
   Users,
   Menu,
-  X
+  X,
+  Home,
+  User as UserIcon,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
@@ -28,8 +32,9 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showTimerManagementModal, setShowTimerManagementModal] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userAccess, setUserAccess] = useState<any>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
@@ -75,14 +80,13 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/alignzo', icon: BarChart3, accessKey: 'access_dashboard' },
+    { name: 'Dashboard', href: '/alignzo', icon: Home, accessKey: 'access_dashboard' },
     { name: 'Work Report', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
     { 
       name: 'Analytics', 
       href: '/alignzo/analytics', 
       icon: TrendingUp, 
       accessKey: 'access_analytics',
-      // Analytics tab should only show if user has access to at least one analytics sub-module
       subAccessKeys: [
         'access_analytics_workload',
         'access_analytics_project_health', 
@@ -116,142 +120,133 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-full">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+      <div className="flex items-center justify-center min-h-screen bg-neutral-50">
+        <div className="text-center">
+          <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
+          <p className="text-neutral-600 font-medium">Loading your workspace...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+    <div className="flex h-screen bg-neutral-50">
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-large transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between p-6 border-b border-neutral-200">
             <div className="flex items-center space-x-3">
-              {/* Full logo for bigger screens */}
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="hidden sm:block h-12 w-auto" />
-              {/* Icon only for smaller screens */}
-              <img src="/android-chrome-192x192.png" alt="Alignzo Icon" className="sm:hidden h-8 w-8" />
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+              <span className="text-xl font-bold text-neutral-900">Alignzo</span>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setShowTimerModal(true)}
-                className="p-2 text-gray-400 hover:text-gray-600 relative"
-                title="Start Timer"
-              >
-                <Plus className="h-5 w-5" />
-              </button>
-              
-              <button
-                onClick={() => setShowTimerManagementModal(true)}
-                className="p-2 text-gray-400 hover:text-gray-600 relative"
-                title="Active Timers"
-              >
-                <Bell className="h-5 w-5" />
-                {activeTimers.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                    {activeTimers.length}
-                  </span>
-                )}
-              </button>
-              
-              <div className="hidden sm:flex items-center space-x-3">
-                <div className="text-sm text-gray-700">
-                  {user?.email}
-                </div>
-                <button
-                  onClick={handleSignOut}
-                  className="p-2 text-gray-400 hover:text-gray-600"
-                  title="Sign out"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="sm:hidden p-2 text-gray-400 hover:text-gray-600"
-              >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
-            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        </div>
 
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="sm:hidden border-t border-gray-200 bg-white">
-            <div className="px-4 py-3 space-y-3">
-              <div className="text-sm text-gray-700 border-b border-gray-200 pb-2">
-                {user?.email}
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <nav className="mb-8">
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex space-x-8 overflow-x-auto">
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto scrollbar-modern">
             {filteredNavigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-                    isActive
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  onClick={() => setSidebarOpen(false)}
+                  className={`nav-link ${
+                    isActive ? 'nav-link-active' : 'nav-link-inactive'
                   }`}
                 >
-                  <item.icon className="mr-2 h-4 w-4" />
+                  <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
                 </Link>
               );
             })}
-          </div>
+          </nav>
 
-          {/* Mobile Navigation */}
-          <div className="md:hidden">
-            <div className="flex space-x-2 overflow-x-auto pb-2">
-              {filteredNavigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0 ${
-                      isActive
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    <item.icon className="mr-1 h-4 w-4" />
-                    <span className="hidden sm:inline">{item.name}</span>
-                    <span className="sm:hidden">{item.name.split(' ')[0]}</span>
-                  </Link>
-                );
-              })}
+          {/* User Profile Section */}
+          <div className="p-4 border-t border-neutral-200">
+            <div className="flex items-center space-x-3 p-3 rounded-xl bg-neutral-50">
+              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                <UserIcon className="h-4 w-4 text-primary-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 truncate">
+                  {user?.displayName || 'User'}
+                </p>
+                <p className="text-xs text-neutral-500 truncate">
+                  {user?.email}
+                </p>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </div>
-        </nav>
+        </div>
+      </div>
 
-        {/* Main content */}
-        <main>
-          {children}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="header">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 text-neutral-600 hover:text-neutral-900 rounded-lg hover:bg-neutral-100"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+              <div className="hidden lg:block">
+                <h1 className="text-2xl font-bold text-neutral-900">
+                  {filteredNavigation.find(item => item.href === pathname)?.name || 'Dashboard'}
+                </h1>
+              </div>
+            </div>
+
+            {/* Header Actions */}
+            <div className="flex items-center space-x-3">
+              {/* Timer Actions */}
+              <button
+                onClick={() => setShowTimerModal(true)}
+                className="btn-primary flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Start Timer</span>
+              </button>
+              
+              <button
+                onClick={() => setShowTimerManagementModal(true)}
+                className="relative p-3 text-neutral-600 hover:text-neutral-900 bg-white rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all duration-200"
+                title="Active Timers"
+              >
+                <Bell className="h-5 w-5" />
+                {activeTimers.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-danger-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                    {activeTimers.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto scrollbar-modern">
+          <div className="p-6">
+            {children}
+          </div>
         </main>
       </div>
 
@@ -264,6 +259,14 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
         isOpen={showTimerManagementModal} 
         onClose={() => setShowTimerManagementModal(false)} 
       />
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 }
