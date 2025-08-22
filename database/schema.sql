@@ -597,6 +597,22 @@ CREATE POLICY "custom_shift_enums_insert_policy" ON custom_shift_enums FOR INSER
 CREATE POLICY "custom_shift_enums_update_policy" ON custom_shift_enums FOR UPDATE USING (true);
 CREATE POLICY "custom_shift_enums_delete_policy" ON custom_shift_enums FOR DELETE USING (true);
 
+-- Enable RLS on audit trail and security monitoring tables
+ALTER TABLE audit_trail ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE monitoring_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_counters ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for audit trail and security monitoring
+-- Note: These policies use USING (true) to allow all access since admin authentication is handled in the application layer
+CREATE POLICY "Allow all audit trail access" ON audit_trail FOR ALL USING (true);
+
+CREATE POLICY "Allow all security alerts access" ON security_alerts FOR ALL USING (true);
+
+CREATE POLICY "Allow all monitoring rules access" ON monitoring_rules FOR ALL USING (true);
+
+CREATE POLICY "Allow all event counters access" ON event_counters FOR ALL USING (true);
+
 -- =====================================================
 -- SHIFT SCHEDULE FUNCTIONS
 -- =====================================================
@@ -758,6 +774,94 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
+-- AUDIT TRAIL & SECURITY MONITORING TABLES
+-- =====================================================
+
+-- Main audit trail table
+CREATE TABLE IF NOT EXISTS audit_trail (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_email VARCHAR(255) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    table_name VARCHAR(100),
+    record_id VARCHAR(255),
+    old_values JSONB,
+    new_values JSONB,
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    endpoint TEXT NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    success BOOLEAN NOT NULL DEFAULT true,
+    error_message TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for audit trail
+CREATE INDEX IF NOT EXISTS idx_audit_trail_user_email ON audit_trail(user_email);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_event_type ON audit_trail(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_table_name ON audit_trail(table_name);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_created_at ON audit_trail(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_ip_address ON audit_trail(ip_address);
+
+-- Security alerts table
+CREATE TABLE IF NOT EXISTS security_alerts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    source VARCHAR(255) NOT NULL,
+    user_email VARCHAR(255),
+    ip_address VARCHAR(45),
+    metadata JSONB,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    acknowledged BOOLEAN DEFAULT FALSE,
+    resolved BOOLEAN DEFAULT FALSE,
+    acknowledged_by VARCHAR(255),
+    acknowledged_at TIMESTAMP WITH TIME ZONE,
+    resolved_by VARCHAR(255),
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Monitoring rules table
+CREATE TABLE IF NOT EXISTS monitoring_rules (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    conditions JSONB NOT NULL,
+    enabled BOOLEAN DEFAULT TRUE,
+    actions JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Event counters for monitoring
+CREATE TABLE IF NOT EXISTS event_counters (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_key VARCHAR(255) NOT NULL UNIQUE,
+    count INTEGER DEFAULT 1,
+    first_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for monitoring
+CREATE INDEX IF NOT EXISTS idx_security_alerts_type ON security_alerts(type);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_severity ON security_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_timestamp ON security_alerts(timestamp);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_user_email ON security_alerts(user_email);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_ip_address ON security_alerts(ip_address);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_acknowledged ON security_alerts(acknowledged);
+CREATE INDEX IF NOT EXISTS idx_security_alerts_resolved ON security_alerts(resolved);
+
+CREATE INDEX IF NOT EXISTS idx_monitoring_rules_enabled ON monitoring_rules(enabled);
+CREATE INDEX IF NOT EXISTS idx_monitoring_rules_type ON monitoring_rules(type);
+
+CREATE INDEX IF NOT EXISTS idx_event_counters_event_key ON event_counters(event_key);
+CREATE INDEX IF NOT EXISTS idx_event_counters_first_seen ON event_counters(first_seen);
+
+-- =====================================================
 -- INITIAL DATA
 -- =====================================================
 
@@ -815,6 +919,29 @@ COMMENT ON COLUMN custom_shift_enums.end_time IS 'Shift end time in 24-hour form
 COMMENT ON COLUMN custom_shift_enums.is_default IS 'Whether this shift is the default for invalid assignments';
 COMMENT ON COLUMN custom_shift_enums.color IS 'Hex color code for the shift type display';
 
+COMMENT ON TABLE audit_trail IS 'Comprehensive audit trail for all user actions and system events';
+COMMENT ON COLUMN audit_trail.user_email IS 'Email of the user who performed the action';
+COMMENT ON COLUMN audit_trail.event_type IS 'Type of event (CREATE, READ, UPDATE, DELETE, LOGIN, etc.)';
+COMMENT ON COLUMN audit_trail.table_name IS 'Database table affected by the action';
+COMMENT ON COLUMN audit_trail.record_id IS 'ID of the specific record affected';
+COMMENT ON COLUMN audit_trail.old_values IS 'Previous values before change (for UPDATE/DELETE events)';
+COMMENT ON COLUMN audit_trail.new_values IS 'New values after change (for CREATE/UPDATE events)';
+COMMENT ON COLUMN audit_trail.metadata IS 'Additional context and metadata for the event';
+
+COMMENT ON TABLE security_alerts IS 'Security alerts and monitoring events';
+COMMENT ON COLUMN security_alerts.type IS 'Type of security alert';
+COMMENT ON COLUMN security_alerts.severity IS 'Alert severity level (LOW, MEDIUM, HIGH, CRITICAL)';
+COMMENT ON COLUMN security_alerts.acknowledged IS 'Whether the alert has been acknowledged';
+COMMENT ON COLUMN security_alerts.resolved IS 'Whether the alert has been resolved';
+
+COMMENT ON TABLE monitoring_rules IS 'Rules for automated security monitoring';
+COMMENT ON COLUMN monitoring_rules.conditions IS 'JSON conditions that trigger the rule';
+COMMENT ON COLUMN monitoring_rules.actions IS 'JSON actions to take when rule is triggered';
+
+COMMENT ON TABLE event_counters IS 'Counters for tracking event frequencies';
+COMMENT ON COLUMN event_counters.event_key IS 'Unique key identifying the event type';
+COMMENT ON COLUMN event_counters.count IS 'Number of times this event has occurred';
+
 -- =====================================================
 -- SCHEMA COMPLETE
 -- =====================================================
@@ -828,6 +955,7 @@ COMMENT ON COLUMN custom_shift_enums.color IS 'Hex color code for the shift type
 -- ✓ Ticket upload functionality (Remedy, ServiceNow, etc.)
 -- ✓ Master mapping system for centralized user management
 -- ✓ Shift schedule management with custom shift types and color coding
+-- ✓ Audit trail and security monitoring system
 -- ✓ All necessary performance indexes and security policies
 -- 
 -- NEXT STEPS:

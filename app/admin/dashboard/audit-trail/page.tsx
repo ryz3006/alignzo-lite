@@ -90,7 +90,7 @@ export default function AuditTrailPage() {
         if (adminSession) {
           try {
             const session = JSON.parse(adminSession);
-            headers['X-Admin-Email'] = session.email;
+            headers['x-admin-email'] = session.email;
           } catch (error) {
             console.error('Error parsing admin session:', error);
           }
@@ -127,7 +127,7 @@ export default function AuditTrailPage() {
         if (adminSession) {
           try {
             const session = JSON.parse(adminSession);
-            headers['X-Admin-Email'] = session.email;
+            headers['x-admin-email'] = session.email;
           } catch (error) {
             console.error('Error parsing admin session:', error);
           }
@@ -170,7 +170,7 @@ export default function AuditTrailPage() {
       if (adminSession) {
         try {
           const session = JSON.parse(adminSession);
-          headers['X-Admin-Email'] = session.email;
+          headers['x-admin-email'] = session.email;
         } catch (error) {
           console.error('Error parsing admin session:', error);
         }
@@ -203,7 +203,7 @@ export default function AuditTrailPage() {
       if (adminSession) {
         try {
           const session = JSON.parse(adminSession);
-          headers['X-Admin-Email'] = session.email;
+          headers['x-admin-email'] = session.email;
         } catch (error) {
           console.error('Error parsing admin session:', error);
         }
@@ -243,7 +243,7 @@ export default function AuditTrailPage() {
       if (adminSession) {
         try {
           const session = JSON.parse(adminSession);
-          headers['X-Admin-Email'] = session.email;
+          headers['x-admin-email'] = session.email;
         } catch (error) {
           console.error('Error parsing admin session:', error);
         }

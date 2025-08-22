@@ -4,7 +4,7 @@ import { supabaseClient } from '@/lib/supabase-client';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userEmail = searchParams.get('userEmail');
+    const userEmail = searchParams.get('userEmail') || searchParams.get('integrationUserEmail');
 
     if (!userEmail) {
       return NextResponse.json(
