@@ -8,8 +8,11 @@ import { logAuthAttempt, logError, SecurityEventType, logSecurityEvent } from '@
 export async function POST(request: NextRequest) {
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
   try {
     const body = await request.json();
@@ -43,17 +46,17 @@ export async function POST(request: NextRequest) {
     });
     
     // Add rate limit headers
-    return addRateLimitHeaders(response, request, authLimiterConfig);
+    return addRateLimitHeaders(response, 4, new Date(Date.now() + 900000).toISOString());
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       logSecurityEvent(
-        SecurityEventType.INVALID_INPUT,
+        SecurityEventType.SUSPICIOUS_ACTIVITY,
         { 
           endpoint: '/api/admin/auth',
           validationErrors: error.errors 
         },
-        request
+        'admin-auth'
       );
       
       return NextResponse.json(
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    logError(error as Error, { endpoint: '/api/admin/auth' }, request);
+    logError('Admin authentication error', { endpoint: '/api/admin/auth', error: error instanceof Error ? error.message : 'Unknown error' });
     
     return NextResponse.json(
       { error: 'Internal server error' },
