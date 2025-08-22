@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabaseClient } from './supabase-client';
 
 export interface JiraCredentials {
   base_url: string;
@@ -56,6 +56,64 @@ export interface JiraUser {
   active: boolean;
 }
 
+// Helper function to get JIRA credentials using the proxy client
+export async function getJiraCredentials(userEmail: string): Promise<JiraCredentials | null> {
+  try {
+    // Early return if no user email provided
+    if (!userEmail) {
+      console.warn('No user email provided to getJiraCredentials');
+      return null;
+    }
+
+    // Check if we're in a browser environment and if the app is properly configured
+    if (typeof window !== 'undefined') {
+      // Test if the Supabase proxy is working by making a simple request
+      try {
+        const testResponse = await fetch('/api/test-env');
+        if (testResponse.ok) {
+          const testData = await testResponse.json();
+          if (testData.environment?.supabaseUrl === 'Not Set') {
+            console.warn('Supabase environment variables not configured. JIRA integration will not work.');
+            return null;
+          }
+        }
+      } catch (testError) {
+        console.warn('Unable to test environment configuration:', testError);
+        // Don't return null here, continue with the request
+      }
+    }
+
+    // Check if we're on an admin page and shouldn't be calling JIRA functions
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      console.warn('JIRA credentials requested on admin page. This might be unnecessary.');
+      return null;
+    }
+
+    const response = await supabaseClient.get('user_integrations', {
+      select: 'base_url,user_email_integration,api_token',
+      filters: {
+        user_email: userEmail,
+        integration_type: 'jira',
+        is_verified: true
+      }
+    });
+
+    if (response.error) {
+      console.error('Error fetching Jira credentials:', response.error);
+      return null;
+    }
+
+    if (!response.data || response.data.length === 0) {
+      return null;
+    }
+
+    return response.data[0];
+  } catch (error) {
+    console.error('Error getting Jira credentials:', error);
+    return null;
+  }
+}
+
 export class JiraIntegration {
   private static instance: JiraIntegration;
 
@@ -69,29 +127,7 @@ export class JiraIntegration {
   }
 
   async getCredentials(userEmail: string): Promise<JiraCredentials | null> {
-    try {
-      const { data, error } = await supabase
-        .from('user_integrations')
-        .select('base_url,user_email_integration,api_token')
-        .eq('user_email', userEmail)
-        .eq('integration_type', 'jira')
-        .eq('is_verified', true)
-        .single();
-
-      if (error) {
-        console.error('Error fetching Jira credentials:', error);
-        return null;
-      }
-
-      if (!data) {
-        return null;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error getting Jira credentials:', error);
-      return null;
-    }
+    return getJiraCredentials(userEmail);
   }
 
   async verifyCredentials(credentials: JiraCredentials): Promise<boolean> {
@@ -275,10 +311,7 @@ export class JiraIntegration {
 // Global Jira integration instance
 export const jiraIntegration = JiraIntegration.getInstance();
 
-// Helper function to get Jira credentials
-export async function getJiraCredentials(userEmail: string): Promise<JiraCredentials | null> {
-  return await jiraIntegration.getCredentials(userEmail);
-}
+
 
 // Helper function to verify Jira credentials
 export async function verifyJiraCredentials(credentials: JiraCredentials): Promise<boolean> {

@@ -6,7 +6,10 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase environment variables not configured');
+  console.error('❌ CRITICAL: Supabase environment variables not configured!');
+  console.error('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  console.error('   SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+  console.error('   Please configure these variables in your Vercel deployment.');
 }
 
 const supabase = createClient(
@@ -16,6 +19,18 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const { table, action, data, filters, select, order, limit, offset, userEmail } = await request.json();
 
     let result;

@@ -21,10 +21,24 @@ import Link from 'next/link';
 // Import actual working components
 import WorkloadTab from './components/WorkloadTab';
 import ProjectHealthTab from './components/ProjectHealthTab';
-import JiraTicketsTab from './components/JiraTicketsTab';
 import OperationalEfficiencyTab from './components/OperationalEfficiencyTab';
-import TeamInsightsTab from './components/TeamInsightsTab';
 import RemedyDashboardTab from './components/RemedyDashboardTab';
+
+// Lazy load JIRA components to prevent unnecessary initialization
+import dynamic from 'next/dynamic';
+
+const JiraTicketsTab = dynamic(() => import('./components/JiraTicketsTab'), {
+  loading: () => <div>Loading JIRA Analytics...</div>,
+  ssr: false
+});
+
+const TeamInsightsTab = dynamic(() => import('./components/TeamInsightsTab'), {
+  loading: () => <div>Loading Team Insights...</div>,
+  ssr: false
+});
+
+// Check if we're on an admin page to prevent JIRA component loading
+const isAdminPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
 
 interface FilterState {
   dateRange: {
@@ -110,25 +124,30 @@ export default function AnalyticsPage() {
       const accessControls = await getUserAccessControls(currentUser.email);
       setUserAccess(accessControls);
 
-      // Check JIRA integration
-      try {
-        const response = await supabaseClient.get('user_integrations', {
-          select: 'id,is_verified',
-          filters: { 
-            user_email: currentUser.email,
-            integration_type: 'jira'
-          }
-        });
-        
-        if (response.data && response.data.length > 0) {
-          // Check if any integration is verified
-          const hasVerifiedIntegration = response.data.some((integration: any) => integration.is_verified);
-          setJiraEnabled(hasVerifiedIntegration);
-        }
-      } catch (error) {
-        console.error('Error checking JIRA integration:', error);
-        // Don't set jiraEnabled to true if there's an error
-      }
+             // Check JIRA integration (only if not on admin page)
+       if (!isAdminPage) {
+         try {
+           const response = await supabaseClient.get('user_integrations', {
+             select: 'id,is_verified',
+             filters: { 
+               user_email: currentUser.email,
+               integration_type: 'jira'
+             }
+           });
+           
+           if (response.data && response.data.length > 0) {
+             // Check if any integration is verified
+             const hasVerifiedIntegration = response.data.some((integration: any) => integration.is_verified);
+             setJiraEnabled(hasVerifiedIntegration);
+           }
+         } catch (error) {
+           console.error('Error checking JIRA integration:', error);
+           // Don't set jiraEnabled to true if there's an error
+         }
+       } else {
+         // On admin pages, disable JIRA features
+         setJiraEnabled(false);
+       }
 
       // Load filter options
       await loadFilterOptions();
@@ -572,17 +591,20 @@ export default function AnalyticsPage() {
           {activeTab === 'project-health' && (
             <ProjectHealthTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
-          {activeTab === 'jira-tickets' && jiraEnabled && (
+          {activeTab === 'jira-tickets' && jiraEnabled && !isAdminPage && (
             <JiraTicketsTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
-          {activeTab === 'jira-tickets' && !jiraEnabled && (
+          {activeTab === 'jira-tickets' && (!jiraEnabled || isAdminPage) && (
             <JiraSetupPrompt />
           )}
           {activeTab === 'operational-efficiency' && (
             <OperationalEfficiencyTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
           )}
-          {activeTab === 'team-insights' && (
+          {activeTab === 'team-insights' && jiraEnabled && !isAdminPage && (
             <TeamInsightsTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />
+          )}
+          {activeTab === 'team-insights' && (!jiraEnabled || isAdminPage) && (
+            <JiraSetupPrompt />
           )}
           {activeTab === 'remedy-dashboard' && (
             <RemedyDashboardTab filters={appliedFilters} chartRefs={chartRefs} downloadChartAsImage={downloadChartAsImage} />

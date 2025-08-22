@@ -32,6 +32,25 @@ class SupabaseClient {
 
   async query<T = any>(query: SupabaseQuery): Promise<SupabaseResponse<T>> {
     try {
+      // Check if we're in a browser environment and test the configuration
+      if (typeof window !== 'undefined') {
+        try {
+          const testResponse = await fetch('/api/test-env');
+          if (testResponse.ok) {
+            const testData = await testResponse.json();
+            if (testData.environment?.supabaseUrl === 'Not Set') {
+              console.warn('Supabase environment variables not configured. Database operations will not work.');
+              return {
+                data: [] as T,
+                error: 'Database not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.'
+              };
+            }
+          }
+        } catch (testError) {
+          console.warn('Unable to test environment configuration:', testError);
+        }
+      }
+
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
