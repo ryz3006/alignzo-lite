@@ -8,9 +8,8 @@ import { Search, Eye, Filter, Calendar, User as UserIcon, RefreshCw, Download } 
 import { formatDuration, formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
-interface WorkLogWithProjectAndUser extends WorkLog {
+interface WorkLogWithProject extends WorkLog {
   project: Project;
-  user: User;
 }
 
 interface FilterState {
@@ -21,7 +20,7 @@ interface FilterState {
 }
 
 export default function TeamWorkReportsPage() {
-  const [workLogs, setWorkLogs] = useState<WorkLogWithProjectAndUser[]>([]);
+  const [workLogs, setWorkLogs] = useState<WorkLogWithProject[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +28,7 @@ export default function TeamWorkReportsPage() {
   const [itemsPerPage] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
-  const [viewingLog, setViewingLog] = useState<WorkLogWithProjectAndUser | null>(null);
+  const [viewingLog, setViewingLog] = useState<WorkLogWithProject | null>(null);
   
   // Filter states
   const [filters, setFilters] = useState<FilterState>({
@@ -220,7 +219,7 @@ export default function TeamWorkReportsPage() {
     }
   };
 
-  const handleView = (log: WorkLogWithProjectAndUser) => {
+  const handleView = (log: WorkLogWithProject) => {
     setViewingLog(log);
     setShowViewModal(true);
   };
@@ -252,7 +251,7 @@ export default function TeamWorkReportsPage() {
       ...workLogs.map(log => [
         log.project?.name || 'N/A',
         formatDateTime(log.start_time),
-        log.user?.full_name || log.user_email,
+        log.user_email,
         formatDuration(log.logged_duration_seconds),
         log.ticket_id,
         log.task_detail,
@@ -430,10 +429,10 @@ export default function TeamWorkReportsPage() {
                     </div>
                     <div className="ml-4">
                       <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                        {log.user?.full_name || log.user_email}
+                        {log.user_email}
                       </div>
                       <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                        {log.user_email}
+                        Employee
                       </div>
                     </div>
                   </div>
@@ -538,7 +537,7 @@ export default function TeamWorkReportsPage() {
                 </div>
                 <div>
                   <label className="font-medium text-neutral-700 dark:text-neutral-300">Employee:</label>
-                  <p className="text-neutral-900 dark:text-white">{viewingLog.user?.full_name || viewingLog.user_email}</p>
+                  <p className="text-neutral-900 dark:text-white">{viewingLog.user_email}</p>
                 </div>
                 <div>
                   <label className="font-medium text-neutral-700 dark:text-neutral-300">Ticket ID:</label>

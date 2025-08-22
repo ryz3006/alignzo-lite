@@ -373,7 +373,7 @@ class SupabaseClient {
     return this.query({
       table: 'work_logs',
       action: 'select',
-      select: '*,project:projects(*),user:users(*)',
+      select: '*,project:projects(*)',
       filters,
       ...options
     });

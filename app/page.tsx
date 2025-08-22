@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, signInWithGoogle, checkUserAccess, signOutUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
-import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle } from 'lucide-react';
+import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle, Sun, Moon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -12,10 +12,17 @@ export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const router = useRouter();
 
   useEffect(() => {
     checkAuth();
+    // Load theme from localStorage
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    }
   }, []);
 
   const checkAuth = async () => {
@@ -69,12 +76,19 @@ export default function HomePage() {
     }
   };
 
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
         <div className="text-center">
           <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
-          <p className="text-neutral-600 font-medium">Loading...</p>
+          <p className="text-neutral-600 dark:text-neutral-400 font-medium">Loading...</p>
         </div>
       </div>
     );
@@ -82,16 +96,16 @@ export default function HomePage() {
 
   if (accessDenied) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
         <div className="max-w-md w-full mx-4">
           <div className="card text-center">
-            <div className="w-16 h-16 bg-danger-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Shield className="h-8 w-8 text-danger-600" />
+            <div className="w-16 h-16 bg-danger-100 dark:bg-danger-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Shield className="h-8 w-8 text-danger-600 dark:text-danger-400" />
             </div>
-            <h2 className="text-2xl font-bold text-neutral-900 mb-4">
+            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">
               Access Denied
             </h2>
-            <p className="text-neutral-600 mb-8">
+            <p className="text-neutral-600 dark:text-neutral-400 mb-8">
               Your email is not registered in the system. Please contact your administrator to be added.
             </p>
             <div className="space-y-4">
@@ -118,17 +132,24 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
       {/* Navigation */}
       <nav className="absolute top-0 left-0 right-0 z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-                     <div className="flex items-center space-x-3">
-             <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-             <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
-           </div>
-                     <div className="hidden md:flex items-center space-x-6">
-             <a href="#features" className="text-neutral-600 hover:text-neutral-900 transition-colors">Features</a>
-           </div>
+          <div className="flex items-center space-x-3">
+            <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+            <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+          </div>
+          <div className="flex items-center space-x-6">
+            <a href="#features" className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors">Features</a>
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            >
+              {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -136,17 +157,17 @@ export default function HomePage() {
        <section className="relative pt-24 pb-16 px-6">
          <div className="max-w-7xl mx-auto">
            <div className="text-center max-w-4xl mx-auto">
-             <div className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
+             <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-6">
                <CheckCircle className="h-4 w-4 mr-2" />
                Professional Work Tracking Platform
              </div>
              
-                           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-6 leading-tight">
-                Welcome to{' '}
-                <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
-              </h1>
+             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-6 leading-tight">
+               Welcome to{' '}
+               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
+             </h1>
              
-             <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
+             <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8 max-w-2xl mx-auto">
                Professional work log tracking and productivity monitoring platform designed for modern teams.
              </p>
              
@@ -174,62 +195,62 @@ export default function HomePage() {
        </section>
 
       {/* Features Section */}
-      <section id="features" className="py-16 px-6 bg-white">
+      <section id="features" className="py-16 px-6 bg-white dark:bg-neutral-800">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
               Everything you need for productive work tracking
             </h2>
-            <p className="text-xl text-neutral-600 max-w-3xl mx-auto">
+            <p className="text-xl text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
               Comprehensive tools designed to help teams track time, manage projects, and boost productivity
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Clock className="h-8 w-8 text-primary-600" />
+              <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Clock className="h-8 w-8 text-primary-600 dark:text-primary-400" />
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
                 Time Tracking
               </h3>
-              <p className="text-neutral-600">
+              <p className="text-neutral-600 dark:text-neutral-400">
                 Track your work hours with precision using our intuitive timer system and detailed analytics.
               </p>
             </div>
 
             <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-success-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <BarChart3 className="h-8 w-8 text-success-600" />
+              <div className="w-16 h-16 bg-success-100 dark:bg-success-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <BarChart3 className="h-8 w-8 text-success-600 dark:text-success-400" />
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
                 Analytics & Reports
               </h3>
-              <p className="text-neutral-600">
+              <p className="text-neutral-600 dark:text-neutral-400">
                 Get detailed insights into your productivity patterns and project performance metrics.
               </p>
             </div>
 
             <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-warning-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Users className="h-8 w-8 text-warning-600" />
+              <div className="w-16 h-16 bg-warning-100 dark:bg-warning-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Users className="h-8 w-8 text-warning-600 dark:text-warning-400" />
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
                 Team Management
               </h3>
-              <p className="text-neutral-600">
+              <p className="text-neutral-600 dark:text-neutral-400">
                 Manage team schedules, shifts, and availability in one centralized platform.
               </p>
             </div>
 
             <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-danger-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <TrendingUp className="h-8 w-8 text-danger-600" />
+              <div className="w-16 h-16 bg-danger-100 dark:bg-danger-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <TrendingUp className="h-8 w-8 text-danger-600 dark:text-danger-400" />
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
                 Performance Insights
               </h3>
-              <p className="text-neutral-600">
+              <p className="text-neutral-600 dark:text-neutral-400">
                 Monitor productivity trends and identify areas for improvement with actionable insights.
               </p>
             </div>

@@ -152,7 +152,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-neutral-50 dark:bg-neutral-900">
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-neutral-800 shadow-large transform transition-all duration-300 ease-in-out lg:static lg:inset-0 ${
-        sidebarCollapsed ? 'w-16' : 'w-64'
+        sidebarCollapsed ? 'w-20' : 'w-64'
       } ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
