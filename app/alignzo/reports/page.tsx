@@ -350,7 +350,7 @@ export default function UserWorkReportsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+        <div className="loading-spinner h-12 w-12"></div>
       </div>
     );
   }
@@ -359,30 +359,30 @@ export default function UserWorkReportsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Work Reports</h1>
-          <p className="text-gray-600">View and manage your work logs</p>
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">My Work Logs</h1>
+          <p className="text-neutral-600 dark:text-neutral-400">View and manage your work logs</p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={handleAddNew}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center"
+            className="btn-primary flex items-center space-x-2"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Work Log
+            <Plus className="h-4 w-4" />
+            <span>Add Work Log</span>
           </button>
           <button
             onClick={handleRefresh}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+            className="btn-secondary flex items-center space-x-2"
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <RefreshCw className="h-4 w-4" />
+            <span>Refresh</span>
           </button>
           <button
             onClick={handleExport}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+            className="btn-secondary flex items-center space-x-2"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            <Download className="h-4 w-4" />
+            <span>Export</span>
           </button>
         </div>
       </div>
@@ -390,27 +390,27 @@ export default function UserWorkReportsPage() {
       {/* Search */}
       <div className="mb-6">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400 dark:text-neutral-500 h-5 w-5" />
           <input
             type="text"
             placeholder="Search work logs..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="input-modern pl-10"
           />
         </div>
       </div>
 
       {/* Bulk Actions */}
       {selectedLogs.size > 0 && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="mb-4 p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-700 rounded-xl">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-yellow-800">
+            <span className="text-sm text-warning-800 dark:text-warning-200">
               {selectedLogs.size} work log(s) selected
             </span>
             <button
               onClick={handleBulkDelete}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm"
+              className="btn-danger text-sm"
             >
               Delete Selected ({selectedLogs.size})
             </button>
@@ -419,90 +419,90 @@ export default function UserWorkReportsPage() {
       )}
 
       {/* Work Logs Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="table-modern overflow-hidden">
+        <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+          <thead className="bg-neutral-50 dark:bg-neutral-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 <input
                   type="checkbox"
                   checked={selectAll}
                   onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-neutral-800"
                 />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Project
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Ticket ID
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Task Detail
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Duration
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
             {currentLogs.map((log) => (
-              <tr key={log.id} className="hover:bg-gray-50">
+              <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={selectedLogs.has(log.id)}
                     onChange={() => handleSelectLog(log.id)}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-neutral-800"
                   />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-medium text-neutral-900 dark:text-white">
                     {log.project?.name || 'N/A'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{log.ticket_id}</div>
+                  <div className="text-sm text-neutral-900 dark:text-white">{log.ticket_id}</div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-900 max-w-xs truncate" title={log.task_detail}>
+                  <div className="text-sm text-neutral-900 dark:text-white max-w-xs truncate" title={log.task_detail}>
                     {log.task_detail}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-neutral-500 dark:text-neutral-400">
                     {formatDateTime(log.start_time)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
+                  <div className="text-sm text-neutral-900 dark:text-white">
                     {formatDuration(log.logged_duration_seconds)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
                     onClick={() => handleView(log)}
-                    className="text-blue-600 hover:text-blue-900 mr-3"
+                    className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
                     title="View Details"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleEdit(log)}
-                    className="text-primary-600 hover:text-primary-900 mr-3"
+                    className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
                     title="Edit"
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(log.id)}
-                    className="text-red-600 hover:text-red-900"
+                    className="text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -517,14 +517,14 @@ export default function UserWorkReportsPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-6">
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-neutral-700 dark:text-neutral-300">
             Showing {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} results
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Previous
             </button>
@@ -550,7 +550,7 @@ export default function UserWorkReportsPage() {
                     className={`px-3 py-2 text-sm font-medium rounded-md ${
                       currentPage === pageNum
                         ? 'bg-primary-600 text-white'
-                        : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        : 'text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700'
                     }`}
                   >
                     {pageNum}
@@ -562,7 +562,7 @@ export default function UserWorkReportsPage() {
             <button
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </button>
@@ -572,16 +572,16 @@ export default function UserWorkReportsPage() {
 
       {/* View Modal */}
       {showViewModal && viewingLog && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-neutral-900 dark:text-white">
                   Work Log Details
                 </h3>
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 text-2xl font-bold"
                 >
                   ×
                 </button>
@@ -589,39 +589,39 @@ export default function UserWorkReportsPage() {
               
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <label className="font-medium text-gray-700">Project:</label>
-                  <p className="text-gray-900">{viewingLog.project?.name || 'N/A'}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Project:</label>
+                  <p className="text-neutral-900 dark:text-white">{viewingLog.project?.name || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-700">Ticket ID:</label>
-                  <p className="text-gray-900">{viewingLog.ticket_id}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Ticket ID:</label>
+                  <p className="text-neutral-900 dark:text-white">{viewingLog.ticket_id}</p>
                 </div>
                 <div className="col-span-2">
-                  <label className="font-medium text-gray-700">Task Detail:</label>
-                  <p className="text-gray-900 mt-1">{viewingLog.task_detail}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Task Detail:</label>
+                  <p className="text-neutral-900 dark:text-white mt-1">{viewingLog.task_detail}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-700">Start Time:</label>
-                  <p className="text-gray-900">{formatDateTime(viewingLog.start_time)}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Start Time:</label>
+                  <p className="text-neutral-900 dark:text-white">{formatDateTime(viewingLog.start_time)}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-700">End Time:</label>
-                  <p className="text-gray-900">{formatDateTime(viewingLog.end_time)}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">End Time:</label>
+                  <p className="text-neutral-900 dark:text-white">{formatDateTime(viewingLog.end_time)}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-700">Duration:</label>
-                  <p className="text-gray-900">{formatDuration(viewingLog.logged_duration_seconds)}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Duration:</label>
+                  <p className="text-neutral-900 dark:text-white">{formatDuration(viewingLog.logged_duration_seconds)}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-700">Break Duration:</label>
-                  <p className="text-gray-900">{formatDuration(viewingLog.total_pause_duration_seconds)}</p>
+                  <label className="font-medium text-neutral-700 dark:text-neutral-300">Break Duration:</label>
+                  <p className="text-neutral-900 dark:text-white">{formatDuration(viewingLog.total_pause_duration_seconds)}</p>
                 </div>
                 {Object.keys(viewingLog.dynamic_category_selections || {}).length > 0 && (
                   <div className="col-span-2">
-                    <label className="font-medium text-gray-700">Categories Selected:</label>
+                    <label className="font-medium text-neutral-700 dark:text-neutral-300">Categories Selected:</label>
                     <div className="mt-1">
                       {Object.entries(viewingLog.dynamic_category_selections || {}).map(([key, value]) => (
-                        <div key={key} className="text-gray-900">
+                        <div key={key} className="text-neutral-900 dark:text-white">
                           <span className="font-medium">{key}:</span> {String(value)}
                         </div>
                       ))}
@@ -633,7 +633,7 @@ export default function UserWorkReportsPage() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  className="btn-secondary text-sm"
                 >
                   Close
                 </button>
@@ -645,16 +645,16 @@ export default function UserWorkReportsPage() {
 
       {/* Edit Modal */}
       {showEditModal && editingLog && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-neutral-900 dark:text-white">
                   Edit Work Log
                 </h3>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 text-2xl font-bold"
                 >
                   ×
                 </button>
@@ -663,14 +663,14 @@ export default function UserWorkReportsPage() {
               <form onSubmit={handleUpdate} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Project
                     </label>
                     <select
                       required
                       value={formData.project_id}
                       onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="input-modern"
                     >
                       <option value="">Select Project</option>
                       {projects.map(project => (
@@ -682,7 +682,7 @@ export default function UserWorkReportsPage() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Ticket ID
                     </label>
                     <input
@@ -690,13 +690,13 @@ export default function UserWorkReportsPage() {
                       required
                       value={formData.ticket_id}
                       onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="input-modern"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                     Task Detail
                   </label>
                   <textarea
@@ -704,20 +704,20 @@ export default function UserWorkReportsPage() {
                     rows={3}
                     value={formData.task_detail}
                     onChange={(e) => setFormData({ ...formData, task_detail: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern"
                   />
                 </div>
 
                 {/* Categories */}
                 {formData.project_id && getProjectCategories(formData.project_id).length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Categories
                     </label>
                     <div className="space-y-2">
                       {getProjectCategories(formData.project_id).map(category => (
                         <div key={category.id}>
-                          <label className="block text-sm text-gray-600 mb-1">
+                          <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
                             {category.name}
                           </label>
                           <select
@@ -729,7 +729,7 @@ export default function UserWorkReportsPage() {
                                 [category.name]: e.target.value
                               }
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="input-modern"
                           >
                             <option value="">Select {category.name}</option>
                             {category.options.map((option: string) => (
@@ -746,7 +746,7 @@ export default function UserWorkReportsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Start Date/Time
                     </label>
                     <input
@@ -754,12 +754,12 @@ export default function UserWorkReportsPage() {
                       required
                       value={formData.start_time}
                       onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="input-modern"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       End Date/Time
                     </label>
                     <input
@@ -767,46 +767,46 @@ export default function UserWorkReportsPage() {
                       required
                       value={formData.end_time}
                       onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="input-modern"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                     Break Duration
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Hours</label>
+                      <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">Hours</label>
                       <input
                         type="number"
                         min="0"
                         value={breakHours}
                         onChange={(e) => setBreakHours(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="input-modern"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Minutes</label>
+                      <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">Minutes</label>
                       <input
                         type="number"
                         min="0"
                         max="59"
                         value={breakMinutes}
                         onChange={(e) => setBreakMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="input-modern"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Seconds</label>
+                      <label className="block text-xs text-neutral-600 dark:text-neutral-400 mb-1">Seconds</label>
                       <input
                         type="number"
                         min="0"
                         max="59"
                         value={breakSeconds}
                         onChange={(e) => setBreakSeconds(parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="input-modern"
                       />
                     </div>
                   </div>
@@ -819,13 +819,13 @@ export default function UserWorkReportsPage() {
                       setShowEditModal(false);
                       setEditingLog(null);
                     }}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    className="btn-secondary text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                    className="btn-primary text-sm"
                   >
                     Update
                   </button>

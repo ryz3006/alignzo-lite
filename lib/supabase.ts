@@ -77,6 +77,7 @@ export interface User {
   phone_number?: string;
   access_dashboard?: boolean;
   access_work_report?: boolean;
+  access_team_work_reports?: boolean;
   access_analytics?: boolean;
   access_analytics_workload?: boolean;
   access_analytics_project_health?: boolean;

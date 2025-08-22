@@ -18,6 +18,7 @@ export default function UsersPage() {
     phone_number: '',
     access_dashboard: true,
     access_work_report: false,
+    access_team_work_reports: false,
     access_analytics: false,
     access_analytics_workload: false,
     access_analytics_project_health: false,
@@ -101,6 +102,7 @@ export default function UsersPage() {
       phone_number: user.phone_number || '',
       access_dashboard: user.access_dashboard ?? true,
       access_work_report: user.access_work_report ?? false,
+      access_team_work_reports: user.access_team_work_reports ?? false,
       access_analytics: user.access_analytics ?? false,
       access_analytics_workload: user.access_analytics_workload ?? false,
       access_analytics_project_health: user.access_analytics_project_health ?? false,
@@ -311,9 +313,21 @@ export default function UsersPage() {
                         onChange={(e) => setFormData({ ...formData, access_work_report: e.target.checked })}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
-                      <label htmlFor="access_work_report" className="ml-2 text-sm text-gray-700">
-                        Work Report
-                      </label>
+                                             <label htmlFor="access_work_report" className="ml-2 text-sm text-gray-700">
+                         My Work Logs
+                       </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_team_work_reports"
+                        checked={formData.access_team_work_reports}
+                        onChange={(e) => setFormData({ ...formData, access_team_work_reports: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                                             <label htmlFor="access_team_work_reports" className="ml-2 text-sm text-gray-700">
+                         Work Report
+                       </label>
                     </div>
                     <div className="flex items-center">
                       <input

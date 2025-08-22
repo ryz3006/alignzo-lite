@@ -99,7 +99,8 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/alignzo', icon: Home, accessKey: 'access_dashboard' },
-    { name: 'Work Report', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
+    { name: 'My Work Logs', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
+    { name: 'Work Report', href: '/alignzo/work-reports', icon: BarChart3, accessKey: 'access_team_work_reports' },
     { 
       name: 'Analytics', 
       href: '/alignzo/analytics', 
@@ -157,35 +158,49 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
       }`}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
-            <div className="flex items-center space-x-3">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-8 flex-shrink-0" />
-              {!sidebarCollapsed && (
-                <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
-              )}
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={toggleTheme}
-                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              >
-                {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="hidden lg:block p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+          <div className={`border-b border-neutral-200 dark:border-neutral-700 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
+            {sidebarCollapsed ? (
+              /* Collapsed Layout - Stack vertically */
+              <div className="flex flex-col items-center space-y-2">
+                <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-6 w-6 flex-shrink-0" />
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="hidden lg:block p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  title="Expand sidebar"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="lg:hidden p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              /* Expanded Layout - Horizontal */
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-8 flex-shrink-0" />
+                  <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className="hidden lg:block p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                    title="Collapse sidebar"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="lg:hidden p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Navigation */}
@@ -210,12 +225,27 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* User Profile Section */}
-          <div className="p-4 border-t border-neutral-200 dark:border-neutral-700">
-            <div className="flex items-center space-x-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-700">
-              <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
-                <UserIcon className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+          <div className={`border-t border-neutral-200 dark:border-neutral-700 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
+            {sidebarCollapsed ? (
+              /* Collapsed Layout - Stack vertically */
+              <div className="flex flex-col items-center space-y-2">
+                <div className="w-6 h-6 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="h-3 w-3 text-primary-600 dark:text-primary-400" />
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
               </div>
-              {!sidebarCollapsed && (
+            ) : (
+              /* Expanded Layout - Horizontal */
+              <div className="flex items-center space-x-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-700">
+                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
                     {user?.displayName || 'User'}
@@ -224,15 +254,15 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                     {user?.email}
                   </p>
                 </div>
-              )}
-              <button
-                onClick={handleSignOut}
-                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 transition-colors"
-                title="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
+                <button
+                  onClick={handleSignOut}
+                  className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -278,6 +308,15 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                     {activeTimers.length}
                   </span>
                 )}
+              </button>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
+                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              >
+                {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </button>
             </div>
           </div>

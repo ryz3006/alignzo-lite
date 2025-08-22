@@ -98,6 +98,7 @@ export async function getUserAccessControls(userEmail: string) {
       select: `
         access_dashboard,
         access_work_report,
+        access_team_work_reports,
         access_analytics,
         access_analytics_workload,
         access_analytics_project_health,
@@ -118,6 +119,7 @@ export async function getUserAccessControls(userEmail: string) {
       return {
         access_dashboard: true,
         access_work_report: false,
+        access_team_work_reports: false,
         access_analytics: false,
         access_analytics_workload: false,
         access_analytics_project_health: false,
@@ -139,6 +141,7 @@ export async function getUserAccessControls(userEmail: string) {
       return {
         access_dashboard: true,
         access_work_report: false,
+        access_team_work_reports: false,
         access_analytics: false,
         access_analytics_workload: false,
         access_analytics_project_health: false,
@@ -156,6 +159,7 @@ export async function getUserAccessControls(userEmail: string) {
     const accessControls = {
       access_dashboard: userData?.access_dashboard ?? true,
       access_work_report: userData?.access_work_report ?? false,
+      access_team_work_reports: userData?.access_team_work_reports ?? false,
       access_analytics: userData?.access_analytics ?? false,
       access_analytics_workload: userData?.access_analytics_workload ?? false,
       access_analytics_project_health: userData?.access_analytics_project_health ?? false,
@@ -175,6 +179,7 @@ export async function getUserAccessControls(userEmail: string) {
     return {
       access_dashboard: true,
       access_work_report: false,
+      access_team_work_reports: false,
       access_analytics: false,
       access_analytics_workload: false,
       access_analytics_project_health: false,

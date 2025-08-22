@@ -207,7 +207,10 @@ class SupabaseClient {
     return this.get('teams', { select: '*', ...options });
   }
 
-  async getProjects(options?: { order?: { column: string; ascending?: boolean } }) {
+  async getProjects(options?: { 
+    order?: { column: string; ascending?: boolean };
+    filters?: Record<string, any>;
+  }) {
     return this.get('projects', { select: '*', ...options });
   }
 
@@ -331,6 +334,48 @@ class SupabaseClient {
         shift_date: data.shiftDate,
         shift_type: data.shiftType
       }
+    });
+  }
+
+  // Team work reports methods
+  async getTeamMemberships(userEmail: string) {
+    return this.query({
+      table: 'team_members',
+      action: 'select',
+      select: 'team_id,user_id,users(email)',
+      filters: { 'users.email': userEmail }
+    });
+  }
+
+  async getTeamProjectAssignments(teamIds: string[]) {
+    return this.query({
+      table: 'team_project_assignments',
+      action: 'select',
+      select: 'project_id',
+      filters: { team_id: teamIds } // Array will be handled by proxy
+    });
+  }
+
+  async getTeamMembersByTeams(teamIds: string[]) {
+    return this.query({
+      table: 'team_members',
+      action: 'select',
+      select: 'user_id,users(*)',
+      filters: { team_id: teamIds } // Array will be handled by proxy
+    });
+  }
+
+  async getTeamWorkLogs(filters: Record<string, any>, options?: {
+    order?: { column: string; ascending?: boolean };
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.query({
+      table: 'work_logs',
+      action: 'select',
+      select: '*,project:projects(*),user:users(*)',
+      filters,
+      ...options
     });
   }
 }
