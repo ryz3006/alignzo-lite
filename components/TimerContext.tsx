@@ -144,16 +144,8 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       const totalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
       const netDuration = totalDuration - (timer.total_pause_duration_seconds || 0);
 
-      const response = await supabaseClient.update('timers', timerId, {
-        is_running: false,
-        is_paused: false,
-        end_time: now.toISOString()
-      });
-
-      if (response.error) throw new Error(response.error);
-
-      // Create work log entry
-      await supabaseClient.insert('work_logs', {
+      // First, create work log entry
+      const workLogResponse = await supabaseClient.insert('work_logs', {
         user_email: timer.user_email,
         project_id: timer.project_id,
         ticket_id: timer.ticket_id,
@@ -164,6 +156,13 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         total_pause_duration_seconds: timer.total_pause_duration_seconds || 0,
         logged_duration_seconds: netDuration
       });
+
+      if (workLogResponse.error) throw new Error(workLogResponse.error);
+
+      // Then, delete the timer (since it's completed)
+      const deleteResponse = await supabaseClient.delete('timers', timerId);
+
+      if (deleteResponse.error) throw new Error(deleteResponse.error);
 
       toast.success('Timer stopped and work logged');
       await loadTimers();

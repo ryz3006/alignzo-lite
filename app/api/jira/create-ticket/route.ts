@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials, createJiraIssue, getJiraUsernameForUser } from '@/lib/jira';
+import { getJiraCredentials, createJiraIssue } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
