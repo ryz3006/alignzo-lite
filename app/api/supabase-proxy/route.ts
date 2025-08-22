@@ -28,10 +28,83 @@ export async function POST(request: NextRequest) {
         if (filters) {
           Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
-              if (Array.isArray(value)) {
-                query = query.in(key, value);
+              // Convert Date objects to ISO strings
+              let processedValue = value;
+              if (value instanceof Date) {
+                processedValue = value.toISOString();
+              } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                // Handle nested objects with Date values
+                processedValue = {} as Record<string, any>;
+                Object.entries(value).forEach(([nestedKey, nestedValue]) => {
+                  (processedValue as Record<string, any>)[nestedKey] = nestedValue instanceof Date ? nestedValue.toISOString() : nestedValue;
+                });
+              }
+              
+              // Handle complex filter operators
+              if (key.endsWith('_gte')) {
+                const column = key.replace('_gte', '');
+                query = query.gte(column, processedValue);
+              } else if (key.endsWith('_lte')) {
+                const column = key.replace('_lte', '');
+                query = query.lte(column, processedValue);
+              } else if (key.endsWith('_gt')) {
+                const column = key.replace('_gt', '');
+                query = query.gt(column, processedValue);
+              } else if (key.endsWith('_lt')) {
+                const column = key.replace('_lt', '');
+                query = query.lt(column, processedValue);
+              } else if (key.endsWith('_neq')) {
+                const column = key.replace('_neq', '');
+                query = query.neq(column, processedValue);
+              } else if (key.endsWith('_like')) {
+                const column = key.replace('_like', '');
+                query = query.like(column, String(processedValue));
+              } else if (key.endsWith('_ilike')) {
+                const column = key.replace('_ilike', '');
+                query = query.ilike(column, String(processedValue));
+              } else if (key.endsWith('_in')) {
+                const column = key.replace('_in', '');
+                query = query.in(column, Array.isArray(processedValue) ? processedValue : [processedValue]);
+              } else if (Array.isArray(processedValue)) {
+                query = query.in(key, processedValue);
+              } else if (typeof processedValue === 'object' && processedValue !== null) {
+                // Handle complex filter objects like { gte: '2024-01-01' }
+                Object.entries(processedValue).forEach(([operator, operatorValue]) => {
+                  // Process nested Date objects
+                  const finalValue = operatorValue instanceof Date ? operatorValue.toISOString() : operatorValue;
+                  switch (operator) {
+                    case 'gte':
+                      query = query.gte(key, finalValue);
+                      break;
+                    case 'lte':
+                      query = query.lte(key, finalValue);
+                      break;
+                    case 'gt':
+                      query = query.gt(key, finalValue);
+                      break;
+                    case 'lt':
+                      query = query.lt(key, finalValue);
+                      break;
+                    case 'neq':
+                      query = query.neq(key, finalValue);
+                      break;
+                    case 'like':
+                      query = query.like(key, String(finalValue));
+                      break;
+                    case 'ilike':
+                      query = query.ilike(key, String(finalValue));
+                      break;
+                    case 'in':
+                      query = query.in(key, Array.isArray(finalValue) ? finalValue : [finalValue]);
+                      break;
+                    case 'eq':
+                    default:
+                      query = query.eq(key, finalValue);
+                      break;
+                  }
+                });
               } else {
-                query = query.eq(key, value);
+                query = query.eq(key, processedValue);
               }
             }
           });

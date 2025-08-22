@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase-client';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 export interface PasswordPolicy {
   minLength: number;
@@ -504,25 +505,22 @@ export async function resetPasswordWithToken(
 // Helper function to verify admin credentials
 export async function verifyAdminCredentials(email: string, password: string): Promise<boolean> {
   try {
-    // Get user from database
-    const response = await supabaseClient.get('users', {
-      select: 'password_hash,role',
-      filters: { email }
-    });
-
-    if (response.error || !response.data || response.data.length === 0) {
-      return false;
-    }
-
-    const user = response.data[0];
+    // Check if this is the admin email from environment variables
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
     
-    // Check if user is admin
-    if (user.role !== 'admin') {
+    if (!adminEmail || !adminPasswordHash) {
+      console.error('Admin credentials not configured in environment variables');
       return false;
     }
-
-    // Verify password
-    return await passwordManager.verifyPassword(password, user.password_hash);
+    
+    // Check if the provided email matches the admin email
+    if (email !== adminEmail) {
+      return false;
+    }
+    
+    // Verify password against the admin password hash using bcrypt
+    return await bcrypt.compare(password, adminPasswordHash);
   } catch (error) {
     console.error('Error verifying admin credentials:', error);
     return false;
