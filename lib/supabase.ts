@@ -8,32 +8,33 @@ function getSupabaseConfig() {
   // Check if we're in a browser environment (client-side)
   const isClient = typeof window !== 'undefined';
   
-  // In client-side, we need to use a different approach
-  if (isClient) {
-    // For client-side, we'll use a server-side API to get Supabase data
-    // This prevents exposing environment variables to the client
+  // Server-side: Use environment variables directly
+  if (!isClient) {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables not found on server-side');
+      throw new Error('Supabase environment variables not configured on server-side');
+    }
+    
     return {
-      url: 'https://placeholder.supabase.co',
-      key: 'placeholder-key',
-      isClient: true
-    };
-  }
-  
-  // Server-side: Check if environment variables are available
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase environment variables not found on server-side, using placeholders');
-    return {
-      url: 'https://placeholder.supabase.co',
-      key: 'placeholder-key',
+      url: supabaseUrl,
+      key: supabaseAnonKey,
       isClient: false
     };
   }
   
-  return {
-    url: supabaseUrl,
-    key: supabaseAnonKey,
-    isClient: false
-  };
+  // Client-side: Use a secure approach
+  if (isClient) {
+    // For client-side, we'll use a server-side API to get Supabase data
+    // This prevents exposing environment variables to the client
+    return {
+      url: 'https://placeholder.supabase.co', // This will be replaced by API
+      key: 'placeholder-key', // This will be replaced by API
+      isClient: true
+    };
+  }
+  
+  // This should never happen, but TypeScript requires it
+  throw new Error('Unable to determine environment');
 }
 
 const config = getSupabaseConfig();
@@ -41,7 +42,9 @@ const config = getSupabaseConfig();
 // Create a client with proper error handling
 export const supabase = createClient(config.url, config.key, {
   auth: {
-    persistSession: false // For server-side usage
+    persistSession: false, // For server-side usage
+    autoRefreshToken: false,
+    detectSessionInUrl: false
   }
 });
 

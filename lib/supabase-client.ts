@@ -1,6 +1,7 @@
+import { createClient } from '@supabase/supabase-js';
+
 // Client-side Supabase utility that uses server-side proxy
 // This prevents environment variable exposure to the client
-
 export interface SupabaseQuery {
   table: string;
   action: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
@@ -232,5 +233,5 @@ class SupabaseClient {
 // Export singleton instance
 export const supabaseClient = new SupabaseClient();
 
-// Export for backward compatibility
-export const supabase = supabaseClient;
+// For backward compatibility, export the old supabase instance
+export { supabase } from './supabase';
