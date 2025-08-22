@@ -196,6 +196,23 @@ export class JiraIntegration {
     priority: string = 'Medium'
   ): Promise<any> {
     try {
+      // Convert plain text description to Atlassian Document Format (ADF)
+      const adfDescription = {
+        version: 1,
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: description
+              }
+            ]
+          }
+        ]
+      };
+
       const response = await fetch(`${credentials.base_url}/rest/api/3/issue`, {
         method: 'POST',
         headers: {
@@ -207,7 +224,7 @@ export class JiraIntegration {
           fields: {
             project: { key: projectKey },
             summary: summary,
-            description: description,
+            description: adfDescription,
             issuetype: { name: issueType },
             priority: { name: priority }
           }
@@ -315,15 +332,41 @@ export async function createJiraIssue(credentials: JiraCredentials, issueData: {
   description: string;
   issueType?: string;
   priority?: string;
-}): Promise<any> {
-  return await jiraIntegration.createTicket(
-    credentials,
-    issueData.projectKey,
-    issueData.summary,
-    issueData.description,
-    issueData.issueType || 'Task',
-    issueData.priority || 'Medium'
-  );
+}): Promise<{success: boolean; data?: any; error?: string; details?: string; rateLimitInfo?: any}> {
+  try {
+    const result = await jiraIntegration.createTicket(
+      credentials,
+      issueData.projectKey,
+      issueData.summary,
+      issueData.description,
+      issueData.issueType || 'Task',
+      issueData.priority || 'Medium'
+    );
+
+    return {
+      success: true,
+      data: result
+    };
+  } catch (error: any) {
+    console.error('JIRA create ticket error details:', error);
+    
+    // Extract rate limit info if available
+    let rateLimitInfo = null;
+    if (error.message?.includes('429')) {
+      rateLimitInfo = {
+        retryAfter: error.headers?.get('Retry-After'),
+        rateLimitRemaining: error.headers?.get('X-RateLimit-Remaining'),
+        rateLimitReset: error.headers?.get('X-RateLimit-Reset')
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || 'Unknown error',
+      details: error.message || 'Failed to create JIRA ticket',
+      rateLimitInfo
+    };
+  }
 }
 
 // Helper function to search Jira issues
