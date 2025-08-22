@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseClient } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,15 +14,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's Jira project mappings
-    const response = await supabaseClient.get('jira_project_mappings', {
-      select: '*',
-      filters: { 
-        integration_user_email: userEmail
-      }
-    });
+    const { data, error } = await supabase
+      .from('jira_project_mappings')
+      .select('*')
+      .eq('integration_user_email', userEmail);
 
-    if (response.error) {
-      console.error('Error fetching Jira project mappings:', response.error);
+    if (error) {
+      console.error('Error fetching Jira project mappings:', error);
       return NextResponse.json(
         { error: 'Failed to fetch project mappings' },
         { status: 500 }
@@ -31,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      mappings: response.data || []
+      mappings: data || []
     });
 
   } catch (error) {
