@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   BarChart, 
   Bar, 
@@ -175,54 +175,51 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
 
   const loadWorkLogs = async (userEmail: string) => {
     try {
-      let query = supabase
-        .from('work_logs')
-        .select(`
-          *,
-          projects (
-            id,
-            name,
-            product,
-            country
-          )
-        `);
+      let queryFilters: any = {};
 
       // Apply user filter
       if (filters?.selectedUsers && filters.selectedUsers.length > 0) {
-        query = query.in('user_email', filters.selectedUsers);
+        queryFilters.user_email = filters.selectedUsers;
       } else {
         // If no specific users selected, load for current user
-        query = query.eq('user_email', userEmail);
+        queryFilters.user_email = userEmail;
       }
 
-      // Apply filters
+      // Apply date filters
       if (filters?.dateRange) {
-        query = query
-          .gte('start_time', filters.dateRange.start)
-          .lte('end_time', filters.dateRange.end);
+        queryFilters.start_time_gte = filters.dateRange.start;
+        queryFilters.end_time_lte = filters.dateRange.end;
       }
 
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {
         // Convert project names to UUIDs by looking up the projects table
-        const { data: projectsData } = await supabase
-          .from('projects')
-          .select('id, name')
-          .in('name', filters.selectedProjects);
+        const projectsResponse = await supabaseClient.get('projects', {
+          select: 'id,name',
+          filters: { name: filters.selectedProjects }
+        });
         
-        if (projectsData && projectsData.length > 0) {
-          const projectIds = projectsData.map(p => p.id);
-          query = query.in('project_id', projectIds);
+        if (projectsResponse.error) {
+          console.error('Error loading projects for filter:', projectsResponse.error);
+          return;
+        }
+        
+        if (projectsResponse.data && projectsResponse.data.length > 0) {
+          const projectIds = projectsResponse.data.map((p: any) => p.id);
+          queryFilters.project_id = projectIds;
         }
       }
 
-      const { data, error } = await query;
+      const response = await supabaseClient.get('work_logs', {
+        select: '*,projects(id,name,product,country)',
+        filters: queryFilters
+      });
       
-      if (error) {
-        console.error('Error loading work logs:', error);
+      if (response.error) {
+        console.error('Error loading work logs:', response.error);
         return;
       }
 
-      setWorkLogs(data || []);
+      setWorkLogs(response.data || []);
     } catch (error) {
       console.error('Error loading work logs:', error);
     }
@@ -346,16 +343,14 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
       if (!currentUser?.email) return [];
 
       // Get all available users from the web app
-      const { data: availableUsers, error: usersError } = await supabase
-        .from('users')
-        .select('email');
-
-      if (usersError) {
-        console.error('Error fetching available users:', usersError);
+      const usersResponse = await supabaseClient.getUsers();
+      if (usersResponse.error) {
+        console.error('Error fetching available users:', usersResponse.error);
         return [];
       }
+      const availableUsers = usersResponse.data;
 
-      const availableUserEmails = availableUsers?.map(user => user.email) || [];
+      const availableUserEmails = availableUsers?.map((user: any) => user.email) || [];
       console.log('Available users in web app:', availableUserEmails);
 
       // Get JIRA user mappings
@@ -368,7 +363,7 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
         
         // Get intersection of available users and users with JIRA mappings
         const mappedUserEmails = userMappings.map((mapping: any) => mapping.user_email).filter(Boolean);
-        const usersWithMappings = availableUserEmails.filter(email => mappedUserEmails.includes(email));
+        const usersWithMappings = availableUserEmails.filter((email: any) => mappedUserEmails.includes(email));
         
         console.log('Users with JIRA mappings from available users:', usersWithMappings);
         return usersWithMappings;

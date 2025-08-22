@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, UploadedTicket } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { UploadedTicket } from '@/lib/supabase';
 import { Eye, Trash2, Search, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,20 +36,17 @@ export default function UploadedTicketsPage() {
 
   const loadUploadedTickets = async () => {
     try {
-      const { data, error } = await supabase
-        .from('uploaded_tickets')
-        .select(`
-          *,
-          source:ticket_sources(name),
-          mapping:ticket_upload_mappings(
-            project:projects(name)
-          )
-        `)
-        .order('created_at', { ascending: false });
+      const response = await supabaseClient.get('uploaded_tickets', {
+        select: '*,source:ticket_sources(name),mapping:ticket_upload_mappings(project:projects(name))',
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (error) throw error;
-      setUploadedTickets(data || []);
-      setFilteredTickets(data || []);
+      if (response.error) {
+        console.error('Error loading uploaded tickets:', response.error);
+        throw new Error(response.error);
+      }
+      setUploadedTickets(response.data || []);
+      setFilteredTickets(response.data || []);
     } catch (error) {
       console.error('Error loading uploaded tickets:', error);
       toast.error('Failed to load uploaded tickets');
@@ -68,12 +66,12 @@ export default function UploadedTicketsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('uploaded_tickets')
-        .delete()
-        .eq('id', ticketId);
+      const response = await supabaseClient.delete('uploaded_tickets', ticketId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting ticket:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Ticket deleted successfully');
       loadUploadedTickets();
     } catch (error: any) {
@@ -93,12 +91,14 @@ export default function UploadedTicketsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('uploaded_tickets')
-        .delete()
-        .in('id', selectedTickets);
-
-      if (error) throw error;
+      // TODO: Implement bulk delete in proxy - for now, delete one by one
+      for (const ticketId of selectedTickets) {
+        const response = await supabaseClient.delete('uploaded_tickets', ticketId);
+        if (response.error) {
+          console.error('Error deleting ticket:', response.error);
+          throw new Error(response.error);
+        }
+      }
       toast.success(`${selectedTickets.length} tickets deleted successfully`);
       setSelectedTickets([]);
       loadUploadedTickets();

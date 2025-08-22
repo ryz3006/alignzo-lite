@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Team, User, TeamMember } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Team, User, TeamMember } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Search, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -32,34 +33,39 @@ export default function TeamsPage() {
   const loadTeams = async () => {
     try {
       // Get teams
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const teamsResponse = await supabaseClient.get('teams', {
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (teamsError) throw teamsError;
+      if (teamsResponse.error) {
+        console.error('Error loading teams:', teamsResponse.error);
+        throw new Error(teamsResponse.error);
+      }
 
       // Get team members
-      const { data: membersData, error: membersError } = await supabase
-        .from('team_members')
-        .select(`
-          *,
-          users (*)
-        `);
+      const membersResponse = await supabaseClient.get('team_members', {
+        select: '*,users(*)'
+      });
 
-      if (membersError) throw membersError;
+      if (membersResponse.error) {
+        console.error('Error loading team members:', membersResponse.error);
+        throw new Error(membersResponse.error);
+      }
+
+      const teamsData = teamsResponse.data || [];
+      const membersData = membersResponse.data || [];
 
       // Combine teams with their members
-      const teamsWithMembers = teamsData?.map(team => {
-        const teamMembers = membersData?.filter(member => member.team_id === team.id) || [];
-        const users = teamMembers.map(member => member.users).filter(Boolean) as User[];
+      const teamsWithMembers = teamsData.map((team: any) => {
+        const teamMembers = membersData.filter((member: any) => member.team_id === team.id) || [];
+        const users = teamMembers.map((member: any) => member.users).filter(Boolean) as User[];
         
         return {
           ...team,
           members: users,
           memberCount: users.length,
         };
-      }) || [];
+      });
 
       setTeams(teamsWithMembers);
     } catch (error) {
@@ -72,13 +78,15 @@ export default function TeamsPage() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('full_name');
+      const response = await supabaseClient.getUsers({
+        order: { column: 'full_name', ascending: true }
+      });
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (response.error) {
+        console.error('Error loading users:', response.error);
+        throw new Error(response.error);
+      }
+      setUsers(response.data || []);
     } catch (error) {
       console.error('Error loading users:', error);
     }
@@ -90,22 +98,21 @@ export default function TeamsPage() {
     try {
       if (editingTeam) {
         // Update existing team
-        const { error } = await supabase
-          .from('teams')
-          .update(formData)
-          .eq('id', editingTeam.id);
+        const response = await supabaseClient.update('teams', editingTeam.id, formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error updating team:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('Team updated successfully');
       } else {
         // Create new team
-        const { data, error } = await supabase
-          .from('teams')
-          .insert([formData])
-          .select()
-          .single();
+        const response = await supabaseClient.insert('teams', formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error creating team:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('Team created successfully');
       }
 
@@ -129,12 +136,12 @@ export default function TeamsPage() {
     if (!confirm('Are you sure you want to delete this team?')) return;
 
     try {
-      const { error } = await supabase
-        .from('teams')
-        .delete()
-        .eq('id', teamId);
+      const response = await supabaseClient.delete('teams', teamId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting team:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Team deleted successfully');
       loadTeams();
     } catch (error: any) {
@@ -154,12 +161,16 @@ export default function TeamsPage() {
 
     try {
       // Remove all current members
-      const { error: deleteError } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('team_id', selectedTeam.id);
+      const response = await supabaseClient.query({
+        table: 'team_members',
+        action: 'delete',
+        filters: { team_id: selectedTeam.id }
+      });
 
-      if (deleteError) throw deleteError;
+      if (response.error) {
+        console.error('Error deleting team members:', response.error);
+        throw new Error(response.error);
+      }
 
       // Add new members
       if (selectedMembers.length > 0) {
@@ -168,11 +179,12 @@ export default function TeamsPage() {
           user_id: userId,
         }));
 
-        const { error: insertError } = await supabase
-          .from('team_members')
-          .insert(newMembers);
+        const insertResponse = await supabaseClient.insert('team_members', newMembers);
 
-        if (insertError) throw insertError;
+        if (insertResponse.error) {
+          console.error('Error inserting team members:', insertResponse.error);
+          throw new Error(insertResponse.error);
+        }
       }
 
       toast.success('Team members updated successfully');

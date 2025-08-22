@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   ExternalLink, 
   CheckCircle, 
@@ -97,16 +97,20 @@ export default function IntegrationsPage() {
 
   const loadJiraIntegration = async (userEmail: string) => {
     try {
-      const { data, error } = await supabase
-        .from('user_integrations')
-        .select('*')
-        .eq('user_email', userEmail)
-        .eq('integration_type', 'jira')
-        .single();
+      const response = await supabaseClient.get('user_integrations', {
+        select: '*',
+        filters: { 
+          user_email: userEmail,
+          integration_type: 'jira'
+        }
+      });
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
+      if (response.error) {
+        console.error('Error loading JIRA integration:', response.error);
+        throw new Error(response.error);
       }
+
+      const data = response.data?.[0]; // Get first result since we expect single
 
       if (data) {
         setJiraIntegration({
@@ -230,13 +234,15 @@ export default function IntegrationsPage() {
 
   const loadDashboardProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, product, country')
-        .order('name');
+      const response = await supabaseClient.getProjects({
+        order: { column: 'name', ascending: true }
+      });
 
-      if (error) throw error;
-      setDashboardProjects(data || []);
+      if (response.error) {
+        console.error('Error loading dashboard projects:', response.error);
+        throw new Error(response.error);
+      }
+      setDashboardProjects(response.data || []);
     } catch (error) {
       console.error('Failed to load dashboard projects:', error);
     }

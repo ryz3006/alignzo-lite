@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, User } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { User } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -43,13 +44,15 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const response = await supabaseClient.getUsers({
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (response.error) {
+        console.error('Error loading users:', response.error);
+        throw new Error(response.error);
+      }
+      setUsers(response.data || []);
     } catch (error) {
       console.error('Error loading users:', error);
       toast.error('Failed to load users');
@@ -64,20 +67,21 @@ export default function UsersPage() {
     try {
       if (editingUser) {
         // Update existing user
-        const { error } = await supabase
-          .from('users')
-          .update(formData)
-          .eq('id', editingUser.id);
+        const response = await supabaseClient.update('users', editingUser.id, formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error updating user:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('User updated successfully');
       } else {
         // Create new user
-        const { error } = await supabase
-          .from('users')
-          .insert([formData]);
+        const response = await supabaseClient.insert('users', formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error creating user:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('User created successfully');
       }
 
@@ -115,12 +119,12 @@ export default function UsersPage() {
     if (!confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      const response = await supabaseClient.delete('users', userId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting user:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('User deleted successfully');
       loadUsers();
     } catch (error: any) {

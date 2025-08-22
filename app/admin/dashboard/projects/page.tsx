@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Project, ProjectCategory, Team, TeamProjectAssignment } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Project, ProjectCategory, Team, TeamProjectAssignment } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Search, Settings, X, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -37,43 +38,45 @@ export default function ProjectsPage() {
 
   const loadProjects = async () => {
     try {
-      if (!supabase) {
-        console.error('Supabase not initialized');
-        setLoading(false);
-        return;
+      // Get projects
+      const projectsResponse = await supabaseClient.get('projects', {
+        order: { column: 'created_at', ascending: false }
+      });
+
+      if (projectsResponse.error) {
+        console.error('Error loading projects:', projectsResponse.error);
+        throw new Error(projectsResponse.error);
       }
 
-      // Get projects
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (projectsError) throw projectsError;
-
       // Get project categories
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('project_categories')
-        .select('*')
-        .order('created_at');
+      const categoriesResponse = await supabaseClient.get('project_categories', {
+        order: { column: 'created_at', ascending: true }
+      });
 
-      if (categoriesError) throw categoriesError;
+      if (categoriesResponse.error) {
+        console.error('Error loading project categories:', categoriesResponse.error);
+        throw new Error(categoriesResponse.error);
+      }
 
       // Get team-project assignments
-      const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('team_project_assignments')
-        .select(`
-          *,
-          teams (*)
-        `);
+      const assignmentsResponse = await supabaseClient.get('team_project_assignments', {
+        select: '*,teams(*)'
+      });
 
-      if (assignmentsError) throw assignmentsError;
+      if (assignmentsResponse.error) {
+        console.error('Error loading team assignments:', assignmentsResponse.error);
+        throw new Error(assignmentsResponse.error);
+      }
+
+      const projectsData = projectsResponse.data || [];
+      const categoriesData = categoriesResponse.data || [];
+      const assignmentsData = assignmentsResponse.data || [];
 
       // Combine projects with their categories and teams
-      const projectsWithCategories = projectsData?.map(project => {
-        const projectCategories = categoriesData?.filter(cat => cat.project_id === project.id) || [];
-        const projectAssignments = assignmentsData?.filter(assignment => assignment.project_id === project.id) || [];
-        const assignedTeams = projectAssignments.map(assignment => assignment.teams).filter(Boolean) as Team[];
+      const projectsWithCategories = projectsData.map((project: any) => {
+        const projectCategories = categoriesData.filter((cat: any) => cat.project_id === project.id) || [];
+        const projectAssignments = assignmentsData.filter((assignment: any) => assignment.project_id === project.id) || [];
+        const assignedTeams = projectAssignments.map((assignment: any) => assignment.teams).filter(Boolean) as Team[];
         
         return {
           ...project,
@@ -82,7 +85,7 @@ export default function ProjectsPage() {
           assignedTeams: assignedTeams,
           teamCount: assignedTeams.length,
         };
-      }) || [];
+      });
 
       setProjects(projectsWithCategories);
     } catch (error) {
@@ -95,15 +98,16 @@ export default function ProjectsPage() {
 
   const loadTeams = async () => {
     try {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('*')
-        .order('name');
+      const response = await supabaseClient.get('teams', { select: '*' });
 
-      if (error) throw error;
-      setTeams(data || []);
+      if (response.error) {
+        console.error('Error loading teams:', response.error);
+        throw new Error(response.error);
+      }
+      setTeams(response.data || []);
     } catch (error) {
       console.error('Error loading teams:', error);
+      toast.error('Failed to load teams');
     }
   };
 
@@ -111,29 +115,23 @@ export default function ProjectsPage() {
     e.preventDefault();
     
     try {
-      if (!supabase) {
-        console.error('Supabase not initialized');
-        return;
-      }
-
       if (editingProject) {
         // Update existing project
-        const { error } = await supabase
-          .from('projects')
-          .update(formData)
-          .eq('id', editingProject.id);
+        const response = await supabaseClient.update('projects', editingProject.id, formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error updating project:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('Project updated successfully');
       } else {
         // Create new project
-        const { data, error } = await supabase
-          .from('projects')
-          .insert([formData])
-          .select()
-          .single();
+        const response = await supabaseClient.insert('projects', formData);
 
-        if (error) throw error;
+        if (response.error) {
+          console.error('Error creating project:', response.error);
+          throw new Error(response.error);
+        }
         toast.success('Project created successfully');
       }
 
@@ -161,17 +159,12 @@ export default function ProjectsPage() {
     if (!confirm('Are you sure you want to delete this project?')) return;
 
     try {
-      if (!supabase) {
-        console.error('Supabase not initialized');
-        return;
+      const response = await supabaseClient.delete('projects', projectId);
+
+      if (response.error) {
+        console.error('Error deleting project:', response.error);
+        throw new Error(response.error);
       }
-
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-
-      if (error) throw error;
       toast.success('Project deleted successfully');
       loadProjects();
     } catch (error: any) {
@@ -200,12 +193,16 @@ export default function ProjectsPage() {
 
     try {
       // Remove all current categories
-      const { error: deleteError } = await supabase
-        .from('project_categories')
-        .delete()
-        .eq('project_id', selectedProject.id);
+      const deleteResponse = await supabaseClient.query({
+        table: 'project_categories',
+        action: 'delete',
+        filters: { project_id: selectedProject.id }
+      });
 
-      if (deleteError) throw deleteError;
+      if (deleteResponse.error) {
+        console.error('Error deleting project categories:', deleteResponse.error);
+        throw new Error(deleteResponse.error);
+      }
 
       // Add new categories
       if (categories.length > 0) {
@@ -215,11 +212,12 @@ export default function ProjectsPage() {
           options: cat.options,
         }));
 
-        const { error: insertError } = await supabase
-          .from('project_categories')
-          .insert(newCategories);
+        const insertResponse = await supabaseClient.insert('project_categories', newCategories);
 
-        if (insertError) throw insertError;
+        if (insertResponse.error) {
+          console.error('Error inserting project categories:', insertResponse.error);
+          throw new Error(insertResponse.error);
+        }
       }
 
       toast.success('Project categories updated successfully');
@@ -238,12 +236,16 @@ export default function ProjectsPage() {
 
     try {
       // Remove all current team assignments
-      const { error: deleteError } = await supabase
-        .from('team_project_assignments')
-        .delete()
-        .eq('project_id', selectedProject.id);
+      const deleteResponse = await supabaseClient.query({
+        table: 'team_project_assignments',
+        action: 'delete',
+        filters: { project_id: selectedProject.id }
+      });
 
-      if (deleteError) throw deleteError;
+      if (deleteResponse.error) {
+        console.error('Error deleting team assignments:', deleteResponse.error);
+        throw new Error(deleteResponse.error);
+      }
 
       // Add new team assignments
       if (selectedTeams.length > 0) {
@@ -252,11 +254,12 @@ export default function ProjectsPage() {
           team_id: teamId,
         }));
 
-        const { error: insertError } = await supabase
-          .from('team_project_assignments')
-          .insert(newAssignments);
+        const insertResponse = await supabaseClient.insert('team_project_assignments', newAssignments);
 
-        if (insertError) throw insertError;
+        if (insertResponse.error) {
+          console.error('Error inserting team assignments:', insertResponse.error);
+          throw new Error(insertResponse.error);
+        }
       }
 
       toast.success('Project teams updated successfully');

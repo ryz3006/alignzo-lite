@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { getCurrentUser } from '@/lib/auth';
-import { supabase, WorkLog, Project, ProjectCategory } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { WorkLog, Project, ProjectCategory } from '@/lib/supabase';
 import { Edit, Trash2, Search, Download, Plus, Eye, RefreshCw } from 'lucide-react';
 import { formatDuration, formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -64,16 +65,17 @@ export default function UserWorkReportsPage() {
     loadWorkLogs();
     loadProjects();
     
-    // Set up real-time subscription for work logs to auto-refresh when timer stops
-    const subscription = supabase
-      .channel('work_logs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_logs' }, () => {
-        loadWorkLogs();
-      })
-      .subscribe();
+    // TODO: Real-time subscription needs to be updated for proxy system
+    // For now, we'll rely on manual refresh
+    // const subscription = supabase
+    //   .channel('work_logs')
+    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'work_logs' }, () => {
+    //     loadWorkLogs();
+    //   })
+    //   .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      // subscription?.unsubscribe();
     };
   }, []);
 
@@ -82,16 +84,16 @@ export default function UserWorkReportsPage() {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
-      const { data, error } = await supabase
-        .from('work_logs')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-        .eq('user_email', currentUser.email)
-        .order('created_at', { ascending: false });
+      const response = await supabaseClient.getUserWorkLogs(currentUser.email, {
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error loading work logs:', response.error);
+        throw new Error(response.error);
+      }
+
+      const data = response.data;
       setWorkLogs(data || []);
     } catch (error) {
       console.error('Error loading work logs:', error);
@@ -108,25 +110,29 @@ export default function UserWorkReportsPage() {
 
       // For now, let's load all projects that the user might have access to
       // This is a simplified approach - in production you'd want proper team-based filtering
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .order('name');
+      const projectsResponse = await supabaseClient.getProjects({
+        order: { column: 'name', ascending: true }
+      });
 
-      if (projectsError) throw projectsError;
+      if (projectsResponse.error) {
+        console.error('Error loading projects:', projectsResponse.error);
+        throw new Error(projectsResponse.error);
+      }
+
+      const projectsData = projectsResponse.data;
 
       setProjects(projectsData || []);
 
       // Load categories for all projects
       if (projectsData && projectsData.length > 0) {
-        const projectIds = projectsData.map(p => p.id);
-        const { data: categories, error: categoriesError } = await supabase
-          .from('project_categories')
-          .select('*')
-          .in('project_id', projectIds);
+        const projectIds = projectsData.map((p: any) => p.id);
+        const categoriesResponse = await supabaseClient.get('project_categories', {
+          select: '*',
+          filters: { project_id: projectIds }
+        });
 
-        if (!categoriesError) {
-          setProjectCategories(categories || []);
+        if (!categoriesResponse.error) {
+          setProjectCategories(categoriesResponse.data || []);
         }
       }
     } catch (error) {
@@ -206,12 +212,12 @@ export default function UserWorkReportsPage() {
         total_pause_duration_seconds: breakDuration,
       };
 
-      const { error } = await supabase
-        .from('work_logs')
-        .update(updateData)
-        .eq('id', editingLog.id);
+      const response = await supabaseClient.update('work_logs', editingLog.id, updateData);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error updating work log:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Work log updated successfully');
       setShowEditModal(false);
       setEditingLog(null);
@@ -228,12 +234,12 @@ export default function UserWorkReportsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const { error } = await supabase
-        .from('work_logs')
-        .delete()
-        .eq('id', logId);
+      const response = await supabaseClient.delete('work_logs', logId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting work log:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Work log deleted successfully');
       loadWorkLogs();
     } catch (error: any) {
@@ -252,12 +258,14 @@ export default function UserWorkReportsPage() {
 
     try {
       const logIds = Array.from(selectedLogs);
-      const { error } = await supabase
-        .from('work_logs')
-        .delete()
-        .in('id', logIds);
-
-      if (error) throw error;
+      // TODO: Implement bulk delete in proxy - for now, delete one by one
+      for (const logId of logIds) {
+        const response = await supabaseClient.delete('work_logs', logId);
+        if (response.error) {
+          console.error('Error deleting work log:', response.error);
+          throw new Error(response.error);
+        }
+      }
       toast.success(`${selectedLogs.size} work log(s) deleted successfully`);
       setSelectedLogs(new Set());
       setSelectAll(false);

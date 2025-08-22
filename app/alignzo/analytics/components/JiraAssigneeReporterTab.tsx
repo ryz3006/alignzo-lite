@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials, searchAllJiraIssues, JiraIssue } from '@/lib/jira';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   BarChart, 
   Bar, 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { getCurrentUser, getUserAccessControls } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { getJiraCredentials } from '@/lib/jira';
 import { 
   Users, 
@@ -136,9 +136,9 @@ export default function AnalyticsPage() {
         loadUsers()
       ]);
 
-      setAvailableTeams(teams.map(t => t.name));
-      setAvailableProjects(projects.map(p => p.name));
-      setAvailableUsers(users.map(u => u.email));
+      setAvailableTeams(teams.map((t: any) => t.name));
+      setAvailableProjects(projects.map((p: any) => p.name));
+      setAvailableUsers(users.map((u: any) => u.email));
     } catch (error) {
       console.error('Error loading filter options:', error);
     }
@@ -157,43 +157,58 @@ export default function AnalyticsPage() {
   };
 
   const loadTeams = async () => {
-    let query = supabase
-        .from('teams')
-        .select(`
-          *,
-          team_members(*)
-        `);
+    try {
+      const response = await supabaseClient.get('teams', {
+        select: '*,team_members(*)',
+        filters: appliedFilters.selectedTeams.length > 0 ? {
+          name: appliedFilters.selectedTeams
+        } : undefined
+      });
 
-    if (appliedFilters.selectedTeams.length > 0) {
-      query = query.in('name', appliedFilters.selectedTeams);
+      if (response.error) {
+        console.error('Error loading teams:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading teams:', error);
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
   };
 
   const loadProjects = async () => {
-    let query = supabase
-      .from('projects')
-      .select('*');
+    try {
+      const response = await supabaseClient.get('projects', {
+        select: '*',
+        filters: appliedFilters.selectedProjects.length > 0 ? {
+          name: appliedFilters.selectedProjects
+        } : undefined
+      });
 
-    if (appliedFilters.selectedProjects.length > 0) {
-      query = query.in('name', appliedFilters.selectedProjects);
+      if (response.error) {
+        console.error('Error loading projects:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
   };
 
   const loadUsers = async () => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*');
+    try {
+      const response = await supabaseClient.getUsers();
 
-    if (error) throw error;
-    return data || [];
+      if (response.error) {
+        console.error('Error loading users:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading users:', error);
+      return [];
+    }
   };
 
   const handleApplyFilters = () => {

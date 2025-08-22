@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, WorkLog, Project, User } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { WorkLog, Project, User } from '@/lib/supabase';
 import { Edit, Trash2, Search, Download, Filter } from 'lucide-react';
 import { formatDuration, formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -30,16 +31,16 @@ export default function WorkReportsPage() {
 
   const loadWorkLogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('work_logs')
-        .select(`
-          *,
-          project:projects(*)
-        `)
-        .order('created_at', { ascending: false });
+      const response = await supabaseClient.get('work_logs', {
+        select: '*,project:projects(*)',
+        order: { column: 'created_at', ascending: false }
+      });
 
-      if (error) throw error;
-      setWorkLogs(data || []);
+      if (response.error) {
+        console.error('Error loading work logs:', response.error);
+        throw new Error(response.error);
+      }
+      setWorkLogs(response.data || []);
     } catch (error) {
       console.error('Error loading work logs:', error);
       toast.error('Failed to load work logs');
@@ -64,12 +65,12 @@ export default function WorkReportsPage() {
     if (!editingLog) return;
 
     try {
-      const { error } = await supabase
-        .from('work_logs')
-        .update(formData)
-        .eq('id', editingLog.id);
+      const response = await supabaseClient.update('work_logs', editingLog.id, formData);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error updating work log:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Work log updated successfully');
       setShowEditModal(false);
       setEditingLog(null);
@@ -84,12 +85,12 @@ export default function WorkReportsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const { error } = await supabase
-        .from('work_logs')
-        .delete()
-        .eq('id', logId);
+      const response = await supabaseClient.delete('work_logs', logId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting work log:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Work log deleted successfully');
       loadWorkLogs();
     } catch (error: any) {

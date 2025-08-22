@@ -5,18 +5,34 @@ function getSupabaseConfig() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
   
-  // In production, these should be set. In build time, use placeholders.
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase environment variables not found, using placeholders');
+  // Check if we're in a browser environment (client-side)
+  const isClient = typeof window !== 'undefined';
+  
+  // In client-side, we need to use a different approach
+  if (isClient) {
+    // For client-side, we'll use a server-side API to get Supabase data
+    // This prevents exposing environment variables to the client
     return {
       url: 'https://placeholder.supabase.co',
-      key: 'placeholder-key'
+      key: 'placeholder-key',
+      isClient: true
+    };
+  }
+  
+  // Server-side: Check if environment variables are available
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found on server-side, using placeholders');
+    return {
+      url: 'https://placeholder.supabase.co',
+      key: 'placeholder-key',
+      isClient: false
     };
   }
   
   return {
     url: supabaseUrl,
-    key: supabaseAnonKey
+    key: supabaseAnonKey,
+    isClient: false
   };
 }
 
@@ -28,6 +44,9 @@ export const supabase = createClient(config.url, config.key, {
     persistSession: false // For server-side usage
   }
 });
+
+// Export config for debugging
+export const supabaseConfig = config;
 
 // Database types
 export interface User {

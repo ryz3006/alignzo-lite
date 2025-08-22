@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
 import { Calendar, Download, Save, ChevronLeft, ChevronRight, Upload, Settings } from 'lucide-react';
 import ShiftEnumModal from './ShiftEnumModal';
 import toast from 'react-hot-toast';
@@ -76,13 +77,15 @@ export default function ShiftSchedulePage() {
 
   const loadProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('name');
+      const response = await supabaseClient.getProjects({
+        order: { column: 'name', ascending: true }
+      });
 
-      if (error) throw error;
-      setProjects(data || []);
+      if (response.error) {
+        console.error('Error loading projects:', response.error);
+        throw new Error(response.error);
+      }
+      setProjects(response.data || []);
     } catch (error) {
       console.error('Error loading projects:', error);
       toast.error('Failed to load projects');
@@ -91,13 +94,15 @@ export default function ShiftSchedulePage() {
 
   const loadTeams = async () => {
     try {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('*')
-        .order('name');
+      const response = await supabaseClient.getTeams({
+        order: { column: 'name', ascending: true }
+      });
 
-      if (error) throw error;
-      setTeams(data || []);
+      if (response.error) {
+        console.error('Error loading teams:', response.error);
+        throw new Error(response.error);
+      }
+      setTeams(response.data || []);
     } catch (error) {
       console.error('Error loading teams:', error);
       toast.error('Failed to load teams');
@@ -106,17 +111,14 @@ export default function ShiftSchedulePage() {
 
   const loadProjectTeams = async () => {
     try {
-      const { data, error } = await supabase
-        .from('team_project_assignments')
-        .select(`
-          team_id,
-          teams (*)
-        `)
-        .eq('project_id', selectedProject);
+      const response = await supabaseClient.getProjectTeams(selectedProject);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error loading project teams:', response.error);
+        throw new Error(response.error);
+      }
 
-      const teams = data?.map(assignment => assignment.teams as any).filter(Boolean) || [];
+      const teams = response.data?.map((assignment: any) => assignment.teams as any).filter(Boolean) || [];
       setProjectTeams(teams);
     } catch (error) {
       console.error('Error loading project teams:', error);
@@ -126,20 +128,15 @@ export default function ShiftSchedulePage() {
 
   const loadTeamMembers = async () => {
     try {
-      setLoading(true);
-      
       // Get team members for the selected team
-      const { data: teamMembersData, error: teamMembersError } = await supabase
-        .from('team_members')
-        .select(`
-          user_id,
-          users (email, full_name)
-        `)
-        .eq('team_id', selectedTeam);
+      const response = await supabaseClient.getTeamMembers(selectedTeam);
 
-      if (teamMembersError) throw teamMembersError;
+      if (response.error) {
+        console.error('Error loading team members:', response.error);
+        throw new Error(response.error);
+      }
 
-      const members = teamMembersData?.map(member => ({
+      const members = response.data?.map((member: any) => ({
         user_email: (member.users as any).email,
         full_name: (member.users as any).full_name,
       })) || [];
@@ -148,23 +145,20 @@ export default function ShiftSchedulePage() {
     } catch (error) {
       console.error('Error loading team members:', error);
       toast.error('Failed to load team members');
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadCustomShiftEnums = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_custom_shift_enums', {
-        p_project_id: selectedProject,
-        p_team_id: selectedTeam
-      });
+      const response = await supabaseClient.getCustomShiftEnums(selectedProject, selectedTeam);
 
-      if (error) throw error;
-      setCustomShiftEnums(data || []);
+      if (response.error) {
+        console.error('Error loading custom shift enums:', response.error);
+        throw new Error(response.error);
+      }
+      setCustomShiftEnums(response.data || []);
     } catch (error) {
       console.error('Error loading custom shift enums:', error);
-      setCustomShiftEnums([]);
     }
   };
 
@@ -173,39 +167,36 @@ export default function ShiftSchedulePage() {
       setLoading(true);
       
       // Get existing shift schedules for the selected project, team, and month
-      const { data: shiftSchedules, error } = await supabase
-        .from('shift_schedules')
-        .select('*')
-        .eq('project_id', selectedProject)
-        .eq('team_id', selectedTeam)
-        .gte('shift_date', `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`)
-        .lt('shift_date', `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}-01`);
-
-      if (error) throw error;
-
-      // Get all days in the selected month
-      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-      const dates = Array.from({ length: daysInMonth }, (_, i) => {
-        const day = i + 1;
-        return `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const response = await supabaseClient.getShiftSchedules({
+        filters: {
+          project_id: selectedProject,
+          team_id: selectedTeam,
+          shift_date_gte: `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`,
+          shift_date_lt: `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}-01`
+        }
       });
 
-      // Initialize shift data for all team members
-      const initialShiftData: ShiftScheduleData[] = teamMembers.map(member => {
+      if (response.error) {
+        console.error('Error loading shift schedule:', response.error);
+        throw new Error(response.error);
+      }
+
+      // Get all days in the selected month
+      const year = selectedYear;
+      const month = selectedMonth;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const dates = Array.from({ length: daysInMonth }, (_, i) => 
+        `${year}-${month.toString().padStart(2, '0')}-${(i + 1).toString().padStart(2, '0')}`
+      );
+
+      // Create shift data for each team member
+      const shiftDataArray: ShiftScheduleData[] = teamMembers.map(member => {
         const shifts: { [date: string]: ShiftType } = {};
         dates.forEach(date => {
-          const existingShift = shiftSchedules?.find(s => 
+          const existingShift = response.data?.find((s: any) => 
             s.user_email === member.user_email && s.shift_date === date
           );
-          
-          if (existingShift) {
-            shifts[date] = existingShift.shift_type;
-          } else {
-            // Default logic: weekends = Holiday (H), weekdays = General (G)
-            const dayOfWeek = new Date(date).getDay();
-            const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
-            shifts[date] = isWeekendDay ? 'H' : 'G';
-          }
+          shifts[date] = existingShift?.shift_type || 'G';
         });
         
         return {
@@ -215,7 +206,7 @@ export default function ShiftSchedulePage() {
         };
       });
 
-      setShiftData(initialShiftData);
+      setShiftData(shiftDataArray);
     } catch (error) {
       console.error('Error loading shift schedule:', error);
       toast.error('Failed to load shift schedule');
@@ -234,18 +225,18 @@ export default function ShiftSchedulePage() {
     );
   };
 
-  const saveShiftSchedule = async () => {
+  const handleSave = async () => {
     try {
       setSaving(true);
       
-      // Prepare all shift data for bulk upsert
+      // Prepare shift updates
       const shiftUpdates: any[] = [];
-      shiftData.forEach(user => {
-        Object.entries(user.shifts).forEach(([date, shiftType]) => {
+      shiftData.forEach(member => {
+        Object.entries(member.shifts).forEach(([date, shiftType]) => {
           shiftUpdates.push({
             project_id: selectedProject,
             team_id: selectedTeam,
-            user_email: user.user_email,
+            user_email: member.user_email,
             shift_date: date,
             shift_type: shiftType,
           });
@@ -254,23 +245,23 @@ export default function ShiftSchedulePage() {
 
       // Use individual upserts for better reliability
       const promises = shiftUpdates.map(shift => 
-        supabase.rpc('upsert_shift_schedules', {
-          p_project_id: shift.project_id,
-          p_team_id: shift.team_id,
-          p_user_email: shift.user_email,
-          p_shift_date: shift.shift_date,
-          p_shift_type: shift.shift_type
+        supabaseClient.upsertShiftSchedules({
+          projectId: shift.project_id,
+          teamId: shift.team_id,
+          userEmail: shift.user_email,
+          shiftDate: shift.shift_date,
+          shiftType: shift.shift_type
         })
       );
 
       const results = await Promise.all(promises);
-      const errors = results.filter(result => result.error);
+      const errors = results.filter((result: any) => result.error);
       
       if (errors.length > 0) {
-        console.error('Some shifts failed to save:', errors);
-        toast.error(`Failed to save ${errors.length} shifts`);
+        console.error('Some shift updates failed:', errors);
+        toast.error(`${errors.length} shift updates failed`);
       } else {
-        toast.success('Shift schedule saved successfully!');
+        toast.success('Shift schedule saved successfully');
       }
     } catch (error) {
       console.error('Error saving shift schedule:', error);
@@ -366,10 +357,7 @@ export default function ShiftSchedulePage() {
       }
 
       // Get custom shift enums for validation
-      const { data: customEnums } = await supabase.rpc('get_custom_shift_enums', {
-        p_project_id: selectedProject,
-        p_team_id: selectedTeam
-      });
+      const { data: customEnums } = await supabaseClient.getCustomShiftEnums(selectedProject, selectedTeam);
 
       const validShiftIdentifiers = customEnums?.map((enum_: any) => enum_.shift_identifier) || [];
       const defaultShift = customEnums?.find((enum_: any) => enum_.is_default)?.shift_identifier || 'G';
@@ -436,12 +424,12 @@ export default function ShiftSchedulePage() {
             );
 
             // Save to database
-            await supabase.rpc('upsert_shift_schedules', {
-              p_project_id: selectedProject,
-              p_team_id: selectedTeam,
-              p_user_email: email,
-              p_shift_date: date,
-              p_shift_type: finalShiftValue as ShiftType
+            await supabaseClient.upsertShiftSchedules({
+              projectId: selectedProject,
+              teamId: selectedTeam,
+              userEmail: email,
+              shiftDate: date,
+              shiftType: finalShiftValue as ShiftType
             });
 
             updatesCount.updated++;
@@ -693,7 +681,7 @@ export default function ShiftSchedulePage() {
                 Download CSV
               </button>
               <button
-                onClick={saveShiftSchedule}
+                onClick={handleSave}
                 disabled={saving || !shiftData.length}
                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >

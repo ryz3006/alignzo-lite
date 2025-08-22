@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   BarChart, 
   Bar, 
@@ -753,42 +753,50 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
       setLoading(true);
       
       // Build the base query with filters
-      let query = supabase
-        .from('uploaded_tickets')
-        .select('*');
+      let queryFilters: any = {};
 
       // Apply date range filter
       if (filters.dateRange.start && filters.dateRange.end) {
-        query = query
-          .gte('reported_date1', filters.dateRange.start)
-          .lte('reported_date1', filters.dateRange.end);
+        queryFilters.reported_date1_gte = filters.dateRange.start;
+        queryFilters.reported_date1_lte = filters.dateRange.end;
       }
 
       // Apply project filter if selected
       if (filters.selectedProjects.length > 0) {
         // Get project IDs from project names
-        const { data: projects } = await supabase
-          .from('projects')
-          .select('id')
-          .in('name', filters.selectedProjects);
+        const projectsResponse = await supabaseClient.get('projects', {
+          select: 'id',
+          filters: { name: filters.selectedProjects }
+        });
         
-        if (projects && projects.length > 0) {
-          const projectIds = projects.map(p => p.id);
-          query = query.in('project_id', projectIds);
+        if (projectsResponse.error) {
+          console.error('Error loading projects for filter:', projectsResponse.error);
+          throw new Error(projectsResponse.error);
+        }
+        
+        if (projectsResponse.data && projectsResponse.data.length > 0) {
+          const projectIds = projectsResponse.data.map((p: any) => p.id);
+          queryFilters.project_id = projectIds;
         }
       }
 
       // Apply user filter if selected
       if (filters.selectedUsers.length > 0) {
-        query = query.in('mapped_user_email', filters.selectedUsers);
+        queryFilters.mapped_user_email = filters.selectedUsers;
       }
 
-      const { data: tickets, error } = await query;
+      const response = await supabaseClient.get('uploaded_tickets', {
+        select: '*',
+        filters: queryFilters
+      });
       
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error loading uploaded tickets:', response.error);
+        throw new Error(response.error);
+      }
 
-      if (tickets && tickets.length > 0) {
-        const calculatedMetrics = calculateRemedyMetrics(tickets);
+      if (response.data && response.data.length > 0) {
+        const calculatedMetrics = calculateRemedyMetrics(response.data);
         setMetrics(calculatedMetrics);
       } else {
         setMetrics(null);

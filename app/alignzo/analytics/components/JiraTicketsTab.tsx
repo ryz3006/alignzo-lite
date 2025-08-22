@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials, JiraIssue } from '@/lib/jira';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   BarChart, 
   Bar, 
@@ -399,16 +399,14 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       if (!currentUser?.email) return [];
 
       // Get all available users from the web app
-      const { data: availableUsers, error: usersError } = await supabase
-        .from('users')
-        .select('email');
-
-      if (usersError) {
-        console.error('Error fetching available users:', usersError);
+      const usersResponse = await supabaseClient.getUsers();
+      if (usersResponse.error) {
+        console.error('Error fetching available users:', usersResponse.error);
         return [];
       }
+      const availableUsers = usersResponse.data;
 
-      const availableUserEmails = availableUsers?.map(user => user.email) || [];
+      const availableUserEmails = availableUsers?.map((user: any) => user.email) || [];
       console.log('Available users in web app:', availableUserEmails);
 
       // Get JIRA user mappings
@@ -421,7 +419,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         
         // Get intersection of available users and users with JIRA mappings
         const mappedUserEmails = userMappings.map((mapping: any) => mapping.user_email).filter(Boolean);
-        const usersWithMappings = availableUserEmails.filter(email => mappedUserEmails.includes(email));
+        const usersWithMappings = availableUserEmails.filter((email: any) => mappedUserEmails.includes(email));
         
         console.log('Users with JIRA mappings from available users:', usersWithMappings);
         return usersWithMappings;

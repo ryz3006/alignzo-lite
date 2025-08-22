@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { 
   BarChart, 
   Bar, 
@@ -123,69 +123,93 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
   };
 
   const loadWorkLogs = async () => {
-    let query = supabase
-      .from('work_logs')
-      .select(`
-        *,
-        project:projects(*)
-      `)
-      .gte('start_time', filters.dateRange.start)
-      .lte('start_time', filters.dateRange.end);
+    try {
+      const response = await supabaseClient.get('work_logs', {
+        select: '*,project:projects(*)',
+        filters: {
+          start_time_gte: filters.dateRange.start,
+          start_time_lte: filters.dateRange.end,
+          ...(filters.selectedUsers.length > 0 && { user_email: filters.selectedUsers }),
+          ...(filters.selectedProjects.length > 0 && { 'project.name': filters.selectedProjects })
+        },
+        order: { column: 'start_time', ascending: false }
+      });
 
-    if (filters.selectedUsers.length > 0) {
-      query = query.in('user_email', filters.selectedUsers);
+      if (response.error) {
+        console.error('Error loading work logs:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading work logs:', error);
+      return [];
     }
-    if (filters.selectedProjects.length > 0) {
-      query = query.in('project.name', filters.selectedProjects);
-    }
-
-    const { data, error } = await query.order('start_time', { ascending: false });
-    if (error) throw error;
-    return data || [];
   };
 
   const loadProjects = async () => {
-    let query = supabase
-      .from('projects')
-      .select('*');
+    try {
+      const response = await supabaseClient.get('projects', {
+        select: '*',
+        filters: filters.selectedProjects.length > 0 ? {
+          name: filters.selectedProjects
+        } : undefined
+      });
 
-    if (filters.selectedProjects.length > 0) {
-      query = query.in('name', filters.selectedProjects);
+      if (response.error) {
+        console.error('Error loading projects:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
   };
 
   const loadUsers = async () => {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) throw error;
-    return data || [];
+    try {
+      const response = await supabaseClient.getUsers();
+      if (response.error) {
+        console.error('Error loading users:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading users:', error);
+      return [];
+    }
   };
 
   const loadTeamProjectAssignments = async () => {
-    const { data, error } = await supabase
-      .from('team_project_assignments')
-      .select(`
-        *,
-        team:teams(*),
-        project:projects(*)
-      `);
-    if (error) throw error;
-    return data || [];
+    try {
+      const response = await supabaseClient.get('team_project_assignments', {
+        select: '*,team:teams(*),project:projects(*)'
+      });
+      if (response.error) {
+        console.error('Error loading team project assignments:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading team project assignments:', error);
+      return [];
+    }
   };
 
   const loadTeamMembers = async () => {
-    const { data, error } = await supabase
-      .from('team_members')
-      .select(`
-        *,
-        team:teams(*),
-        user:users(*)
-      `);
-    if (error) throw error;
-    return data || [];
+    try {
+      const response = await supabaseClient.get('team_members', {
+        select: '*,team:teams(*),user:users(*)'
+      });
+      if (response.error) {
+        console.error('Error loading team members:', response.error);
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    } catch (error) {
+      console.error('Error loading team members:', error);
+      return [];
+    }
   };
 
   const calculateProjectHealthMetrics = (workLogs: any[], projects: any[], users: any[], teamProjectAssignments: any[], teamMembers: any[]): ProjectHealthMetrics[] => {

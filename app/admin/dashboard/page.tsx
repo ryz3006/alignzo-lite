@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
 import { Users, FolderOpen, Clock, TrendingUp } from 'lucide-react';
 
 interface DashboardStats {
@@ -27,26 +27,22 @@ export default function AdminDashboardPage() {
   const loadDashboardStats = async () => {
     try {
       // Get total users
-      const { count: usersCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true });
+      const usersResponse = await supabaseClient.get('users', { select: '*' });
+      const usersCount = usersResponse.data?.length || 0;
 
       // Get total projects
-      const { count: projectsCount } = await supabase
-        .from('projects')
-        .select('*', { count: 'exact', head: true });
+      const projectsResponse = await supabaseClient.get('projects', { select: '*' });
+      const projectsCount = projectsResponse.data?.length || 0;
 
       // Get total work logs and hours
-      const { data: workLogs, count: workLogsCount } = await supabase
-        .from('work_logs')
-        .select('logged_duration_seconds', { count: 'exact' });
-
-      const totalHours = workLogs?.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0) || 0;
+      const workLogsResponse = await supabaseClient.get('work_logs', { select: 'logged_duration_seconds' });
+      const workLogsCount = workLogsResponse.data?.length || 0;
+      const totalHours = workLogsResponse.data?.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) || 0;
 
       setStats({
-        totalUsers: usersCount || 0,
-        totalProjects: projectsCount || 0,
-        totalWorkLogs: workLogsCount || 0,
+        totalUsers: usersCount,
+        totalProjects: projectsCount,
+        totalWorkLogs: workLogsCount,
         totalHours: Math.round(totalHours / 3600 * 100) / 100, // Convert seconds to hours
       });
     } catch (error) {

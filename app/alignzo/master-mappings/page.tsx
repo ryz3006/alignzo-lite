@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, TicketSource, TicketMasterMapping } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { TicketSource, TicketMasterMapping } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Search, RefreshCw, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -50,26 +51,23 @@ export default function MasterMappingsPage() {
   };
 
   const loadSources = async () => {
-    const { data, error } = await supabase
-      .from('ticket_sources')
-      .select('*')
-      .order('name');
+    const response = await supabaseClient.getTicketSources();
     
-    if (error) throw error;
-    setSources(data || []);
+    if (response.error) {
+      console.error('Error loading sources:', response.error);
+      throw new Error(response.error);
+    }
+    setSources(response.data || []);
   };
 
   const loadMasterMappings = async () => {
-    const { data, error } = await supabase
-      .from('ticket_master_mappings')
-      .select(`
-        *,
-        source:ticket_sources(name)
-      `)
-      .order('created_at', { ascending: false });
+    const response = await supabaseClient.getTicketMasterMappings();
 
-    if (error) throw error;
-    setMasterMappings(data || []);
+    if (response.error) {
+      console.error('Error loading master mappings:', response.error);
+      throw new Error(response.error);
+    }
+    setMasterMappings(response.data || []);
   };
 
   const handleAddMapping = async () => {
@@ -79,16 +77,17 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('ticket_master_mappings')
-        .insert({
-          source_id: selectedSource,
-          source_assignee_value: sourceAssigneeValue.trim(),
-          mapped_user_email: mappedUserEmail.trim(),
-          is_active: true
-        });
+      const response = await supabaseClient.insert('ticket_master_mappings', {
+        source_id: selectedSource,
+        source_assignee_value: sourceAssigneeValue.trim(),
+        mapped_user_email: mappedUserEmail.trim(),
+        is_active: true
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error creating mapping:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Master mapping created successfully');
       setShowAddModal(false);
       resetForm();
@@ -114,16 +113,16 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('ticket_master_mappings')
-        .update({
-          source_id: selectedSource,
-          source_assignee_value: sourceAssigneeValue.trim(),
-          mapped_user_email: mappedUserEmail.trim()
-        })
-        .eq('id', editingMapping.id);
+      const response = await supabaseClient.update('ticket_master_mappings', editingMapping.id, {
+        source_id: selectedSource,
+        source_assignee_value: sourceAssigneeValue.trim(),
+        mapped_user_email: mappedUserEmail.trim()
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error updating mapping:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Master mapping updated successfully');
       setShowEditModal(false);
       resetForm();
@@ -140,12 +139,12 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('ticket_master_mappings')
-        .delete()
-        .eq('id', mappingId);
+      const response = await supabaseClient.delete('ticket_master_mappings', mappingId);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error deleting mapping:', response.error);
+        throw new Error(response.error);
+      }
       toast.success('Master mapping deleted successfully');
       loadMasterMappings();
     } catch (error: any) {
@@ -156,12 +155,14 @@ export default function MasterMappingsPage() {
 
   const handleToggleActive = async (mapping: TicketMasterMapping) => {
     try {
-      const { error } = await supabase
-        .from('ticket_master_mappings')
-        .update({ is_active: !mapping.is_active })
-        .eq('id', mapping.id);
+      const response = await supabaseClient.update('ticket_master_mappings', mapping.id, {
+        is_active: !mapping.is_active
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Error toggling mapping status:', response.error);
+        throw new Error(response.error);
+      }
       toast.success(`Mapping ${mapping.is_active ? 'deactivated' : 'activated'} successfully`);
       loadMasterMappings();
     } catch (error: any) {

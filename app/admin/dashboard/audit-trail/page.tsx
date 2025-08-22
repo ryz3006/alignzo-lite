@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Search, Download, Filter, RefreshCw, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { supabaseClient } from '@/lib/supabase-client';
 
 interface AuditEntry {
   id: string;
@@ -70,51 +71,67 @@ export default function AuditTrailPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        pageSize: pageSize.toString(),
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([_, value]) => value !== '')
-        ),
-      });
-
-      // Get admin session for authentication
-      const adminSession = localStorage.getItem('admin_session');
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (adminSession) {
-        try {
-          const session = JSON.parse(adminSession);
-          headers['X-Admin-Email'] = session.email;
-        } catch (error) {
-          console.error('Error parsing admin session:', error);
-        }
-      }
-
-      const endpoint = activeTab === 'audit' ? '/api/admin/audit-trail' : '/api/admin/security-alerts';
-      const response = await fetch(`${endpoint}?${params}`, {
-        headers
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch data');
-      }
-
-      const data = await response.json();
-      
       if (activeTab === 'audit') {
+        // Use the audit trail API for audit entries
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          pageSize: pageSize.toString(),
+          ...Object.fromEntries(
+            Object.entries(filters).filter(([_, value]) => value !== '')
+          ),
+        });
+
+        // Get admin session for authentication
+        const adminSession = localStorage.getItem('admin_session');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (adminSession) {
+          try {
+            const session = JSON.parse(adminSession);
+            headers['X-Admin-Email'] = session.email;
+          } catch (error) {
+            console.error('Error parsing admin session:', error);
+          }
+        }
+
+        const response = await fetch(`/api/admin/audit-trail?${params}`, {
+          headers
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch audit data');
+        }
+
+        const data = await response.json();
         setAuditEntries(data.entries || []);
-        setTotalPages(data.totalPages || 1);
+        setTotalPages(data.pagination?.totalPages || 1);
       } else {
+        // Use the security alerts API for alerts
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          pageSize: pageSize.toString(),
+          ...Object.fromEntries(
+            Object.entries(filters).filter(([_, value]) => value !== '')
+          ),
+        });
+
+        const response = await fetch(`/api/admin/security-alerts?${params}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch security alerts');
+        }
+
+        const data = await response.json();
         setSecurityAlerts(data.alerts || []);
-        setTotalPages(data.totalPages || 1);
+        setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch (error) {
-      toast.error('Failed to fetch audit data');
-      console.error('Error fetching audit data:', error);
+      toast.error('Failed to fetch data');
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
