@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { getCurrentUser, getUserAccessControls } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
-import { getJiraCredentials } from '@/lib/jira';
 import { 
   Users, 
   Filter,
@@ -112,9 +111,22 @@ export default function AnalyticsPage() {
       setUserAccess(accessControls);
 
       // Check JIRA integration
-      const credentials = await getJiraCredentials(currentUser.email);
-      if (credentials) {
-        setJiraEnabled(true);
+      try {
+        const response = await supabaseClient.get('user_integrations', {
+          select: 'id',
+          filters: { 
+            user_email: currentUser.email,
+            integration_type: 'jira',
+            is_verified: true
+          }
+        });
+        
+        if (response.data && response.data.length > 0) {
+          setJiraEnabled(true);
+        }
+      } catch (error) {
+        console.error('Error checking JIRA integration:', error);
+        // Don't set jiraEnabled to true if there's an error
       }
 
       // Load filter options
