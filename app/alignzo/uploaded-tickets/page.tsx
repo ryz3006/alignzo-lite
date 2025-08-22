@@ -36,8 +36,9 @@ export default function UploadedTicketsPage() {
 
   const loadUploadedTickets = async () => {
     try {
+      setLoading(true);
       const response = await supabaseClient.get('uploaded_tickets', {
-        select: '*,source:ticket_sources(name),mapping:ticket_upload_mappings(project:projects(name))',
+        select: '*',
         order: { column: 'created_at', ascending: false }
       });
 

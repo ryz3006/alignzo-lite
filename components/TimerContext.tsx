@@ -29,13 +29,16 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     // Note: Real-time subscriptions are not supported through the proxy
     // We'll implement polling instead for now
     const interval = setInterval(() => {
-      loadTimers();
-    }, 5000); // Poll every 5 seconds
+      // Only poll if there are active timers or if we're on a page that needs timer updates
+      if (activeTimers.length > 0 || window.location.pathname.includes('/alignzo')) {
+        loadTimers();
+      }
+    }, 15000); // Poll every 15 seconds instead of 5
 
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [activeTimers.length]);
 
   const loadTimers = async () => {
     try {

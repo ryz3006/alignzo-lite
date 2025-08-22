@@ -271,7 +271,7 @@ class SupabaseClient {
     return this.query({
       table: 'ticket_master_mappings',
       action: 'select',
-      select: '*,source:ticket_sources(*)'
+      select: '*'
     });
   }
 

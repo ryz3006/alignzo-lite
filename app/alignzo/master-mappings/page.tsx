@@ -38,6 +38,7 @@ export default function MasterMappingsPage() {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       // Load sources first, then master mappings
       await loadSources();
       await loadMasterMappings();
@@ -67,20 +68,35 @@ export default function MasterMappingsPage() {
       throw new Error(response.error);
     }
     
+    // Ensure sources are loaded before creating the map
+    if (sources.length === 0) {
+      console.warn('Sources not loaded yet, loading them now...');
+      await loadSources();
+    }
+    
+    // Get the current sources state after loading
+    const currentSources = sources.length > 0 ? sources : await supabaseClient.getTicketSources().then(r => r.data || []);
+    
     // Create a map of source_id to source name for manual joining
-    const sourceMap = new Map(sources.map(source => [source.id, source.name]));
+    const sourceMap = new Map(currentSources.map(source => [source.id, source.name]));
     
     // Add source information to each mapping
-    const mappingsWithSource = (response.data || []).map((mapping: any) => ({
-      ...mapping,
-      source: {
-        id: mapping.source_id,
-        name: sourceMap.get(mapping.source_id) || 'Unknown'
-      }
-    }));
+    const mappingsWithSource = (response.data || []).map((mapping: any) => {
+      // Check if the mapping has a nested source object from the join
+      const sourceName = mapping.source?.name || sourceMap.get(mapping.source_id) || 'Unknown';
+      
+      return {
+        ...mapping,
+        source: {
+          id: mapping.source_id,
+          name: sourceName
+        }
+      };
+    });
     
-    console.log('Sources:', sources);
+    console.log('Current sources:', currentSources);
     console.log('Source map:', sourceMap);
+    console.log('Raw mappings data:', response.data);
     console.log('Mappings with source:', mappingsWithSource);
     
     setMasterMappings(mappingsWithSource);
