@@ -113,7 +113,6 @@ export default function AdminDashboardLayout({
               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="hidden sm:block h-8 w-auto" />
               {/* Icon only for smaller screens */}
               <img src="/android-chrome-192x192.png" alt="Alignzo Icon" className="sm:hidden h-6 w-6" />
-              <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}

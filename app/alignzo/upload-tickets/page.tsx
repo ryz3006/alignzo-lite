@@ -87,6 +87,14 @@ export default function UploadTicketsPage() {
         toast.error('Please select a CSV or Excel file');
         return;
       }
+      
+      // Validate file size (1MB limit)
+      const maxSize = 1 * 1024 * 1024; // 1MB in bytes
+      if (file.size > maxSize) {
+        toast.error('File size must be less than 1MB');
+        return;
+      }
+      
       setSelectedFile(file);
     }
   };
@@ -201,32 +209,33 @@ export default function UploadTicketsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+        <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
+        <p className="text-neutral-600 dark:text-neutral-400 font-medium">Loading upload interface...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Upload Tickets</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Upload Tickets</h1>
+          <p className="text-neutral-600 dark:text-neutral-400 mt-2">
             Upload and manage ticket data from external sources.
           </p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={downloadTemplate}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+            className="btn-success flex items-center"
           >
             <Download className="h-4 w-4 mr-2" />
             Download Template
           </button>
           <button
             onClick={() => setShowMappingModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+            className="btn-primary flex items-center"
           >
             <Settings className="h-4 w-4 mr-2" />
             Manage Mappings
@@ -235,20 +244,20 @@ export default function UploadTicketsPage() {
       </div>
 
       {/* Upload Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Upload New Tickets</h2>
+      <div className="card">
+        <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mb-6">Upload New Tickets</h2>
         
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* File Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="form-label">
               Select File (CSV, Excel)
             </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+            <div className="mt-2 flex justify-center px-6 pt-8 pb-8 border-2 border-neutral-300 dark:border-neutral-600 border-dashed rounded-xl hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
+              <div className="space-y-3 text-center">
+                <Upload className="mx-auto h-12 w-12 text-neutral-400" />
+                <div className="flex text-sm text-neutral-600 dark:text-neutral-400">
+                  <label className="relative cursor-pointer bg-white dark:bg-neutral-800 rounded-lg font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500 px-4 py-2 border border-neutral-200 dark:border-neutral-600 hover:border-primary-300 dark:hover:border-primary-500 transition-colors">
                     <span>Upload a file</span>
                     <input
                       type="file"
@@ -257,13 +266,19 @@ export default function UploadTicketsPage() {
                       onChange={handleFileSelect}
                     />
                   </label>
-                  <p className="pl-1">or drag and drop</p>
+                  <p className="pl-3 self-center">or drag and drop</p>
                 </div>
-                <p className="text-xs text-gray-500">CSV, XLSX up to 10MB</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-500">CSV, XLSX up to 1MB</p>
                 {selectedFile && (
-                  <p className="text-sm text-green-600 font-medium">
-                    Selected: {selectedFile.name}
-                  </p>
+                  <div className="mt-3 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-700">
+                    <p className="text-sm text-success-700 dark:text-success-300 font-medium flex items-center">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Selected: {selectedFile.name}
+                    </p>
+                    <p className="text-xs text-success-600 dark:text-success-400 mt-1">
+                      Size: {(selectedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -271,13 +286,13 @@ export default function UploadTicketsPage() {
 
           {/* Mapping Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="form-label">
               Select Upload Mapping
             </label>
             <select
               value={selectedMapping}
               onChange={(e) => setSelectedMapping(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-modern"
             >
               <option value="">Choose a mapping configuration...</option>
               {uploadMappings.map((mapping) => (
@@ -288,7 +303,8 @@ export default function UploadTicketsPage() {
               ))}
             </select>
             {uploadMappings.length === 0 && (
-              <p className="text-sm text-yellow-600 mt-1">
+              <p className="text-sm text-warning-600 dark:text-warning-400 mt-2 flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
                 No mappings configured. Create a mapping first.
               </p>
             )}
@@ -299,11 +315,11 @@ export default function UploadTicketsPage() {
             <button
               onClick={handleUpload}
               disabled={uploading || !selectedFile || !selectedMapping}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {uploading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="loading-spinner h-4 w-4 mr-2"></div>
                   Uploading...
                 </>
               ) : (
@@ -318,55 +334,55 @@ export default function UploadTicketsPage() {
       </div>
 
       {/* Upload History */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Upload History</h2>
+      <div className="card">
+        <h2 className="text-xl font-semibold text-neutral-900 dark:text-white mb-6">Upload History</h2>
         
         {uploadSessions.length === 0 ? (
-          <div className="text-center py-8">
-            <FileText className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No uploads yet</h3>
-            <p className="mt-1 text-sm text-gray-500">Upload your first ticket file to see history here.</p>
+          <div className="text-center py-12">
+            <FileText className="mx-auto h-16 w-16 text-neutral-400 dark:text-neutral-500" />
+            <h3 className="mt-4 text-lg font-medium text-neutral-900 dark:text-white">No uploads yet</h3>
+            <p className="mt-2 text-neutral-600 dark:text-neutral-400">Upload your first ticket file to see history here.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="table-modern">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Records</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Failed</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
+                  <th className="text-left">File Name</th>
+                  <th className="text-left">Status</th>
+                  <th className="text-left">Total Records</th>
+                  <th className="text-left">Successful</th>
+                  <th className="text-left">Failed</th>
+                  <th className="text-left">Upload Date</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {uploadSessions.map((session) => (
-                  <tr key={session.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={session.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
+                    <td className="font-medium text-neutral-900 dark:text-white">
                       {session.filename}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        session.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        session.status === 'failed' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
+                    <td>
+                      <span className={`badge ${
+                        session.status === 'completed' ? 'badge-success' :
+                        session.status === 'failed' ? 'badge-danger' :
+                        'badge-warning'
+                      } flex items-center w-fit`}>
                         {session.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
                         {session.status === 'failed' && <AlertCircle className="h-3 w-3 mr-1" />}
                         {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="text-neutral-900 dark:text-white">
                       {session.total_records}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                    <td className="text-success-600 dark:text-success-400 font-medium">
                       {session.successful_uploads}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                    <td className="text-danger-600 dark:text-danger-400 font-medium">
                       {session.failed_uploads}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="text-neutral-600 dark:text-neutral-400">
                       {new Date(session.created_at).toLocaleDateString()}
                     </td>
                   </tr>
@@ -379,28 +395,28 @@ export default function UploadTicketsPage() {
 
       {/* Mapping Management Modal */}
       {showMappingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="modal-overlay" onClick={() => setShowMappingModal(false)}>
+          <div className="modal-content max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-medium">Manage Upload Mappings</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white">Manage Upload Mappings</h3>
               <button
                 onClick={() => setShowMappingModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
             
             {/* Create New Mapping Form */}
-            <form onSubmit={handleCreateMapping} className="mb-8 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-lg font-medium mb-4">Create New Mapping</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+            <form onSubmit={handleCreateMapping} className="mb-8 p-6 bg-neutral-50 dark:bg-neutral-700 rounded-xl">
+              <h4 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Create New Mapping</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="form-label">Source</label>
                   <select
                     value={newMapping.source_id}
                     onChange={(e) => setNewMapping({...newMapping, source_id: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="input-modern"
                     required
                   >
                     <option value="">Select source...</option>
@@ -411,12 +427,12 @@ export default function UploadTicketsPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                <div className="form-group">
+                  <label className="form-label">Project</label>
                   <select
                     value={newMapping.project_id}
                     onChange={(e) => setNewMapping({...newMapping, project_id: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="input-modern"
                     required
                   >
                     <option value="">Select project...</option>
@@ -427,33 +443,33 @@ export default function UploadTicketsPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Organization Field</label>
+                <div className="form-group">
+                  <label className="form-label">Organization Field</label>
                   <input
                     type="text"
                     value={newMapping.source_organization_field}
                     onChange={(e) => setNewMapping({...newMapping, source_organization_field: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="input-modern"
                     placeholder="e.g., department"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Organization Value</label>
+                <div className="form-group">
+                  <label className="form-label">Organization Value</label>
                   <input
                     type="text"
                     value={newMapping.source_organization_value}
                     onChange={(e) => setNewMapping({...newMapping, source_organization_value: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="input-modern"
                     placeholder="e.g., IT Support"
                     required
                   />
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-6 flex justify-end">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  className="btn-primary"
                 >
                   Create Mapping
                 </button>
@@ -462,40 +478,44 @@ export default function UploadTicketsPage() {
 
             {/* Existing Mappings */}
             <div>
-              <h4 className="text-lg font-medium mb-4">Existing Mappings</h4>
+              <h4 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Existing Mappings</h4>
               {uploadMappings.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No mappings configured yet.</p>
+                <div className="text-center py-8">
+                  <Settings className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                  <p className="text-neutral-600 dark:text-neutral-400">No mappings configured yet.</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="table-modern">
+                    <thead>
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="text-left">Source</th>
+                        <th className="text-left">Project</th>
+                        <th className="text-left">Field</th>
+                        <th className="text-left">Value</th>
+                        <th className="text-left">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody>
                       {uploadMappings.map((mapping) => (
-                        <tr key={mapping.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <tr key={mapping.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
+                          <td className="text-neutral-900 dark:text-white">
                             {(mapping as any).source?.name || 'Unknown'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="text-neutral-900 dark:text-white">
                             {(mapping as any).project?.name || 'Unknown'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="text-neutral-900 dark:text-white">
                             {mapping.source_organization_field}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="text-neutral-900 dark:text-white">
                             {mapping.source_organization_value}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <td>
                             <button
                               onClick={() => handleDeleteMapping(mapping.id)}
-                              className="text-red-600 hover:text-red-900"
+                              className="p-2 text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
+                              title="Delete mapping"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>

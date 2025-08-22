@@ -1394,7 +1394,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
                           <div className="mt-2">
                             <span className="font-medium text-sm">Description:</span>
                             <p className="text-sm text-gray-600 mt-1 overflow-hidden text-ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                              {ticket.fields.description.replace(/<[^>]*>/g, '')}
+                              {typeof ticket.fields.description === 'string' ? ticket.fields.description.replace(/<[^>]*>/g, '') : 'No description available'}
                             </p>
                           </div>
                         )}

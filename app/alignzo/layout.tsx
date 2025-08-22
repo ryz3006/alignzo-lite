@@ -21,7 +21,10 @@ import {
   Home,
   User as UserIcon,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon,
+  ChevronLeft
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
@@ -33,14 +36,22 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showTimerManagementModal, setShowTimerManagementModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userAccess, setUserAccess] = useState<any>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
 
   useEffect(() => {
     checkAuth();
+    // Load theme from localStorage
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    }
   }, []);
 
   const checkAuth = async () => {
@@ -77,6 +88,13 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Sign out failed:', error);
     }
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
   const navigation = [
@@ -120,34 +138,54 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-neutral-50">
+      <div className="flex items-center justify-center min-h-screen bg-neutral-50 dark:bg-neutral-900">
         <div className="text-center">
           <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
-          <p className="text-neutral-600 font-medium">Loading your workspace...</p>
+          <p className="text-neutral-600 dark:text-neutral-400 font-medium">Loading your workspace...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-neutral-50">
+    <div className="flex h-screen bg-neutral-50 dark:bg-neutral-900">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-large transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-neutral-800 shadow-large transform transition-all duration-300 ease-in-out lg:static lg:inset-0 ${
+        sidebarCollapsed ? 'w-16' : 'w-64'
+      } ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+          <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
             <div className="flex items-center space-x-3">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-              <span className="text-xl font-bold text-neutral-900">Alignzo</span>
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-8 flex-shrink-0" />
+              {!sidebarCollapsed && (
+                <span className="text-xl font-bold text-neutral-900 dark:text-white">Alignzo</span>
+              )}
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={toggleTheme}
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              >
+                {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="hidden lg:block p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Navigation */}
@@ -161,32 +199,35 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
                   onClick={() => setSidebarOpen(false)}
                   className={`nav-link ${
                     isActive ? 'nav-link-active' : 'nav-link-inactive'
-                  }`}
+                  } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                  title={sidebarCollapsed ? item.name : undefined}
                 >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
+                  <item.icon className={`h-5 w-5 ${sidebarCollapsed ? '' : 'mr-3'}`} />
+                  {!sidebarCollapsed && item.name}
                 </Link>
               );
             })}
           </nav>
 
           {/* User Profile Section */}
-          <div className="p-4 border-t border-neutral-200">
-            <div className="flex items-center space-x-3 p-3 rounded-xl bg-neutral-50">
-              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                <UserIcon className="h-4 w-4 text-primary-600" />
+          <div className="p-4 border-t border-neutral-200 dark:border-neutral-700">
+            <div className="flex items-center space-x-3 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-700">
+              <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
+                <UserIcon className="h-4 w-4 text-primary-600 dark:text-primary-400" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">
-                  {user?.displayName || 'User'}
-                </p>
-                <p className="text-xs text-neutral-500 truncate">
-                  {user?.email}
-                </p>
-              </div>
+              {!sidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                    {user?.displayName || 'User'}
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                    {user?.email}
+                  </p>
+                </div>
+              )}
               <button
                 onClick={handleSignOut}
-                className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition-colors"
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 transition-colors"
                 title="Sign out"
               >
                 <LogOut className="h-4 w-4" />
@@ -199,17 +240,17 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="header">
+        <header className="header dark:bg-neutral-800 dark:border-neutral-700">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 text-neutral-600 hover:text-neutral-900 rounded-lg hover:bg-neutral-100"
+                className="lg:hidden p-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
               >
                 <Menu className="h-6 w-6" />
               </button>
               <div className="hidden lg:block">
-                <h1 className="text-2xl font-bold text-neutral-900">
+                <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">
                   {filteredNavigation.find(item => item.href === pathname)?.name || 'Dashboard'}
                 </h1>
               </div>
@@ -228,7 +269,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
               
               <button
                 onClick={() => setShowTimerManagementModal(true)}
-                className="relative p-3 text-neutral-600 hover:text-neutral-900 bg-white rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all duration-200"
+                className="relative p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
                 title="Active Timers"
               >
                 <Bell className="h-5 w-5" />
