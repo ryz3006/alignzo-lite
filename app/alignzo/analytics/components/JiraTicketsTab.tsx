@@ -174,19 +174,18 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
   const checkJiraIntegration = async () => {
     try {
       setLoading(true);
+      setError(null);
       const currentUser = await getCurrentUser();
       setUser(currentUser);
 
       if (!currentUser?.email) {
         setError('User not authenticated');
-        setLoading(false);
         return;
       }
 
       const credentials = await getJiraCredentials(currentUser.email);
       if (!credentials) {
         setError('JIRA integration not found');
-        setLoading(false);
         return;
       }
 
@@ -220,7 +219,7 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
       console.log('Project mappings received:', allProjectMappings);
       
       if (allProjectMappings.length === 0) {
-        setError('No JIRA project mappings found. Please configure project mappings first.');
+        setError('No JIRA project mappings found. Please configure project mappings in the Integrations section first. Go to /alignzo/integrations to set up project mappings.');
         setJiraIssues([]);
         setTicketMetrics(null);
         return;
@@ -262,17 +261,19 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
         if (jiraUserNames.length > 0) {
           jql += ` AND assignee in ("${jiraUserNames.join('", "')}")`;
         } else {
-          // If no users are mapped to JIRA, show no data
+          // If no users are mapped to JIRA, show error message
+          setError('No JIRA user mappings found. Please configure user mappings in the Integrations section first. Go to /alignzo/integrations to set up user mappings.');
           setJiraIssues([]);
           setTicketMetrics(null);
           return;
         }
-      } else {
-        // If no users available, show no data
-        setJiraIssues([]);
-        setTicketMetrics(null);
-        return;
-      }
+              } else {
+          // If no users available, show error message
+          setError('No users with JIRA mappings found. Please configure user mappings in the Integrations section first. Go to /alignzo/integrations to set up user mappings.');
+          setJiraIssues([]);
+          setTicketMetrics(null);
+          return;
+        }
 
       // Add date range filter if provided
       if (filters?.dateRange) {
@@ -705,8 +706,14 @@ export default function JiraTicketsTab({ filters, chartRefs, downloadChartAsImag
   };
 
   const handleRefresh = () => {
+    setError(null);
+    setLoading(true);
     if (jiraCredentials) {
-      loadJiraData(jiraCredentials);
+      loadJiraData(jiraCredentials).finally(() => {
+        setLoading(false);
+      });
+    } else {
+      checkJiraIntegration();
     }
   };
 

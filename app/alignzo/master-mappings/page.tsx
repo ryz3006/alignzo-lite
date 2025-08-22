@@ -38,10 +38,9 @@ export default function MasterMappingsPage() {
 
   const loadData = async () => {
     try {
-      await Promise.all([
-        loadSources(),
-        loadMasterMappings()
-      ]);
+      // Load sources first, then master mappings
+      await loadSources();
+      await loadMasterMappings();
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load data');
@@ -67,7 +66,24 @@ export default function MasterMappingsPage() {
       console.error('Error loading master mappings:', response.error);
       throw new Error(response.error);
     }
-    setMasterMappings(response.data || []);
+    
+    // Create a map of source_id to source name for manual joining
+    const sourceMap = new Map(sources.map(source => [source.id, source.name]));
+    
+    // Add source information to each mapping
+    const mappingsWithSource = (response.data || []).map((mapping: any) => ({
+      ...mapping,
+      source: {
+        id: mapping.source_id,
+        name: sourceMap.get(mapping.source_id) || 'Unknown'
+      }
+    }));
+    
+    console.log('Sources:', sources);
+    console.log('Source map:', sourceMap);
+    console.log('Mappings with source:', mappingsWithSource);
+    
+    setMasterMappings(mappingsWithSource);
   };
 
   const handleAddMapping = async () => {

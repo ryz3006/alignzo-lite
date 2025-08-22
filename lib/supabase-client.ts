@@ -268,7 +268,11 @@ class SupabaseClient {
   }
 
   async getTicketMasterMappings() {
-    return this.get('ticket_master_mappings', { select: '*' });
+    return this.query({
+      table: 'ticket_master_mappings',
+      action: 'select',
+      select: '*,source:ticket_sources(*)'
+    });
   }
 
   async getTicketUploadMappings() {

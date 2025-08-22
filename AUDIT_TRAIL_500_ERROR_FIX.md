@@ -1,11 +1,13 @@
-# 🔧 Audit Trail 500 Error Fix
+# 🔧 Audit Trail & Security Alerts 500 Error Fix
 
 ## 🚨 **Issue Summary**
 
-The audit trail API endpoint was returning a 500 Internal Server Error due to **URL parsing issues** in the Supabase client when running in the server environment.
+Both the audit trail and security alerts API endpoints were returning 500 Internal Server Error due to **URL parsing issues** in the Supabase client when running in the server environment.
 
 **Error Details:**
-- **Endpoint**: `GET /api/admin/audit-trail?page=1&pageSize=20`
+- **Endpoints**: 
+  - `GET /api/admin/audit-trail?page=1&pageSize=20`
+  - `GET /api/admin/security-alerts?page=1&pageSize=20`
 - **Error**: 500 Internal Server Error
 - **Error Message**: `Failed to parse URL from /api/supabase-proxy`
 - **Root Cause**: Supabase client using relative URLs in server environment
@@ -18,12 +20,18 @@ The audit trail API endpoint was returning a 500 Internal Server Error due to **
 
 3. **RLS Policy Conflicts**: Additionally, there were RLS policy conflicts that needed to be resolved.
 
+4. **Multiple Endpoints Affected**: The issue affected all admin API routes that use `supabaseClient`:
+   - Audit trail endpoint
+   - Security alerts endpoint
+   - Security alerts acknowledge/resolve endpoints
+   - All other admin functionality using the Supabase client
+
 ## ✅ **Fixes Applied**
 
 ### 1. **Fixed Supabase Client for Server Environment**
 - **File**: `lib/supabase-client.ts`
 - **Change**: Updated to use direct Supabase client in server environment instead of HTTP requests
-- **Impact**: Resolves URL parsing errors in server environment
+- **Impact**: Resolves URL parsing errors in server environment for ALL endpoints
 
 ### 2. **Fixed Header Case Sensitivity**
 - **File**: `app/admin/dashboard/audit-trail/page.tsx`
@@ -69,13 +77,19 @@ The audit trail API endpoint was returning a 500 Internal Server Error due to **
         -H "x-admin-email: your-admin-email@company.com"
    ```
 
-2. Check the admin dashboard audit trail page at `/admin/dashboard/audit-trail`
+2. Test the security alerts endpoint:
+   ```bash
+   curl -X GET "https://your-domain.vercel.app/api/admin/security-alerts?page=1&pageSize=20" \
+        -H "x-admin-email: your-admin-email@company.com"
+   ```
+
+3. Check the admin dashboard audit trail page at `/admin/dashboard/audit-trail`
 
 ## 📋 **Files Modified**
 
 ### **Core Fixes**
-- `lib/supabase-client.ts` - Fixed server environment URL parsing issue
-- `database/schema.sql` - Fixed RLS policies for audit trail tables
+- `lib/supabase-client.ts` - Fixed server environment URL parsing issue for ALL endpoints
+- `database/schema.sql` - Fixed RLS policies for audit trail and security monitoring tables
 - `app/admin/dashboard/audit-trail/page.tsx` - Fixed header case sensitivity
 
 ### **Supporting Files**
@@ -96,6 +110,7 @@ The updated client now:
 - Uses direct Supabase client in server environment
 - Uses HTTP proxy in browser environment
 - Handles all query types (select, insert, update, delete)
+- **Fixes ALL endpoints** that use `supabaseClient`
 
 ### **RLS Policy Issue**
 The original RLS policies were:
@@ -118,19 +133,22 @@ This allows all access since admin authentication is handled in the application 
 
 After applying these fixes:
 
-1. ✅ **No More 500 Errors**: Audit trail endpoint will work correctly
+1. ✅ **No More 500 Errors**: Both audit trail and security alerts endpoints will work correctly
 2. ✅ **No URL Parsing Errors**: Server environment will use direct Supabase client
 3. ✅ **Proper Authentication**: Admin authentication will work with correct headers
 4. ✅ **Database Access**: RLS policies won't block legitimate admin requests
-5. ✅ **Admin Dashboard**: Audit trail page will display data correctly
+5. ✅ **Admin Dashboard**: Both audit trail and security alerts pages will display data correctly
+6. ✅ **All Admin Functions**: All admin API routes using `supabaseClient` will work
 
 ## 🔍 **Testing Checklist**
 
 - [ ] RLS policies updated in database
 - [ ] Code deployed with Supabase client fix
 - [ ] Audit trail endpoint returns 200 OK
+- [ ] Security alerts endpoint returns 200 OK
 - [ ] Admin dashboard loads without errors
 - [ ] Audit trail entries are displayed correctly
+- [ ] Security alerts are displayed correctly
 - [ ] No console errors in browser
 - [ ] No URL parsing errors in server logs
 - [ ] All admin functions work correctly
@@ -148,4 +166,4 @@ If you encounter any issues after applying these fixes:
 
 **Status**: ✅ **FIXED**  
 **Priority**: 🔴 **HIGH**  
-**Impact**: 🚨 **CRITICAL** - Admin functionality was broken due to URL parsing and RLS policy issues
+**Impact**: 🚨 **CRITICAL** - Admin functionality was broken due to URL parsing and RLS policy issues affecting multiple endpoints
