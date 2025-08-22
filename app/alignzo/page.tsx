@@ -246,86 +246,108 @@ export default function UserDashboardPage() {
   };
 
   const loadTeamAvailability = async () => {
-    // Get all teams and their members for today
-    const today = new Date().toISOString().split('T')[0];
-    
-    const teamsResponse = await supabaseClient.getTeams();
-    
-    if (teamsResponse.error) {
-      console.error('Error loading teams:', teamsResponse.error);
-      throw new Error(teamsResponse.error);
-    }
-
-    const teams = teamsResponse.data;
-
-    const availability: TeamAvailability[] = [];
-
-    // TODO: Complex team queries need to be updated for proxy system
-    // Temporarily setting empty team availability
-    setTeamAvailability([]);
-    return;
-    
-    /*
-    for (const team of teams || []) {
-      // Get project assignments for this team
-      const { data: projectAssignments } = await supabase
-        .from('team_project_assignments')
-        .select('project_id')
-        .eq('team_id', team.id);
-
-      let customEnums: any[] = [];
-      if (projectAssignments && projectAssignments.length > 0) {
-        // Use the first project assignment for custom shift enums
-        const { data: enums } = await supabase.rpc('get_custom_shift_enums', {
-          p_project_id: projectAssignments[0].project_id,
-          p_team_id: team.id
-        });
-        customEnums = enums || [];
+    try {
+      // Get all teams and their members for today
+      const today = new Date().toISOString().split('T')[0];
+      
+      const teamsResponse = await supabaseClient.getTeams();
+      
+      if (teamsResponse.error) {
+        console.error('Error loading teams:', teamsResponse.error);
+        throw new Error(teamsResponse.error);
       }
 
-      // Get team members
-      const { data: teamMembers, error: membersError } = await supabase
-        .from('team_members')
-        .select(`
-          user_id,
-          users (email, full_name, phone_number)
-        `)
-        .eq('team_id', team.id);
+      const teams = teamsResponse.data || [];
+      const availability: TeamAvailability[] = [];
 
-      if (membersError) continue;
+      for (const team of teams) {
+        try {
+          // Get team members
+          const teamMembersResponse = await supabaseClient.getTeamMembers(team.id);
+          
+          if (teamMembersResponse.error) {
+            console.error(`Error loading team members for team ${team.id}:`, teamMembersResponse.error);
+            continue;
+          }
 
-      // Get shifts for today for this team
-      const { data: shifts, error: shiftsError } = await supabase
-        .from('shift_schedules')
-        .select('*')
-        .eq('team_id', team.id)
-        .eq('shift_date', today);
+          const teamMembers = teamMembersResponse.data || [];
 
-      if (shiftsError) continue;
+          // Get shifts for today for this team
+          const shiftsResponse = await supabaseClient.getShiftSchedules({
+            filters: {
+              team_id: team.id,
+              shift_date: today
+            }
+          });
 
-      // Group users by shift type
-      const shiftGroups: { [key: string]: string[] } = {};
-      
-      teamMembers?.forEach(member => {
-        const userEmail = (member.users as any).email;
-        const shift = shifts?.find(s => s.user_email === userEmail);
-        const shiftType = shift?.shift_type || 'G';
-        
-        if (!shiftGroups[shiftType]) {
-          shiftGroups[shiftType] = [];
+          if (shiftsResponse.error) {
+            console.error(`Error loading shifts for team ${team.id}:`, shiftsResponse.error);
+            continue;
+          }
+
+          const shifts = shiftsResponse.data || [];
+
+          // Group users by shift type
+          const shiftGroups: { [key: string]: string[] } = {};
+          
+          teamMembers.forEach((member: any) => {
+            const userEmail = member.users?.email;
+            if (!userEmail) return;
+            
+            const shift = shifts.find((s: any) => s.user_email === userEmail);
+            const shiftType = shift?.shift_type || 'G';
+            
+            if (!shiftGroups[shiftType]) {
+              shiftGroups[shiftType] = [];
+            }
+            shiftGroups[shiftType].push(userEmail);
+          });
+
+          // Get custom shift enums for this team (if any)
+          let customEnums: any[] = [];
+          try {
+            const projectAssignmentsResponse = await supabaseClient.get('team_project_assignments', {
+              select: 'project_id',
+              filters: { team_id: team.id }
+            });
+
+            if (!projectAssignmentsResponse.error && projectAssignmentsResponse.data && projectAssignmentsResponse.data.length > 0) {
+              const projectId = projectAssignmentsResponse.data[0].project_id;
+              
+              // Get custom shift enums for this project-team combination
+              const enumsResponse = await supabaseClient.get('custom_shift_enums', {
+                select: '*',
+                filters: {
+                  project_id: projectId,
+                  team_id: team.id
+                }
+              });
+
+              if (!enumsResponse.error && enumsResponse.data) {
+                customEnums = enumsResponse.data;
+              }
+            }
+          } catch (enumError) {
+            console.error(`Error loading custom enums for team ${team.id}:`, enumError);
+          }
+
+          availability.push({
+            teamName: team.name,
+            shifts: shiftGroups,
+            customEnums: customEnums
+          });
+        } catch (teamError) {
+          console.error(`Error processing team ${team.id}:`, teamError);
+          continue;
         }
-        shiftGroups[shiftType].push(userEmail);
-      });
+      }
 
-      availability.push({
-        teamName: team.name,
-        shifts: shiftGroups,
-        customEnums: customEnums || []
-      });
+      setTeamAvailability(availability);
+    } catch (error) {
+      console.error('Error loading team availability:', error);
+      toast.error('Failed to load team availability');
+      setTeamAvailability([]);
     }
-
-    setTeamAvailability(availability);
-    */
   };
 
   const statCards = [

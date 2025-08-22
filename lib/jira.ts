@@ -1,4 +1,4 @@
-import { supabaseClient } from './supabase-client';
+import { supabase } from './supabase';
 
 export interface JiraCredentials {
   base_url: string;
@@ -70,25 +70,24 @@ export class JiraIntegration {
 
   async getCredentials(userEmail: string): Promise<JiraCredentials | null> {
     try {
-      const response = await supabaseClient.get('user_integrations', {
-        select: 'base_url,user_email_integration,api_token',
-        filters: {
-          user_email: userEmail,
-          integration_type: 'jira',
-          is_verified: true
-        }
-      });
+      const { data, error } = await supabase
+        .from('user_integrations')
+        .select('base_url,user_email_integration,api_token')
+        .eq('user_email', userEmail)
+        .eq('integration_type', 'jira')
+        .eq('is_verified', true)
+        .single();
 
-      if (response.error) {
-        console.error('Error fetching Jira credentials:', response.error);
+      if (error) {
+        console.error('Error fetching Jira credentials:', error);
         return null;
       }
 
-      if (!response.data || response.data.length === 0) {
+      if (!data) {
         return null;
       }
 
-      return response.data[0];
+      return data;
     } catch (error) {
       console.error('Error getting Jira credentials:', error);
       return null;

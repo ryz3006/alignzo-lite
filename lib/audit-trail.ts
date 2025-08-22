@@ -21,12 +21,17 @@ export interface AuditEvent {
   id?: string;
   user_email: string;
   event_type: AuditEventType;
-  resource_type: string;
-  resource_id?: string;
-  description: string;
-  metadata?: Record<string, any>;
+  table_name?: string;
+  record_id?: string;
+  old_values?: Record<string, any>;
+  new_values?: Record<string, any>;
   ip_address?: string;
   user_agent?: string;
+  endpoint?: string;
+  method?: string;
+  success?: boolean;
+  error_message?: string;
+  metadata?: Record<string, any>;
   created_at?: string;
 }
 
@@ -69,7 +74,7 @@ export class AuditTrail {
       
       if (userEmail) filters.user_email = userEmail;
       if (eventType) filters.event_type = eventType;
-      if (resourceType) filters.resource_type = resourceType;
+      if (resourceType) filters.table_name = resourceType;
 
       const response = await supabaseClient.get('audit_trail', {
         select: '*',
@@ -155,15 +160,12 @@ export class AuditTrail {
       
       if (filters.userEmail) queryFilters.user_email = filters.userEmail;
       if (filters.eventType) queryFilters.event_type = filters.eventType;
-      if (filters.tableName) queryFilters.resource_type = filters.tableName;
-      if (filters.startDate) queryFilters.created_at = { gte: filters.startDate };
-      if (filters.endDate) {
-        if (queryFilters.created_at) {
-          queryFilters.created_at.lte = filters.endDate;
-        } else {
-          queryFilters.created_at = { lte: filters.endDate };
-        }
-      }
+      if (filters.tableName) queryFilters.table_name = filters.tableName;
+      if (filters.success !== undefined) queryFilters.success = filters.success;
+      
+      // Handle date range filters using the correct format for the Supabase proxy
+      if (filters.startDate) queryFilters.created_at_gte = filters.startDate;
+      if (filters.endDate) queryFilters.created_at_lte = filters.endDate;
 
       const response = await supabaseClient.get('audit_trail', {
         select: '*',
@@ -197,15 +199,12 @@ export class AuditTrail {
       
       if (filters.userEmail) queryFilters.user_email = filters.userEmail;
       if (filters.eventType) queryFilters.event_type = filters.eventType;
-      if (filters.tableName) queryFilters.resource_type = filters.tableName;
-      if (filters.startDate) queryFilters.created_at = { gte: filters.startDate };
-      if (filters.endDate) {
-        if (queryFilters.created_at) {
-          queryFilters.created_at.lte = filters.endDate;
-        } else {
-          queryFilters.created_at = { lte: filters.endDate };
-        }
-      }
+      if (filters.tableName) queryFilters.table_name = filters.tableName;
+      if (filters.success !== undefined) queryFilters.success = filters.success;
+      
+      // Handle date range filters using the correct format for the Supabase proxy
+      if (filters.startDate) queryFilters.created_at_gte = filters.startDate;
+      if (filters.endDate) queryFilters.created_at_lte = filters.endDate;
 
       const response = await supabaseClient.get('audit_trail', {
         select: 'count(*)',
@@ -236,8 +235,10 @@ export async function logUserAction(
   await auditTrail.logEvent({
     user_email: userEmail,
     event_type: AuditEventType.API_CALL,
-    resource_type: 'user_action',
-    description: action,
+    table_name: 'user_action',
+    ip_address: metadata?.ip_address || 'unknown',
+    endpoint: metadata?.endpoint || '/unknown',
+    method: metadata?.method || 'GET',
     metadata
   });
 }
@@ -251,8 +252,10 @@ export async function logSecurityEvent(
   await auditTrail.logEvent({
     user_email: userEmail,
     event_type: eventType,
-    resource_type: 'security',
-    description,
+    table_name: 'security',
+    ip_address: metadata?.ip_address || 'unknown',
+    endpoint: metadata?.endpoint || '/security',
+    method: metadata?.method || 'POST',
     metadata
   });
 }
@@ -267,9 +270,11 @@ export async function logDataAccess(
   await auditTrail.logEvent({
     user_email: userEmail,
     event_type: AuditEventType.READ,
-    resource_type: resourceType,
-    resource_id: resourceId,
-    description: action,
+    table_name: resourceType,
+    record_id: resourceId,
+    ip_address: metadata?.ip_address || 'unknown',
+    endpoint: metadata?.endpoint || '/data',
+    method: metadata?.method || 'GET',
     metadata
   });
 }

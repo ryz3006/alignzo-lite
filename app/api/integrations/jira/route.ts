@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseClient } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase';
 import { jiraIntegrationSchema } from '@/lib/validation';
 import { z } from 'zod';
 import { applyRateLimit, jiraLimiterConfig, addRateLimitHeaders } from '@/lib/rate-limit';
@@ -20,16 +20,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's Jira integrations
-    const response = await supabaseClient.get('user_integrations', {
-      select: '*',
-      filters: { 
-        user_email: userEmail,
-        integration_type: 'jira'
-      }
-    });
+    const { data, error } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('user_email', userEmail)
+      .eq('integration_type', 'jira');
 
-    if (response.error) {
-      console.error('Error fetching Jira integrations:', response.error);
+    if (error) {
+      console.error('Error fetching Jira integrations:', error);
       return NextResponse.json(
         { error: 'Failed to fetch Jira integrations' },
         { status: 500 }
@@ -38,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      integrations: response.data || []
+      integrations: data || []
     });
 
   } catch (error) {
@@ -70,46 +68,59 @@ export const POST = withJiraAudit(AuditEventType.CREATE)('jira_integration', 'Cr
     const validatedData = jiraIntegrationSchema.parse(body);
 
     // Check if integration already exists
-    const { data: existingIntegration } = await supabaseClient
-      .get('user_integrations', {
-        select: 'id',
-        filters: {
-          user_email: validatedData.user_email,
-          integration_type: 'jira'
-        }
-      });
+    const { data: existingIntegration, error: checkError } = await supabase
+      .from('user_integrations')
+      .select('id')
+      .eq('user_email', validatedData.user_email)
+      .eq('integration_type', 'jira');
+
+    if (checkError) {
+      console.error('Error checking existing integration:', checkError);
+      return NextResponse.json(
+        { error: 'Failed to check existing integration' },
+        { status: 500 }
+      );
+    }
 
     let result;
-    if (existingIntegration.data && existingIntegration.data.length > 0) {
+    if (existingIntegration && existingIntegration.length > 0) {
       // Update existing integration
-      const response = await supabaseClient.update('user_integrations', existingIntegration.data[0].id, {
-        base_url: validatedData.base_url,
-        user_email_integration: validatedData.user_email_integration,
-        api_token: validatedData.api_token,
-        is_verified: validatedData.is_verified,
-        updated_at: new Date().toISOString()
-      });
+      const { data: updateData, error: updateError } = await supabase
+        .from('user_integrations')
+        .update({
+          base_url: validatedData.base_url,
+          user_email_integration: validatedData.user_email_integration,
+          api_token: validatedData.api_token,
+          is_verified: validatedData.is_verified,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingIntegration[0].id)
+        .select()
+        .single();
 
-      if (response.error) {
-        console.error('Error updating JIRA integration:', response.error);
+      if (updateError) {
+        console.error('Error updating JIRA integration:', updateError);
         return NextResponse.json(
           { error: 'Failed to update integration' },
           { status: 500 }
         );
       }
 
-      result = response.data;
+      result = updateData;
     } else {
       // Create new integration
-      const { data: integration, error } = await supabaseClient
-        .insert('user_integrations', {
+      const { data: integration, error } = await supabase
+        .from('user_integrations')
+        .insert({
           user_email: validatedData.user_email,
           integration_type: 'jira',
           base_url: validatedData.base_url,
           user_email_integration: validatedData.user_email_integration,
           api_token: validatedData.api_token,
           is_verified: validatedData.is_verified
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
         return NextResponse.json(
