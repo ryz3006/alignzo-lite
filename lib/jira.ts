@@ -250,6 +250,19 @@ export class JiraIntegration {
         ]
       };
 
+      // Determine assignee field - use accountId for assignment
+      let assigneeField = undefined;
+      if (assignee) {
+        // If assignee looks like an accountId (starts with a letter and contains alphanumeric chars)
+        if (typeof assignee === 'string' && /^[a-zA-Z0-9_-]+$/.test(assignee) && assignee.length > 10) {
+          // Use as accountId
+          assigneeField = { accountId: assignee };
+        } else {
+          // Use as name (for backward compatibility)
+          assigneeField = { name: assignee };
+        }
+      }
+
       const response = await fetch(`${credentials.base_url}/rest/api/3/issue`, {
         method: 'POST',
         headers: {
@@ -264,7 +277,7 @@ export class JiraIntegration {
             description: adfDescription,
             issuetype: { name: issueType },
             priority: { name: priority },
-            ...(assignee && { assignee: { name: assignee } })
+            ...(assigneeField && { assignee: assigneeField })
           }
         })
       });

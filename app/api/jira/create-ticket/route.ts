@@ -29,25 +29,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get JIRA username for the logged-in user using multiple strategies
-    const jiraUsername = await getJiraUsernameForUser(userEmail, projectKey, credentials);
-    
     console.log(`Creating JIRA ticket in project: ${projectKey} for user: ${userEmail}`);
-    console.log(`JIRA username for assignment: ${jiraUsername || 'Not found - will use integration user'}`);
+    console.log('Getting actual accountId from /rest/api/3/myself for assignment');
     console.log('JIRA credentials:', {
       base_url: credentials.base_url,
       user_email_integration: credentials.user_email_integration,
       hasApiToken: !!credentials.api_token
     });
 
-    // Use enhanced create issue function with user assignment
+    // Step 1: Get the actual accountId from /rest/api/3/myself
+    const myselfResponse = await fetch(`${credentials.base_url}/rest/api/3/myself`, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!myselfResponse.ok) {
+      const errorText = await myselfResponse.text();
+      console.error(`JIRA myself API error: ${myselfResponse.status} - ${errorText}`);
+      return NextResponse.json(
+        { error: `Failed to get user accountId: ${myselfResponse.status}` },
+        { status: myselfResponse.status }
+      );
+    }
+
+    const userData = await myselfResponse.json();
+    const accountId = userData.accountId;
+    
+    console.log('JIRA user data:', {
+      accountId: userData.accountId,
+      displayName: userData.displayName,
+      emailAddress: userData.emailAddress
+    });
+
+    // Step 2: Create ticket with the actual accountId
     const result = await createJiraIssue(credentials, {
       projectKey,
       summary,
       description,
       issueType,
       priority,
-      assignee: jiraUsername || undefined
+      assignee: accountId // Use the actual accountId for assignment
     });
 
     if (!result.success) {
@@ -82,8 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ticket = result.data;
-    const assignedTo = jiraUsername || credentials.user_email_integration;
-    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to: ${assignedTo}`);
+    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to accountId: ${accountId}`);
     
     return NextResponse.json({
       success: true,
@@ -91,7 +113,9 @@ export async function POST(request: NextRequest) {
         key: ticket?.key,
         id: ticket?.id
       },
-      message: `JIRA ticket ${ticket?.key} created successfully and assigned to ${assignedTo}! Please update the ticket in JIRA for closure or reassignments.`,
+      message: `JIRA ticket ${ticket?.key} created successfully and assigned to accountId: ${accountId} (${userData.displayName})! Please update the ticket in JIRA for closure or reassignments.`,
+      accountId: accountId,
+      displayName: userData.displayName,
       rateLimitInfo: result.rateLimitInfo
     });
 
