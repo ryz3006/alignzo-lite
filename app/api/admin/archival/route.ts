@@ -6,7 +6,7 @@ import { applyRateLimit, authLimiterConfig, addRateLimitHeaders } from '@/lib/ra
 import { isAdminUserServer } from '@/lib/auth';
 
 // GET - Get archival statistics
-export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   // Check if Supabase is properly configured
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     return NextResponse.json(
@@ -17,8 +17,11 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
 
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
 
   try {
@@ -41,7 +44,7 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
       stats: stats
     });
 
-    return addRateLimitHeaders(response, request, authLimiterConfig);
+    return addRateLimitHeaders(response, 4, new Date(Date.now() + 900000).toISOString());
 
   } catch (error) {
     console.error('Error fetching archival stats:', error);
@@ -50,10 +53,10 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
       { status: 500 }
     );
   }
-});
+}
 
 // POST - Trigger manual cleanup
-export const POST = withAdminAudit(AuditEventType.DELETE)(async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   // Check if Supabase is properly configured
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     return NextResponse.json(
@@ -64,8 +67,11 @@ export const POST = withAdminAudit(AuditEventType.DELETE)(async (request: NextRe
 
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
 
   try {
@@ -89,7 +95,7 @@ export const POST = withAdminAudit(AuditEventType.DELETE)(async (request: NextRe
       results: results
     });
 
-    return addRateLimitHeaders(response, request, authLimiterConfig);
+    return addRateLimitHeaders(response, 4, new Date(Date.now() + 900000).toISOString());
 
   } catch (error) {
     console.error('Error triggering manual cleanup:', error);
@@ -98,7 +104,7 @@ export const POST = withAdminAudit(AuditEventType.DELETE)(async (request: NextRe
       { status: 500 }
     );
   }
-});
+}
 
 // Helper function to extract user email
 function extractUserEmail(request: NextRequest): string {

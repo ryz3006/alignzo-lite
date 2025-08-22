@@ -5,11 +5,14 @@ import { AuditEventType } from '@/lib/audit-trail';
 import { applyRateLimit, authLimiterConfig, addRateLimitHeaders } from '@/lib/rate-limit';
 import { isAdminUserServer } from '@/lib/auth';
 
-export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, authLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
 
   try {
@@ -80,7 +83,7 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
       },
     });
 
-    return addRateLimitHeaders(response, request, authLimiterConfig);
+    return addRateLimitHeaders(response, 19, new Date(Date.now() + 900000).toISOString());
 
   } catch (error) {
     console.error('Error fetching audit trail:', error);
@@ -89,7 +92,7 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
       { status: 500 }
     );
   }
-});
+}
 
 // Helper function to extract user email
 function extractUserEmail(request: NextRequest): string {

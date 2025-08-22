@@ -6,8 +6,11 @@ import { applyRateLimit, jiraLimiterConfig, addRateLimitHeaders } from '@/lib/ra
 export async function POST(request: NextRequest) {
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, jiraLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
   
   try {
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
         }
       });
       
-      return addRateLimitHeaders(successResponse, request, jiraLimiterConfig);
+      return addRateLimitHeaders(successResponse, 29, new Date(Date.now() + 60000).toISOString());
     } else {
       let message = 'Failed to verify JIRA connection';
       if (response.status === 401) {

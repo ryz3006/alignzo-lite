@@ -31,17 +31,10 @@ export async function POST(request: NextRequest) {
     // Search JIRA issues using the backend function
     const result = await searchJiraIssues(credentials, jql, maxResults);
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.message || 'Failed to search JIRA issues' },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
       success: true,
-      issues: result.data?.issues || [],
-      total: result.data?.issues?.length || 0
+      issues: result || [],
+      total: result?.length || 0
     });
 
   } catch (error) {

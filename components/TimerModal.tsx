@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/lib/supabase-client';
-import { Project, ProjectCategory } from '@/lib/supabase';
+import { Project, ProjectCategory, TeamProjectAssignment } from '@/lib/supabase';
 import { useTimer } from './TimerContext';
 import { getCurrentUser } from '@/lib/auth';
 import { X, Play } from 'lucide-react';
@@ -53,7 +53,7 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
       if (teamResponse.error) throw new Error(teamResponse.error);
 
       // Get projects assigned to user's teams
-      const userTeamIds = teamResponse.data?.map(membership => membership.team_id) || [];
+      const userTeamIds = teamResponse.data?.map((membership: any) => membership.team_id) || [];
       
       if (userTeamIds.length > 0) {
         // Get projects assigned to user's teams
@@ -64,7 +64,7 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
 
         if (assignedResponse.error) throw new Error(assignedResponse.error);
 
-        const projectIds = assignedResponse.data?.map(assignment => assignment.project_id) || [];
+        const projectIds = assignedResponse.data?.map((assignment: TeamProjectAssignment) => assignment.project_id) || [];
         
         if (projectIds.length > 0) {
           const response = await supabaseClient.get('projects', {

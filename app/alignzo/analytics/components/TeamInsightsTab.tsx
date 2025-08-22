@@ -289,8 +289,10 @@ export default function TeamInsightsTab({ filters, chartRefs, downloadChartAsIma
 
       const result = await searchAllJiraIssues(credentials, jql);
       
-      if (result.success) {
-        setJiraIssues(result.data?.issues || []);
+      if (result && result.length > 0) {
+        setJiraIssues(result);
+      } else {
+        setJiraIssues([]);
       }
     } catch (error) {
       console.error('Error loading JIRA data:', error);

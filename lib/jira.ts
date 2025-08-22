@@ -20,12 +20,20 @@ export interface JiraIssue {
     assignee?: {
       displayName: string;
     };
+    reporter?: {
+      displayName: string;
+    };
     project: {
+      name: string;
+      key: string;
+    };
+    issuetype?: {
       name: string;
     };
     created: string;
     updated: string;
     timespent?: number;
+    customfield_10016?: number; // Story points field
   };
 }
 

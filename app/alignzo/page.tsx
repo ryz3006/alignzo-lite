@@ -118,21 +118,21 @@ export default function UserDashboardPage() {
     const todayHours = logs
       .filter((log: any) => {
         const logDate = new Date(log.start_time);
-        return logDate >= todayRange.startOfDay && logDate <= todayRange.endOfDay;
+        return logDate >= todayRange.start && logDate <= todayRange.end;
       })
       .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
 
     const weekHours = logs
       .filter((log: any) => {
         const logDate = new Date(log.start_time);
-        return logDate >= weekRange.startOfWeek && logDate <= weekRange.endOfWeek;
+        return logDate >= weekRange.start && logDate <= weekRange.end;
       })
       .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
 
     const monthHours = logs
       .filter((log: any) => {
         const logDate = new Date(log.start_time);
-        return logDate >= monthRange.startOfMonth && logDate <= monthRange.endOfMonth;
+        return logDate >= monthRange.start && logDate <= monthRange.end;
       })
       .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
 

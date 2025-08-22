@@ -42,8 +42,7 @@ export async function POST(request: NextRequest) {
       summary,
       description,
       issueType,
-      priority,
-      assignee: credentials.user_email_integration // Use integration user instead of current user
+      priority
     });
 
     if (!result.success) {

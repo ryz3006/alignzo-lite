@@ -5,8 +5,11 @@ import { applyRateLimit, apiLimiterConfig } from '@/lib/rate-limit';
 export async function GET(request: NextRequest) {
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, apiLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
 
   try {

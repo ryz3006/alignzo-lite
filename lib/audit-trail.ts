@@ -139,6 +139,89 @@ export class AuditTrail {
       throw error;
     }
   }
+
+  async queryAuditTrail(filters: {
+    userEmail?: string;
+    eventType?: AuditEventType;
+    tableName?: string;
+    startDate?: string;
+    endDate?: string;
+    success?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<AuditEvent[]> {
+    try {
+      const queryFilters: any = {};
+      
+      if (filters.userEmail) queryFilters.user_email = filters.userEmail;
+      if (filters.eventType) queryFilters.event_type = filters.eventType;
+      if (filters.tableName) queryFilters.resource_type = filters.tableName;
+      if (filters.startDate) queryFilters.created_at = { gte: filters.startDate };
+      if (filters.endDate) {
+        if (queryFilters.created_at) {
+          queryFilters.created_at.lte = filters.endDate;
+        } else {
+          queryFilters.created_at = { lte: filters.endDate };
+        }
+      }
+
+      const response = await supabaseClient.get('audit_trail', {
+        select: '*',
+        filters: queryFilters,
+        order: { column: 'created_at', ascending: false },
+        limit: filters.limit || 100,
+        offset: filters.offset || 0
+      });
+
+      if (response.error) {
+        throw new Error(`Failed to query audit trail: ${response.error}`);
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.error('Error querying audit trail:', error);
+      throw error;
+    }
+  }
+
+  async getAuditTrailCount(filters: {
+    userEmail?: string;
+    eventType?: AuditEventType;
+    tableName?: string;
+    startDate?: string;
+    endDate?: string;
+    success?: boolean;
+  }): Promise<number> {
+    try {
+      const queryFilters: any = {};
+      
+      if (filters.userEmail) queryFilters.user_email = filters.userEmail;
+      if (filters.eventType) queryFilters.event_type = filters.eventType;
+      if (filters.tableName) queryFilters.resource_type = filters.tableName;
+      if (filters.startDate) queryFilters.created_at = { gte: filters.startDate };
+      if (filters.endDate) {
+        if (queryFilters.created_at) {
+          queryFilters.created_at.lte = filters.endDate;
+        } else {
+          queryFilters.created_at = { lte: filters.endDate };
+        }
+      }
+
+      const response = await supabaseClient.get('audit_trail', {
+        select: 'count(*)',
+        filters: queryFilters
+      });
+
+      if (response.error) {
+        throw new Error(`Failed to get audit trail count: ${response.error}`);
+      }
+
+      return response.data?.[0]?.count || 0;
+    } catch (error) {
+      console.error('Error getting audit trail count:', error);
+      return 0;
+    }
+  }
 }
 
 // Global audit trail instance

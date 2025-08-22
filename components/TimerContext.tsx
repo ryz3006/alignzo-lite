@@ -52,7 +52,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
       const timersData = response.data || [];
       setTimers(timersData);
-      setActiveTimers(timersData.filter(timer => timer.is_running || timer.is_paused));
+      setActiveTimers(timersData.filter((timer: any) => timer.is_running || timer.is_paused));
     } catch (error) {
       console.error('Error loading timers:', error);
     }

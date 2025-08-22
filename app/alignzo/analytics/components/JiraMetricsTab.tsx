@@ -165,13 +165,13 @@ export default function JiraMetricsTab({ chartRefs, downloadChartAsImage, filter
 
       const result = await searchAllJiraIssues(credentials, jql);
       
-      if (!result.success) {
-        setError(result.message || 'Failed to load JIRA data');
-        return;
+      if (result && result.length > 0) {
+        setJiraIssues(result);
+        calculateProjectMetrics(result);
+      } else {
+        setJiraIssues([]);
+        calculateProjectMetrics([]);
       }
-
-      setJiraIssues(result.data?.issues || []);
-      calculateProjectMetrics(result.data?.issues || []);
     } catch (error) {
       console.error('Error loading JIRA data:', error);
       setError('Failed to load JIRA data');
