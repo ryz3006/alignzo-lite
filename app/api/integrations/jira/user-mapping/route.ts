@@ -29,9 +29,84 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    let mappings = response.data || [];
+
+    // If no JIRA user mappings exist, try to create them from master mappings
+    if (mappings.length === 0) {
+      console.log('No JIRA user mappings found, attempting to create from master mappings...');
+      
+      try {
+        // Get master mappings for JIRA source
+        const masterMappingsResponse = await supabaseClient.get('ticket_master_mappings', {
+          select: '*',
+          filters: { 
+            is_active: true
+          }
+        });
+
+        if (masterMappingsResponse.data && masterMappingsResponse.data.length > 0) {
+          // Get JIRA source ID
+          const jiraSourceResponse = await supabaseClient.get('ticket_sources', {
+            select: '*',
+            filters: { 
+              name: 'JIRA'
+            }
+          });
+
+          if (jiraSourceResponse.data && jiraSourceResponse.data.length > 0) {
+            const jiraSourceId = jiraSourceResponse.data[0].id;
+            
+            // Filter master mappings for JIRA source
+            const jiraMasterMappings = masterMappingsResponse.data.filter(
+              (mapping: any) => mapping.source_id === jiraSourceId
+            );
+
+            console.log('Found JIRA master mappings:', jiraMasterMappings.length);
+
+            // Create JIRA user mappings from master mappings
+            for (const masterMapping of jiraMasterMappings) {
+              try {
+                const userMappingData = {
+                  user_email: masterMapping.mapped_user_email,
+                  jira_assignee_name: masterMapping.source_assignee_value,
+                  jira_reporter_name: masterMapping.source_assignee_value,
+                  integration_user_email: userEmail
+                };
+
+                const createResponse = await supabaseClient.insert('jira_user_mappings', userMappingData);
+                
+                if (createResponse.data) {
+                  console.log('Created JIRA user mapping for:', masterMapping.mapped_user_email);
+                }
+              } catch (error) {
+                console.error('Error creating JIRA user mapping:', error);
+                // Continue with other mappings even if one fails
+              }
+            }
+
+            // Fetch the newly created mappings
+            const updatedResponse = await supabaseClient.get('jira_user_mappings', {
+              select: '*',
+              filters: { 
+                integration_user_email: userEmail
+              }
+            });
+
+            if (updatedResponse.data) {
+              mappings = updatedResponse.data;
+              console.log('Successfully created and retrieved JIRA user mappings:', mappings.length);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error creating JIRA user mappings from master mappings:', error);
+        // Don't fail the request, just return empty mappings
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      mappings: response.data || []
+      mappings: mappings
     });
 
   } catch (error) {
