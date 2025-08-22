@@ -50,18 +50,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export const POST = withJiraAudit(AuditEventType.CREATE)(async (request: NextRequest) => {
+export const POST = withJiraAudit(AuditEventType.CREATE)('jira_integration', 'Create or update Jira integration')(async (request: NextRequest) => {
   // Apply rate limiting
   const rateLimitResponse = applyRateLimit(request, jiraLimiterConfig);
-  if (rateLimitResponse) {
-    return rateLimitResponse;
+  if (!rateLimitResponse.success) {
+    return NextResponse.json(
+      { error: rateLimitResponse.message || 'Rate limit exceeded' },
+      { status: rateLimitResponse.statusCode || 429 }
+    );
   }
   
   try {
     const body = await request.json();
 
     // Mask request data for logging
-    const maskedBody = apiMaskingManager.maskRequest(body, 'jira');
+    const maskedBody = apiMaskingManager.maskApiRequest(body, '/api/integrations/jira', 'POST');
 
     // Validate input
     const validatedData = jiraIntegrationSchema.parse(body);
@@ -119,14 +122,15 @@ export const POST = withJiraAudit(AuditEventType.CREATE)(async (request: NextReq
     }
 
         // Mask sensitive data in the response
-    const maskedResult = apiMaskingManager.maskResponse(result, 'jira');
+    const maskedResult = apiMaskingManager.maskApiResponse(result, '/api/integrations/jira', 'POST');
 
     const response = NextResponse.json({
       message: 'Integration saved successfully',
       integration: maskedResult
     });
 
-    return addRateLimitHeaders(response, request, jiraLimiterConfig);
+    const finalResponse = addRateLimitHeaders(response, 29, new Date(Date.now() + 60000).toISOString());
+    return finalResponse as NextResponse;
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

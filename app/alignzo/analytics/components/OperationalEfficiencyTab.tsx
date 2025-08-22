@@ -275,8 +275,8 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
 
       const result = await searchAllJiraIssues(credentials, jql);
       
-      if (result.success) {
-        setJiraIssues(result.data?.issues || []);
+      if (result && result.length > 0) {
+        setJiraIssues(result);
       }
     } catch (error) {
       console.error('Error loading JIRA data:', error);
@@ -455,7 +455,7 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
     // User efficiency breakdown
     const userEfficiency = Array.from(userHours.entries()).map(([userEmail, hoursLogged]) => {
       const userTickets = jiraIssues.filter(issue => 
-        issue.fields.assignee?.emailAddress === userEmail
+        issue.fields.assignee?.displayName === userEmail
       );
       const userClosedTickets = userTickets.filter(issue => {
         const status = issue.fields.status.name.toLowerCase();
