@@ -338,7 +338,7 @@ export class CSRFProtection {
         usedTokens: 0
       };
 
-      tokens.forEach(token => {
+      tokens.forEach((token: CSRFToken) => {
         if (token.used) {
           stats.usedTokens++;
         } else if (new Date(token.expires_at) < now) {

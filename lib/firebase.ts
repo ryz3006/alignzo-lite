@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { supabaseClient } from './supabase-client';
 
@@ -35,10 +35,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Google provider for authentication
-export const googleProvider = {
-  clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-  clientSecret: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET
-};
+export const googleProvider = new GoogleAuthProvider();
 
 // Firebase authentication wrapper
 export class FirebaseAuth {

@@ -453,8 +453,8 @@ export class ApiKeyManager {
 
       const stats = {
         totalKeys: keys.length,
-        activeKeys: keys.filter(k => k.is_active).length,
-        expiredKeys: keys.filter(k => k.expires_at && new Date(k.expires_at) < now).length,
+        activeKeys: keys.filter((k: ApiKey) => k.is_active).length,
+        expiredKeys: keys.filter((k: ApiKey) => k.expires_at && new Date(k.expires_at) < now).length,
         totalUsage: 0
       };
 

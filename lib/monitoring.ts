@@ -34,6 +34,15 @@ export interface Alert {
   resolved_at?: string;
 }
 
+export interface AuditLog {
+  id?: string;
+  metadata?: {
+    responseTime?: number;
+    [key: string]: any;
+  };
+  created_at?: string;
+}
+
 export class MonitoringManager {
   private static instance: MonitoringManager;
   private alertRules: AlertRule[] = [];
@@ -223,12 +232,12 @@ export class MonitoringManager {
       if (response.error || !response.data) return 0;
       
       const responseTimes = response.data
-        .map(log => log.metadata?.responseTime)
-        .filter(time => typeof time === 'number');
+        .map((log: AuditLog) => log.metadata?.responseTime)
+        .filter((time: any) => typeof time === 'number');
       
       if (responseTimes.length === 0) return 0;
       
-      const sum = responseTimes.reduce((acc, time) => acc + time, 0);
+      const sum = responseTimes.reduce((acc: number, time: number) => acc + time, 0);
       return sum / responseTimes.length;
     } catch (error) {
       console.error('Error getting average response time:', error);
@@ -306,16 +315,16 @@ export class MonitoringManager {
 
       if (response.error || !response.data) return;
 
-      const openAlerts = response.data;
+      const openAlerts = response.data as Alert[];
       
       // Process critical alerts first
-      const criticalAlerts = openAlerts.filter(alert => alert.severity === 'critical');
+      const criticalAlerts = openAlerts.filter((alert: Alert) => alert.severity === 'critical');
       for (const alert of criticalAlerts) {
         await this.processCriticalAlert(alert);
       }
 
       // Process high severity alerts
-      const highAlerts = openAlerts.filter(alert => alert.severity === 'high');
+      const highAlerts = openAlerts.filter((alert: Alert) => alert.severity === 'high');
       for (const alert of highAlerts) {
         await this.processHighAlert(alert);
       }

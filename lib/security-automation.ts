@@ -38,6 +38,15 @@ export interface SecurityEvent {
   status: 'open' | 'investigating' | 'resolved' | 'false_positive';
 }
 
+export interface APICall {
+  id?: string;
+  ip_address?: string;
+  user_email?: string;
+  endpoint?: string;
+  method?: string;
+  created_at?: string;
+}
+
 export class SecurityAutomationManager {
   private static instance: SecurityAutomationManager;
   private rules: SecurityRule[] = [];
@@ -223,11 +232,11 @@ export class SecurityAutomationManager {
 
       if (response.error || !response.data) return;
 
-      const apiCalls = response.data;
+      const apiCalls = response.data as APICall[];
       
       // Group by IP address
       const callsByIP: Record<string, number> = {};
-      apiCalls.forEach(call => {
+      apiCalls.forEach((call: APICall) => {
         const ip = call.ip_address || 'unknown';
         callsByIP[ip] = (callsByIP[ip] || 0) + 1;
       });
@@ -260,11 +269,11 @@ export class SecurityAutomationManager {
 
       if (response.error || !response.data) return;
 
-      const accessLogs = response.data;
+      const accessLogs = response.data as any[];
       
       // Group by user
       const accessByUser: Record<string, any[]> = {};
-      accessLogs.forEach(log => {
+      accessLogs.forEach((log: any) => {
         const user = log.user_email || 'anonymous';
         if (!accessByUser[user]) {
           accessByUser[user] = [];
