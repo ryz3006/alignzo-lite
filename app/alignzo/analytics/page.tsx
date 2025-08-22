@@ -113,16 +113,17 @@ export default function AnalyticsPage() {
       // Check JIRA integration
       try {
         const response = await supabaseClient.get('user_integrations', {
-          select: 'id',
+          select: 'id,is_verified',
           filters: { 
             user_email: currentUser.email,
-            integration_type: 'jira',
-            is_verified: true
+            integration_type: 'jira'
           }
         });
         
         if (response.data && response.data.length > 0) {
-          setJiraEnabled(true);
+          // Check if any integration is verified
+          const hasVerifiedIntegration = response.data.some((integration: any) => integration.is_verified);
+          setJiraEnabled(hasVerifiedIntegration);
         }
       } catch (error) {
         console.error('Error checking JIRA integration:', error);
