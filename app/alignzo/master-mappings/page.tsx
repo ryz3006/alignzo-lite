@@ -78,7 +78,7 @@ export default function MasterMappingsPage() {
     const currentSources = sources.length > 0 ? sources : await supabaseClient.getTicketSources().then(r => r.data || []);
     
     // Create a map of source_id to source name for manual joining
-    const sourceMap = new Map(currentSources.map(source => [source.id, source.name]));
+    const sourceMap = new Map(currentSources.map((source: any) => [source.id, source.name]));
     
     // Add source information to each mapping
     const mappingsWithSource = (response.data || []).map((mapping: any) => {
