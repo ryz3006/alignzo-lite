@@ -101,8 +101,30 @@ export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+// Date range utilities
+export function getTodayRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start, end };
+}
+
+export function getWeekRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+  return { start, end };
+}
+
+export function getMonthRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
 export function uniqueArray<T>(array: T[]): T[] {
-  return [...new Set(array)];
+  return Array.from(new Set(array));
 }
 
 export function sortByProperty<T>(array: T[], property: keyof T, ascending: boolean = true): T[] {
@@ -144,7 +166,7 @@ export function removeNullValues<T extends Record<string, any>>(obj: T): Partial
 export function pickProperties<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   const picked = {} as Pick<T, K>;
   keys.forEach(key => {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       picked[key] = obj[key];
     }
   });

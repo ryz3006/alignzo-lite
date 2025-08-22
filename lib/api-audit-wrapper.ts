@@ -486,3 +486,10 @@ export function withAdminAuditDynamic(eventType: AuditEventType) {
     return apiAuditWrapper.withAdminAudit(eventType, resourceType, description);
   };
 }
+
+// Jira-specific audit wrapper
+export function withJiraAudit(eventType: AuditEventType) {
+  return function(resourceType: string, description?: string) {
+    return apiAuditWrapper.withAudit(eventType, resourceType, description || `Jira ${eventType} operation`);
+  };
+}

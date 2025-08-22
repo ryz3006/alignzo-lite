@@ -237,3 +237,88 @@ export async function getJiraCredentials(userEmail: string): Promise<JiraCredent
 export async function verifyJiraCredentials(credentials: JiraCredentials): Promise<boolean> {
   return await jiraIntegration.verifyCredentials(credentials);
 }
+
+// Helper function to get Jira projects
+export async function getJiraProjects(userEmail: string): Promise<JiraProject[]> {
+  const credentials = await jiraIntegration.getCredentials(userEmail);
+  if (!credentials) {
+    throw new Error('Jira credentials not found');
+  }
+  return await jiraIntegration.getProjects(credentials);
+}
+
+// Helper function to get Jira users
+export async function getJiraUsers(userEmail: string): Promise<JiraUser[]> {
+  const credentials = await jiraIntegration.getCredentials(userEmail);
+  if (!credentials) {
+    throw new Error('Jira credentials not found');
+  }
+  return await jiraIntegration.getUsers(credentials);
+}
+
+// Helper function to search all Jira issues
+export async function searchAllJiraIssues(credentials: JiraCredentials, jql: string, maxResults: number = 100): Promise<any[]> {
+  try {
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Jira API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.issues || [];
+  } catch (error) {
+    console.error('Error searching all Jira issues:', error);
+    throw error;
+  }
+}
+
+// Helper function to create Jira issue
+export async function createJiraIssue(credentials: JiraCredentials, issueData: {
+  projectKey: string;
+  summary: string;
+  description: string;
+  issueType?: string;
+  priority?: string;
+}): Promise<any> {
+  return await jiraIntegration.createTicket(
+    credentials,
+    issueData.projectKey,
+    issueData.summary,
+    issueData.description,
+    issueData.issueType || 'Task',
+    issueData.priority || 'Medium'
+  );
+}
+
+// Helper function to search Jira issues
+export async function searchJiraIssues(credentials: JiraCredentials, jql: string, maxResults: number = 20): Promise<any[]> {
+  try {
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Jira API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.issues || [];
+  } catch (error) {
+    console.error('Error searching Jira issues:', error);
+    throw error;
+  }
+}
+
+// Helper function to search Jira issues enhanced
+export async function searchJiraIssuesEnhanced(credentials: JiraCredentials, projectKey: string, searchTerm: string, maxResults: number = 20): Promise<any[]> {
+  return await jiraIntegration.searchTickets(credentials, projectKey, searchTerm, maxResults);
+}

@@ -500,3 +500,31 @@ export async function resetPasswordWithToken(
 ): Promise<{ success: boolean; message: string }> {
   return await passwordManager.resetPasswordWithToken(token, newPassword);
 }
+
+// Helper function to verify admin credentials
+export async function verifyAdminCredentials(email: string, password: string): Promise<boolean> {
+  try {
+    // Get user from database
+    const response = await supabaseClient.get('users', {
+      select: 'password_hash,role',
+      filters: { email }
+    });
+
+    if (response.error || !response.data || response.data.length === 0) {
+      return false;
+    }
+
+    const user = response.data[0];
+    
+    // Check if user is admin
+    if (user.role !== 'admin') {
+      return false;
+    }
+
+    // Verify password
+    return await passwordManager.verifyPassword(password, user.password_hash);
+  } catch (error) {
+    console.error('Error verifying admin credentials:', error);
+    return false;
+  }
+}

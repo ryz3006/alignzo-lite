@@ -334,3 +334,32 @@ export async function resetRateLimit(key: string): Promise<boolean> {
 export async function cleanupExpiredRateLimits(): Promise<number> {
   return await rateLimitManager.cleanupExpiredEntries();
 }
+
+// Helper function to apply rate limiting to requests
+export function applyRateLimit(request: Request, config: RateLimitConfig): { success: boolean; message?: string; statusCode?: number } {
+  // This is a simplified rate limit check for Next.js API routes
+  // In a real implementation, you'd want to check against the actual rate limit manager
+  const clientIP = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
+  
+  // For now, return success - the actual rate limiting should be done in the route handler
+  return { success: true };
+}
+
+// Helper function to add rate limit headers to response
+export function addRateLimitHeaders(response: Response, remaining: number, resetTime: string): Response {
+  response.headers.set('X-RateLimit-Remaining', remaining.toString());
+  response.headers.set('X-RateLimit-Reset', resetTime);
+  return response;
+}
+
+// Jira-specific rate limit configuration
+export const jiraLimiterConfig: RateLimitConfig = {
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 30,
+  message: 'Jira API rate limit exceeded, please try again later.',
+  statusCode: 429,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false
+};

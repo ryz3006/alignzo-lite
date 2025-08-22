@@ -297,7 +297,7 @@ export class Logger {
     ipAddress?: string,
     userAgent?: string,
     endpoint?: string,
-    severity: 'low' | 'medium' | 'high' | 'critical'
+    severity?: 'low' | 'medium' | 'high' | 'critical'
   ): Promise<void> {
     try {
       const securityLogEntry: Omit<SecurityLogEntry, 'id'> = {
@@ -306,7 +306,7 @@ export class Logger {
         ip_address: ipAddress,
         user_agent: userAgent,
         description: `Security event: ${eventType}`,
-        severity,
+        severity: severity || this.getSecurityEventSeverity(eventType),
         metadata,
         timestamp: new Date().toISOString(),
         resolved: false
@@ -470,7 +470,35 @@ export async function logUserAction(
 export async function logSecurityEvent(
   eventType: SecurityEventType,
   metadata: any,
-  userEmail?: string
+  userEmail?: string,
+  ipAddress?: string,
+  userAgent?: string,
+  endpoint?: string
 ): Promise<void> {
-  await logger.logSecurityEvent(eventType, metadata, userEmail);
+  await logger.logSecurityEvent(eventType, metadata, userEmail, ipAddress, userAgent, endpoint);
+}
+
+// Helper function to log authentication attempts
+export async function logAuthAttempt(
+  email: string,
+  success: boolean,
+  request: Request,
+  metadata?: any
+): Promise<void> {
+  const ipAddress = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+  const endpoint = new URL(request.url).pathname;
+
+  const eventType = success ? SecurityEventType.LOGIN_SUCCESS : SecurityEventType.LOGIN_FAILURE;
+  
+  await logger.logSecurityEvent(eventType, {
+    email,
+    success,
+    ipAddress,
+    userAgent,
+    endpoint,
+    ...metadata
+  }, email, ipAddress, userAgent, endpoint);
 }

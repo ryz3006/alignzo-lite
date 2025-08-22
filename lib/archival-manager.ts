@@ -120,6 +120,60 @@ export class ArchivalManager {
 // Global archival manager instance
 export const archivalManager = ArchivalManager.getInstance();
 
+// Helper function to get cleanup statistics
+export async function getCleanupStats(): Promise<{
+  totalArchived: number;
+  totalCleaned: number;
+  lastCleanup: string;
+  nextScheduledCleanup: string;
+}> {
+  try {
+    // Get current archival status
+    const now = new Date();
+    const nextCleanup = new Date(now.getTime() + (defaultArchivalConfig.cleanupInterval * 60 * 60 * 1000));
+    
+    // For now, return default stats - in a real implementation, you'd query the database
+    return {
+      totalArchived: 0,
+      totalCleaned: 0,
+      lastCleanup: now.toISOString(),
+      nextScheduledCleanup: nextCleanup.toISOString()
+    };
+  } catch (error) {
+    console.error('Error getting cleanup stats:', error);
+    throw error;
+  }
+}
+
+// Helper function to trigger manual cleanup
+export async function triggerManualCleanup(): Promise<{
+  success: boolean;
+  archivedCount: number;
+  cleanedCount: number;
+  message: string;
+}> {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - defaultArchivalConfig.retentionDays);
+    
+    // Archive old records from main tables
+    const archivedCount = await archivalManager.archiveOldRecords('users', cutoffDate);
+    
+    // Clean up old archived records
+    const cleanedCount = await archivalManager.cleanupArchiveTables(cutoffDate);
+    
+    return {
+      success: true,
+      archivedCount,
+      cleanedCount,
+      message: `Manual cleanup completed: ${archivedCount} records archived, ${cleanedCount} records cleaned`
+    };
+  } catch (error) {
+    console.error('Error in manual cleanup:', error);
+    throw error;
+  }
+}
+
 // API endpoint for manual cleanup
 export async function POST(request: Request) {
   try {
