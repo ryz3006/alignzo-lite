@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJiraCredentials, createJiraIssue } from '@/lib/jira';
+import { getJiraCredentials, createJiraIssue, getJiraUsernameForUser } from '@/lib/jira';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,20 +29,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Creating JIRA ticket in project: ${projectKey} assigned to integration user: ${credentials.user_email_integration}`);
+    // Get JIRA username for the logged-in user
+    const jiraUsername = await getJiraUsernameForUser(userEmail, projectKey);
+    
+    console.log(`Creating JIRA ticket in project: ${projectKey} for user: ${userEmail}`);
+    console.log(`JIRA username for assignment: ${jiraUsername || 'Not found - will use integration user'}`);
     console.log('JIRA credentials:', {
       base_url: credentials.base_url,
       user_email_integration: credentials.user_email_integration,
       hasApiToken: !!credentials.api_token
     });
 
-    // Use enhanced create issue function with integration user as assignee
+    // Use enhanced create issue function with user assignment
     const result = await createJiraIssue(credentials, {
       projectKey,
       summary,
       description,
       issueType,
-      priority
+      priority,
+      assignee: jiraUsername || undefined
     });
 
     if (!result.success) {
@@ -77,7 +82,8 @@ export async function POST(request: NextRequest) {
     }
 
     const ticket = result.data;
-    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to: ${credentials.user_email_integration}`);
+    const assignedTo = jiraUsername || credentials.user_email_integration;
+    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to: ${assignedTo}`);
     
     return NextResponse.json({
       success: true,
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
         key: ticket?.key,
         id: ticket?.id
       },
-      message: `JIRA ticket ${ticket?.key} created successfully! Please update the ticket in JIRA for closure or reassignments.`,
+      message: `JIRA ticket ${ticket?.key} created successfully and assigned to ${assignedTo}! Please update the ticket in JIRA for closure or reassignments.`,
       rateLimitInfo: result.rateLimitInfo
     });
 

@@ -229,7 +229,8 @@ export class JiraIntegration {
     summary: string,
     description: string,
     issueType: string = 'Task',
-    priority: string = 'Medium'
+    priority: string = 'Medium',
+    assignee?: string
   ): Promise<any> {
     try {
       // Convert plain text description to Atlassian Document Format (ADF)
@@ -262,7 +263,8 @@ export class JiraIntegration {
             summary: summary,
             description: adfDescription,
             issuetype: { name: issueType },
-            priority: { name: priority }
+            priority: { name: priority },
+            ...(assignee && { assignee: { name: assignee } })
           }
         })
       });
@@ -358,6 +360,45 @@ export async function searchAllJiraIssues(credentials: JiraCredentials, jql: str
   }
 }
 
+// Helper function to get JIRA username for a user from mappings
+export async function getJiraUsernameForUser(userEmail: string, projectKey?: string): Promise<string | null> {
+  try {
+    const response = await supabaseClient.get('jira_user_mappings', {
+      select: 'jira_assignee_name',
+      filters: { 
+        user_email: userEmail,
+        ...(projectKey && { jira_project_key: projectKey })
+      }
+    });
+
+    if (response.error) {
+      console.error('Error fetching JIRA username for user:', response.error);
+      return null;
+    }
+
+    const mappings = response.data || [];
+    
+    // If no project-specific mapping found, try to find any mapping for this user
+    if (mappings.length === 0 && projectKey) {
+      const fallbackResponse = await supabaseClient.get('jira_user_mappings', {
+        select: 'jira_assignee_name',
+        filters: { 
+          user_email: userEmail
+        }
+      });
+
+      if (fallbackResponse.data && fallbackResponse.data.length > 0) {
+        return fallbackResponse.data[0].jira_assignee_name;
+      }
+    }
+
+    return mappings.length > 0 ? mappings[0].jira_assignee_name : null;
+  } catch (error) {
+    console.error('Error getting JIRA username for user:', error);
+    return null;
+  }
+}
+
 // Helper function to create Jira issue
 export async function createJiraIssue(credentials: JiraCredentials, issueData: {
   projectKey: string;
@@ -365,6 +406,7 @@ export async function createJiraIssue(credentials: JiraCredentials, issueData: {
   description: string;
   issueType?: string;
   priority?: string;
+  assignee?: string;
 }): Promise<{success: boolean; data?: any; error?: string; details?: string; rateLimitInfo?: any}> {
   try {
     const result = await jiraIntegration.createTicket(
@@ -373,7 +415,8 @@ export async function createJiraIssue(credentials: JiraCredentials, issueData: {
       issueData.summary,
       issueData.description,
       issueData.issueType || 'Task',
-      issueData.priority || 'Medium'
+      issueData.priority || 'Medium',
+      issueData.assignee
     );
 
     return {
