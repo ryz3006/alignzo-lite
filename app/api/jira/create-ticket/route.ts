@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get JIRA username for the logged-in user
-    const jiraUsername = await getJiraUsernameForUser(userEmail, projectKey);
+    // Get JIRA username for the logged-in user using multiple strategies
+    const jiraUsername = await getJiraUsernameForUser(userEmail, projectKey, credentials);
     
     console.log(`Creating JIRA ticket in project: ${projectKey} for user: ${userEmail}`);
     console.log(`JIRA username for assignment: ${jiraUsername || 'Not found - will use integration user'}`);

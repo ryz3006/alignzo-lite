@@ -360,9 +360,134 @@ export async function searchAllJiraIssues(credentials: JiraCredentials, jql: str
   }
 }
 
-// Helper function to get JIRA username for a user from mappings
-export async function getJiraUsernameForUser(userEmail: string, projectKey?: string): Promise<string | null> {
+// Helper function to get JIRA username from master mappings
+export async function getJiraUsernameFromMasterMappings(userEmail: string): Promise<string | null> {
   try {
+    // First, get the JIRA source ID
+    const jiraSourceResponse = await supabaseClient.get('ticket_sources', {
+      select: 'id',
+      filters: { 
+        name: 'JIRA'
+      }
+    });
+
+    if (!jiraSourceResponse.data || jiraSourceResponse.data.length === 0) {
+      console.error('JIRA source not found in ticket_sources table');
+      return null;
+    }
+
+    const jiraSourceId = jiraSourceResponse.data[0].id;
+
+    // Get the master mapping for this user and JIRA source
+    const masterMappingResponse = await supabaseClient.get('ticket_master_mappings', {
+      select: 'source_assignee_value',
+      filters: { 
+        mapped_user_email: userEmail,
+        source_id: jiraSourceId,
+        is_active: true
+      }
+    });
+
+    if (masterMappingResponse.error) {
+      console.error('Error fetching master mapping:', masterMappingResponse.error);
+      return null;
+    }
+
+    const mappings = masterMappingResponse.data || [];
+    
+    if (mappings.length === 0) {
+      console.log(`No master mapping found for user: ${userEmail} and JIRA source`);
+      return null;
+    }
+
+    const sourceAssigneeValue = mappings[0].source_assignee_value;
+    console.log(`Found master mapping for ${userEmail}: ${sourceAssigneeValue}`);
+    
+    return sourceAssigneeValue;
+  } catch (error) {
+    console.error('Error getting JIRA username from master mappings:', error);
+    return null;
+  }
+}
+
+// Helper function to get JIRA username by querying JIRA directly
+export async function getJiraUsernameFromJira(userEmail: string, credentials: JiraCredentials): Promise<string | null> {
+  try {
+    console.log(`Querying JIRA for user with email: ${userEmail}`);
+    
+    // Search for users in JIRA by email
+    const response = await fetch(`${credentials.base_url}/rest/api/3/user/search?query=${encodeURIComponent(userEmail)}`, {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`JIRA user search failed: ${response.status}`);
+      return null;
+    }
+
+    const users = await response.json();
+    console.log(`Found ${users.length} users in JIRA for email: ${userEmail}`);
+
+    if (users.length === 0) {
+      console.log(`No users found in JIRA for email: ${userEmail}`);
+      return null;
+    }
+
+    // Find the user that matches the email
+    const matchingUser = users.find((user: any) => 
+      user.emailAddress?.toLowerCase() === userEmail.toLowerCase() ||
+      user.emailAddress?.toLowerCase().includes(userEmail.toLowerCase())
+    );
+
+    if (matchingUser) {
+      const username = matchingUser.name || matchingUser.accountId;
+      console.log(`Found matching user in JIRA: ${username} (${matchingUser.displayName})`);
+      return username;
+    }
+
+    // If no exact match, try to find by display name or username
+    const partialMatch = users.find((user: any) => 
+      user.displayName?.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
+      user.name?.toLowerCase().includes(userEmail.split('@')[0].toLowerCase())
+    );
+
+    if (partialMatch) {
+      const username = partialMatch.name || partialMatch.accountId;
+      console.log(`Found partial match in JIRA: ${username} (${partialMatch.displayName})`);
+      return username;
+    }
+
+    console.log('No matching user found in JIRA');
+    return null;
+  } catch (error) {
+    console.error('Error querying JIRA for user:', error);
+    return null;
+  }
+}
+
+// Enhanced function to get JIRA username with multiple fallback strategies
+export async function getJiraUsernameForUser(userEmail: string, projectKey?: string, credentials?: JiraCredentials): Promise<string | null> {
+  try {
+    // Strategy 1: Get from master mappings (new approach)
+    const masterMappingUsername = await getJiraUsernameFromMasterMappings(userEmail);
+    if (masterMappingUsername) {
+      console.log(`Using master mapping username: ${masterMappingUsername}`);
+      return masterMappingUsername;
+    }
+
+    // Strategy 2: Query JIRA directly (if credentials provided)
+    if (credentials) {
+      const jiraUsername = await getJiraUsernameFromJira(userEmail, credentials);
+      if (jiraUsername) {
+        console.log(`Using JIRA query username: ${jiraUsername}`);
+        return jiraUsername;
+      }
+    }
+
+    // Strategy 3: Fallback to existing user mappings approach
     const response = await supabaseClient.get('jira_user_mappings', {
       select: 'jira_assignee_name',
       filters: { 
