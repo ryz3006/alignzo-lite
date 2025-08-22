@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/lib/supabase-client';
 import { Timer, Project } from '@/lib/supabase';
 import { useTimer } from './TimerContext';
-import { X, Play, Pause, Square, Clock } from 'lucide-react';
+import { X, Play, Pause, Square, Clock, Timer as TimerIcon, AlertCircle } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 interface TimerManagementModalProps {
@@ -71,107 +71,160 @@ export default function TimerManagementModal({ isOpen, onClose }: TimerManagemen
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Active Timers</h3>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content max-w-4xl" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
+              <TimerIcon className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">
+                Active Timers
+              </h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                Manage your running timers
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {activeTimers.length === 0 ? (
-          <div className="text-center py-8">
-            <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <p className="text-gray-500">No active timers</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {activeTimers.map((timer) => (
-              <div key={timer.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">
-                      {getProjectName(timer.project_id)}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Ticket: {timer.ticket_id}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {timer.task_detail}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Started: {formatDateTime(timer.start_time)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-mono text-gray-900">
-                      {timerDurations[timer.id] || '00:00:00'}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {timer.is_paused ? 'Paused' : 'Running'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex space-x-2">
-                  {timer.is_paused ? (
-                    <button
-                      onClick={() => handleResume(timer.id)}
-                      className="flex items-center px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                    >
-                      <Play className="h-3 w-3 mr-1" />
-                      Resume
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handlePause(timer.id)}
-                      className="flex items-center px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700"
-                    >
-                      <Pause className="h-3 w-3 mr-1" />
-                      Pause
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleStop(timer.id)}
-                    className="flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    <Square className="h-3 w-3 mr-1" />
-                    Stop
-                  </button>
-                </div>
-
-                {/* Dynamic Categories Display */}
-                {Object.keys(timer.dynamic_category_selections || {}).length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="text-xs text-gray-500 mb-1">Categories:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(timer.dynamic_category_selections || {}).map(([key, value]) => (
-                        <span
-                          key={key}
-                          className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded"
-                        >
-                          {key}: {value}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        {/* Content */}
+        <div className="p-6">
+          {activeTimers.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Clock className="h-8 w-8 text-neutral-400" />
               </div>
-            ))}
-          </div>
-        )}
+              <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+                No Active Timers
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                Start a timer to track your work progress
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activeTimers.map((timer) => (
+                <div key={timer.id} className="card border border-neutral-200 dark:border-neutral-700">
+                  <div className="p-6">
+                    {/* Timer Header */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                            {getProjectName(timer.project_id)}
+                          </h4>
+                          {timer.is_paused && (
+                            <span className="badge badge-warning">
+                              Paused
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            <span className="font-medium">Ticket:</span> {timer.ticket_id}
+                          </p>
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            {timer.task_detail}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-500">
+                            Started: {formatDateTime(timer.start_time)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Timer Display */}
+                      <div className="text-right">
+                        <div className="text-2xl font-mono font-bold text-primary-600 dark:text-primary-400 mb-1">
+                          {timerDurations[timer.id] || '00:00:00'}
+                        </div>
+                        <div className="flex items-center justify-end space-x-1">
+                          <div className={`w-2 h-2 rounded-full ${timer.is_paused ? 'bg-warning-500' : 'bg-success-500 animate-pulse'}`}></div>
+                          <span className="text-xs text-neutral-500 dark:text-neutral-500">
+                            {timer.is_paused ? 'Paused' : 'Running'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-          >
-            Close
-          </button>
+                    {/* Action Buttons */}
+                    <div className="flex items-center space-x-3 mb-4">
+                      {timer.is_paused ? (
+                        <button
+                          onClick={() => handleResume(timer.id)}
+                          className="btn-success flex items-center space-x-2"
+                        >
+                          <Play className="h-4 w-4" />
+                          <span>Resume</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePause(timer.id)}
+                          className="btn-warning flex items-center space-x-2"
+                        >
+                          <Pause className="h-4 w-4" />
+                          <span>Pause</span>
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => handleStop(timer.id)}
+                        className="btn-danger flex items-center space-x-2"
+                      >
+                        <Square className="h-4 w-4" />
+                        <span>Stop</span>
+                      </button>
+                    </div>
+
+                    {/* Dynamic Categories Display */}
+                    {Object.keys(timer.dynamic_category_selections || {}).length > 0 && (
+                      <div className="pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <AlertCircle className="h-4 w-4 text-neutral-500" />
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                            Categories
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(timer.dynamic_category_selections || {}).map(([key, value]) => (
+                            <span
+                              key={key}
+                              className="inline-flex items-center px-3 py-1 text-xs font-medium bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 rounded-full"
+                            >
+                              {key}: {value}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t border-neutral-200 dark:border-neutral-700">
+          <div className="text-sm text-neutral-500 dark:text-neutral-400">
+            {activeTimers.length} active timer{activeTimers.length !== 1 ? 's' : ''}
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onClose}
+              className="btn-secondary"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

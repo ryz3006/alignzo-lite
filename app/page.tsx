@@ -156,14 +156,14 @@ export default function HomePage() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <button
-                  onClick={handleGoogleSignIn}
+                <Link
+                  href="#login"
                   className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
                 >
                   <Chrome className="h-5 w-5" />
-                  <span>Get Started with Google</span>
+                  <span>Get Started Now</span>
                   <ArrowRight className="h-5 w-5" />
-                </button>
+                </Link>
                 
                 <Link
                   href="/admin/login"
@@ -174,8 +174,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right Column - Login Card */}
-            <div className="card max-w-md mx-auto lg:mx-0">
+                         {/* Right Column - Login Card */}
+             <div id="login" className="card max-w-md mx-auto lg:mx-0">
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Shield className="h-8 w-8 text-primary-600" />
