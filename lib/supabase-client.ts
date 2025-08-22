@@ -27,30 +27,112 @@ class SupabaseClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = '/api/supabase-proxy';
+    // Use absolute URL in server environment, relative URL in browser
+    if (typeof window === 'undefined') {
+      // Server environment - use environment variable or default
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}/api/supabase-proxy`
+        : 'http://localhost:3000/api/supabase-proxy';
+      this.baseUrl = baseUrl;
+    } else {
+      // Browser environment - use relative URL
+      this.baseUrl = '/api/supabase-proxy';
+    }
   }
 
   async query<T = any>(query: SupabaseQuery): Promise<SupabaseResponse<T>> {
     try {
-      // Check if we're in a browser environment and test the configuration
-      if (typeof window !== 'undefined') {
-        try {
-          const testResponse = await fetch('/api/test-env');
-          if (testResponse.ok) {
-            const testData = await testResponse.json();
-            if (testData.environment?.supabaseUrl === 'Not Set') {
-              console.warn('Supabase environment variables not configured. Database operations will not work.');
-              return {
-                data: [] as T,
-                error: 'Database not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.'
-              };
+      // In server environment, use direct Supabase client
+      if (typeof window === 'undefined') {
+        const { createClient } = require('@supabase/supabase-js');
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error('Supabase environment variables not configured');
+        }
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        // Handle different query types
+        switch (query.action) {
+          case 'select':
+            let supabaseQuery = supabase.from(query.table).select(query.select || '*');
+            
+            // Apply filters
+            if (query.filters) {
+              Object.entries(query.filters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                  if (key.endsWith('_gte')) {
+                    const column = key.replace('_gte', '');
+                    supabaseQuery = supabaseQuery.gte(column, value);
+                  } else if (key.endsWith('_lte')) {
+                    const column = key.replace('_lte', '');
+                    supabaseQuery = supabaseQuery.lte(column, value);
+                  } else {
+                    supabaseQuery = supabaseQuery.eq(key, value);
+                  }
+                }
+              });
             }
-          }
-        } catch (testError) {
-          console.warn('Unable to test environment configuration:', testError);
+            
+            // Apply ordering
+            if (query.order) {
+              supabaseQuery = supabaseQuery.order(query.order.column, { ascending: query.order.ascending !== false });
+            }
+            
+            // Apply pagination
+            if (query.limit) {
+              supabaseQuery = supabaseQuery.limit(query.limit);
+            }
+            if (query.offset) {
+              supabaseQuery = supabaseQuery.range(query.offset, query.offset + (query.limit || 10) - 1);
+            }
+            
+            const result = await supabaseQuery;
+            
+            if (result.error) {
+              throw new Error(result.error.message);
+            }
+            
+            return {
+              data: result.data || [],
+              count: result.count
+            };
+            
+          case 'insert':
+            const insertResult = await supabase.from(query.table).insert(query.data);
+            if (insertResult.error) {
+              throw new Error(insertResult.error.message);
+            }
+            return {
+              data: insertResult.data || []
+            };
+            
+          case 'update':
+            const updateResult = await supabase.from(query.table).update(query.data).eq('id', query.filters?.id);
+            if (updateResult.error) {
+              throw new Error(updateResult.error.message);
+            }
+            return {
+              data: updateResult.data || []
+            };
+            
+          case 'delete':
+            const deleteResult = await supabase.from(query.table).delete().eq('id', query.filters?.id);
+            if (deleteResult.error) {
+              throw new Error(deleteResult.error.message);
+            }
+            return {
+              data: deleteResult.data || []
+            };
+            
+          default:
+            throw new Error(`Unsupported action: ${query.action}`);
         }
       }
 
+      // In browser environment, use the proxy
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
