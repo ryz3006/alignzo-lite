@@ -13,9 +13,20 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
   }
 
   try {
-    // Check admin authentication
-    const userEmail = extractUserEmail(request);
-    const isAdmin = await isAdminUserServer(userEmail);
+    // Check admin authentication via session or header
+    const adminEmail = request.headers.get('x-admin-email') || 
+                      request.headers.get('x-user-email') ||
+                      extractUserEmail(request);
+    
+    if (!adminEmail || adminEmail === 'anonymous') {
+      return NextResponse.json(
+        { error: 'Admin authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Verify admin credentials
+    const isAdmin = await isAdminUserServer(adminEmail);
     
     if (!isAdmin) {
       return NextResponse.json(
@@ -82,7 +93,7 @@ export const GET = withAdminAudit(AuditEventType.READ)(async (request: NextReque
     } else if (acknowledged === 'acknowledged') {
       countQuery = countQuery.eq('acknowledged', true);
     } else if (acknowledged === 'resolved') {
-      countQuery = countQuery.eq('resolved', true);
+      countQuery = countQuery.eq('acknowledged', true);
     }
     if (dateFrom) {
       countQuery = countQuery.gte('created_at', dateFrom);

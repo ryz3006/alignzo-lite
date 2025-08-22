@@ -16,9 +16,20 @@ export const POST = withAdminAuditDynamic(AuditEventType.UPDATE)(async (
   }
 
   try {
-    // Check admin authentication
-    const userEmail = extractUserEmail(request);
-    const isAdmin = await isAdminUserServer(userEmail);
+    // Check admin authentication via session or header
+    const adminEmail = request.headers.get('x-admin-email') || 
+                      request.headers.get('x-user-email') ||
+                      extractUserEmail(request);
+    
+    if (!adminEmail || adminEmail === 'anonymous') {
+      return NextResponse.json(
+        { error: 'Admin authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Verify admin credentials
+    const isAdmin = await isAdminUserServer(adminEmail);
     
     if (!isAdmin) {
       return NextResponse.json(
@@ -34,7 +45,7 @@ export const POST = withAdminAuditDynamic(AuditEventType.UPDATE)(async (
       .from('security_alerts')
       .update({
         acknowledged: true,
-        acknowledged_by: userEmail,
+        acknowledged_by: adminEmail,
         acknowledged_at: new Date().toISOString(),
       })
       .eq('id', alertId)

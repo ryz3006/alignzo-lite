@@ -5,7 +5,9 @@ import { supabase } from './supabase';
 export async function signInWithGoogle() {
   try {
     if (!auth || !googleProvider) {
-      throw new Error('Firebase not initialized');
+      const error = new Error('Firebase not initialized. Please check your environment configuration.');
+      console.error('Firebase authentication error:', error);
+      throw error;
     }
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;

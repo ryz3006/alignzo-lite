@@ -118,7 +118,24 @@ export default function AuditTrailPage() {
           ),
         });
 
-        const response = await fetch(`/api/admin/security-alerts?${params}`);
+        // Get admin session for authentication
+        const adminSession = localStorage.getItem('admin_session');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (adminSession) {
+          try {
+            const session = JSON.parse(adminSession);
+            headers['X-Admin-Email'] = session.email;
+          } catch (error) {
+            console.error('Error parsing admin session:', error);
+          }
+        }
+
+        const response = await fetch(`/api/admin/security-alerts?${params}`, {
+          headers
+        });
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -144,8 +161,24 @@ export default function AuditTrailPage() {
 
   const handleAcknowledgeAlert = async (alertId: string) => {
     try {
+      // Get admin session for authentication
+      const adminSession = localStorage.getItem('admin_session');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (adminSession) {
+        try {
+          const session = JSON.parse(adminSession);
+          headers['X-Admin-Email'] = session.email;
+        } catch (error) {
+          console.error('Error parsing admin session:', error);
+        }
+      }
+
       const response = await fetch(`/api/admin/security-alerts/${alertId}/acknowledge`, {
         method: 'POST',
+        headers
       });
       
       if (response.ok) {
@@ -161,8 +194,24 @@ export default function AuditTrailPage() {
 
   const handleResolveAlert = async (alertId: string) => {
     try {
+      // Get admin session for authentication
+      const adminSession = localStorage.getItem('admin_session');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (adminSession) {
+        try {
+          const session = JSON.parse(adminSession);
+          headers['X-Admin-Email'] = session.email;
+        } catch (error) {
+          console.error('Error parsing admin session:', error);
+        }
+      }
+
       const response = await fetch(`/api/admin/security-alerts/${alertId}/resolve`, {
         method: 'POST',
+        headers
       });
       
       if (response.ok) {
@@ -185,8 +234,25 @@ export default function AuditTrailPage() {
         ),
       });
 
+      // Get admin session for authentication
+      const adminSession = localStorage.getItem('admin_session');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (adminSession) {
+        try {
+          const session = JSON.parse(adminSession);
+          headers['X-Admin-Email'] = session.email;
+        } catch (error) {
+          console.error('Error parsing admin session:', error);
+        }
+      }
+
       const endpoint = activeTab === 'audit' ? '/api/admin/audit-trail/export' : '/api/admin/security-alerts/export';
-      const response = await fetch(`${endpoint}?${params}`);
+      const response = await fetch(`${endpoint}?${params}`, {
+        headers
+      });
       
       if (response.ok) {
         const blob = await response.blob();
