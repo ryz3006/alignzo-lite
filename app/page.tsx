@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, signInWithGoogle, checkUserAccess, signOutUser } from '@/lib/auth';
 import { User } from 'firebase/auth';
-import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3 } from 'lucide-react';
+import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -71,7 +71,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
         <div className="text-center">
           <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
           <p className="text-neutral-600 font-medium">Loading...</p>
@@ -82,7 +82,7 @@ export default function HomePage() {
 
   if (accessDenied) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
         <div className="max-w-md w-full mx-4">
           <div className="card text-center">
             <div className="w-16 h-16 bg-danger-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -119,36 +119,72 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-      {/* Header */}
-      <header className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-600 to-primary-800 transform -skew-y-6 origin-top-left"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-6">
-              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-16 w-auto" />
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Welcome to Alignzo
-            </h1>
-            <p className="text-xl text-primary-100 max-w-2xl mx-auto">
-              Professional work log tracking and productivity monitoring platform
-            </p>
+      {/* Navigation */}
+      <nav className="absolute top-0 left-0 right-0 z-10 p-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+            <span className="text-xl font-bold text-neutral-900">Alignzo</span>
+          </div>
+          <div className="hidden md:flex items-center space-x-6">
+            <a href="#features" className="text-neutral-600 hover:text-neutral-900 transition-colors">Features</a>
+            <a href="#about" className="text-neutral-600 hover:text-neutral-900 transition-colors">About</a>
           </div>
         </div>
-      </header>
+      </nav>
 
-      {/* Main Content */}
-      <main className="relative -mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-            {/* Login Section */}
+      {/* Hero Section */}
+      <section className="relative pt-24 pb-16 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left Column - Content */}
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Professional Work Tracking Platform
+              </div>
+              
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-6 leading-tight">
+                Welcome to{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-800">
+                  Alignzo
+                </span>
+              </h1>
+              
+              <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto lg:mx-0">
+                Professional work log tracking and productivity monitoring platform designed for modern teams.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <button
+                  onClick={handleGoogleSignIn}
+                  className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
+                >
+                  <Chrome className="h-5 w-5" />
+                  <span>Get Started with Google</span>
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+                
+                <Link
+                  href="/admin/login"
+                  className="btn-secondary text-lg px-8 py-4"
+                >
+                  Admin Access
+                </Link>
+              </div>
+            </div>
+
+            {/* Right Column - Login Card */}
             <div className="card max-w-md mx-auto lg:mx-0">
               <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Shield className="h-8 w-8 text-primary-600" />
+                </div>
                 <h2 className="text-2xl font-bold text-neutral-900 mb-2">
-                  Sign In to Your Account
+                  Sign In to Your Workspace
                 </h2>
                 <p className="text-neutral-600">
-                  Access your workspace and start tracking your productivity
+                  Access your productivity dashboard and start tracking
                 </p>
               </div>
 
@@ -184,104 +220,93 @@ export default function HomePage() {
                 <div className="flex items-start space-x-3">
                   <Shield className="h-5 w-5 text-primary-600 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-primary-700">
-                    <p className="font-medium mb-1">Secure Authentication</p>
-                    <p>Your data is protected with enterprise-grade security measures.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Features Section */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-neutral-900 mb-6">
-                  Everything you need for productive work tracking
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="card card-hover">
-                  <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-4">
-                    <Clock className="h-6 w-6 text-primary-600" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-neutral-900 mb-2">
-                    Time Tracking
-                  </h4>
-                  <p className="text-neutral-600 text-sm">
-                    Track your work hours with precision using our intuitive timer system.
-                  </p>
-                </div>
-
-                <div className="card card-hover">
-                  <div className="w-12 h-12 bg-success-100 rounded-xl flex items-center justify-center mb-4">
-                    <BarChart3 className="h-6 w-6 text-success-600" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-neutral-900 mb-2">
-                    Analytics & Reports
-                  </h4>
-                  <p className="text-neutral-600 text-sm">
-                    Get detailed insights into your productivity patterns and project performance.
-                  </p>
-                </div>
-
-                <div className="card card-hover">
-                  <div className="w-12 h-12 bg-warning-100 rounded-xl flex items-center justify-center mb-4">
-                    <Users className="h-6 w-6 text-warning-600" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-neutral-900 mb-2">
-                    Team Management
-                  </h4>
-                  <p className="text-neutral-600 text-sm">
-                    Manage team schedules, shifts, and availability in one centralized platform.
-                  </p>
-                </div>
-
-                <div className="card card-hover">
-                  <div className="w-12 h-12 bg-danger-100 rounded-xl flex items-center justify-center mb-4">
-                    <TrendingUp className="h-6 w-6 text-danger-600" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-neutral-900 mb-2">
-                    Performance Insights
-                  </h4>
-                  <p className="text-neutral-600 text-sm">
-                    Monitor productivity trends and identify areas for improvement.
-                  </p>
-                </div>
-              </div>
-
-              <div className="card bg-gradient-to-r from-primary-600 to-primary-700 text-white">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                    <Shield className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-semibold mb-1">
-                      Enterprise Security
-                    </h4>
-                    <p className="text-primary-100 text-sm">
-                      Bank-level security with role-based access controls and audit trails.
-                    </p>
+                    <p className="font-medium mb-1">Enterprise Security</p>
+                    <p>Your data is protected with bank-level security measures.</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-16 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
+              Everything you need for productive work tracking
+            </h2>
+            <p className="text-xl text-neutral-600 max-w-3xl mx-auto">
+              Comprehensive tools designed to help teams track time, manage projects, and boost productivity
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="card card-hover text-center">
+              <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Clock className="h-8 w-8 text-primary-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+                Time Tracking
+              </h3>
+              <p className="text-neutral-600">
+                Track your work hours with precision using our intuitive timer system and detailed analytics.
+              </p>
+            </div>
+
+            <div className="card card-hover text-center">
+              <div className="w-16 h-16 bg-success-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <BarChart3 className="h-8 w-8 text-success-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+                Analytics & Reports
+              </h3>
+              <p className="text-neutral-600">
+                Get detailed insights into your productivity patterns and project performance metrics.
+              </p>
+            </div>
+
+            <div className="card card-hover text-center">
+              <div className="w-16 h-16 bg-warning-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Users className="h-8 w-8 text-warning-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+                Team Management
+              </h3>
+              <p className="text-neutral-600">
+                Manage team schedules, shifts, and availability in one centralized platform.
+              </p>
+            </div>
+
+            <div className="card card-hover text-center">
+              <div className="w-16 h-16 bg-danger-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <TrendingUp className="h-8 w-8 text-danger-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-900 mb-3">
+                Performance Insights
+              </h3>
+              <p className="text-neutral-600">
+                Monitor productivity trends and identify areas for improvement with actionable insights.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="mt-16 bg-neutral-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <footer className="bg-neutral-900 text-white py-12">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
-            <div className="flex items-center justify-center space-x-3 mb-4">
+            <div className="flex items-center justify-center space-x-3 mb-6">
               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
               <span className="text-xl font-bold">Alignzo</span>
             </div>
-            <p className="text-neutral-400 mb-6">
+            <p className="text-neutral-400 mb-8 max-w-2xl mx-auto">
               Professional work log tracking and productivity monitoring platform designed for modern teams.
             </p>
             
-            <div className="flex justify-center space-x-6 mb-6">
+            <div className="flex justify-center space-x-8 mb-8">
               <a
                 href="https://github.com/ryz3006/alignzo-lite"
                 target="_blank"

@@ -443,6 +443,16 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        {/* Loading Overlay */}
+        {isCreatingTicket && (
+          <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-md">
+            <div className="text-center">
+              <div className="loading-spinner h-8 w-8 mx-auto mb-4"></div>
+              <p className="text-neutral-600 font-medium">Creating JIRA ticket...</p>
+              <p className="text-sm text-neutral-500 mt-1">Please wait while we process your request</p>
+            </div>
+          </div>
+        )}
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">Start New Timer</h3>
           <button
