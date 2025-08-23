@@ -69,6 +69,12 @@ class SupabaseClient {
                   } else if (key.endsWith('_lte')) {
                     const column = key.replace('_lte', '');
                     supabaseQuery = supabaseQuery.lte(column, value);
+                  } else if (key.endsWith('_lt')) {
+                    const column = key.replace('_lt', '');
+                    supabaseQuery = supabaseQuery.lt(column, value);
+                  } else if (key.endsWith('_in')) {
+                    const column = key.replace('_in', '');
+                    supabaseQuery = supabaseQuery.in(column, value);
                   } else {
                     supabaseQuery = supabaseQuery.eq(key, value);
                   }

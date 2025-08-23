@@ -72,10 +72,12 @@ export default function ShiftSchedulePage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [availableTeams, setAvailableTeams] = useState<string[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
 
   useEffect(() => {
     loadShiftData();
-  }, [selectedDate, selectedTeam]);
+  }, [selectedDate, selectedTeam, selectedYear, selectedMonth]);
 
   const loadShiftData = async () => {
     try {
@@ -112,7 +114,7 @@ export default function ShiftSchedulePage() {
     const shiftsResponse = await supabaseClient.getShiftSchedules({
       filters: { 
         user_email: userEmail,
-        shift_date: [todayStr, tomorrowStr]
+        shift_date_in: [todayStr, tomorrowStr]
       }
     });
 
@@ -190,8 +192,49 @@ export default function ShiftSchedulePage() {
 
   const loadTeamAvailability = async () => {
     try {
-      // Get all teams and their members for the selected date
-      const teamsResponse = await supabaseClient.getTeams();
+      // Get user's team memberships first
+      const userTeamsResponse = await supabaseClient.getTeamMemberships(user?.email || '');
+      
+      if (userTeamsResponse.error) {
+        console.error('Error loading user teams:', userTeamsResponse.error);
+        throw new Error(userTeamsResponse.error);
+      }
+
+      const userTeams = userTeamsResponse.data || [];
+      
+      if (userTeams.length === 0) {
+        console.log('User is not assigned to any teams');
+        setTeamShifts([]);
+        setAvailableTeams(['all']);
+        return;
+      }
+
+      // Get project assignments for user's teams
+      const userTeamIds = userTeams.map((membership: any) => membership.team_id);
+      const projectAssignmentsResponse = await supabaseClient.query({
+        table: 'team_project_assignments',
+        action: 'select',
+        select: 'team_id,project_id,teams(id,name),projects(id,name)',
+        filters: { team_id: userTeamIds }
+      });
+
+      if (projectAssignmentsResponse.error) {
+        console.error('Error loading project assignments:', projectAssignmentsResponse.error);
+        throw new Error(projectAssignmentsResponse.error);
+      }
+
+      const projectAssignments = projectAssignmentsResponse.data || [];
+      
+      // Get teams that belong to projects the user is assigned to
+      const userProjectTeamIds = projectAssignments.map((assignment: any) => assignment.team_id);
+      
+      // Get only the teams the user has access to
+      const teamsResponse = await supabaseClient.query({
+        table: 'teams',
+        action: 'select',
+        select: '*',
+        filters: { id: userProjectTeamIds }
+      });
       
       if (teamsResponse.error) {
         console.error('Error loading teams:', teamsResponse.error);
@@ -216,11 +259,15 @@ export default function ShiftSchedulePage() {
 
           const teamMembers = teamMembersResponse.data || [];
 
-          // Get shifts for the selected date for this team
+          // Get shifts for the selected month for this team
+          const monthStart = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
+          const monthEnd = `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}-01`;
+          
           const shiftsResponse = await supabaseClient.getShiftSchedules({
             filters: {
               team_id: team.id,
-              shift_date: selectedDate
+              shift_date_gte: monthStart,
+              shift_date_lt: monthEnd
             }
           });
 
@@ -354,13 +401,30 @@ export default function ShiftSchedulePage() {
       <div className="card">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
-            <label className="form-label">Date</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+            <label className="form-label">Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
               className="input-modern"
-            />
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="form-label">Month</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="input-modern"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                <option key={month} value={month}>
+                  {new Date(2024, month - 1).toLocaleDateString('en-US', { month: 'long' })}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex-1">
             <label className="form-label">Team</label>
@@ -436,7 +500,7 @@ export default function ShiftSchedulePage() {
           <div>
             <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Team Availability</h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-              {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </p>
           </div>
           <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">

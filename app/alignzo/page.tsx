@@ -205,27 +205,16 @@ export default function UserDashboardPage() {
       if (shiftsResult.status === 'fulfilled') {
         console.log('✅ Shift result fulfilled:', shiftsResult.value);
         if (shiftsResult.value === null) {
-          console.warn('⚠️ Shift result is null, setting default values');
-          newData.userShift = {
-            todayShift: 'G',
-            tomorrowShift: 'G',
-            todayShiftName: 'General',
-            tomorrowShiftName: 'General',
-            todayShiftColor: 'text-green-600',
-            tomorrowShiftColor: 'text-green-600',
-            todayShiftTime: undefined,
-            tomorrowShiftTime: undefined,
-            todayShiftIcon: Sun,
-            tomorrowShiftIcon: Sun,
-            projectId: undefined,
-            teamId: undefined
-          };
+          console.warn('⚠️ Shift result is null - user has no shifts scheduled for today/tomorrow');
+          // Don't set default values when user has no shifts scheduled
+          // This allows the UI to show "No shifts scheduled" instead of "General"
+          newData.userShift = null;
         } else {
           newData.userShift = shiftsResult.value;
         }
       } else if (shiftsResult.status === 'rejected') {
         console.error('❌ Failed to load shift information:', shiftsResult.reason);
-        // Set default shift if loading fails
+        // Set default shift only if loading fails due to error
         newData.userShift = {
           todayShift: 'G',
           tomorrowShift: 'G',
@@ -400,16 +389,26 @@ export default function UserDashboardPage() {
       const todayShift = shifts?.find((s: any) => s.shift_date === todayStr);
       const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr);
       
-      const todayShiftType = todayShift?.shift_type || 'G';
-      const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
+      // Only use 'G' as fallback if no shifts are found at all, not if shifts exist but are empty
+      const todayShiftType = todayShift?.shift_type || (shifts.length === 0 ? 'G' : null);
+      const tomorrowShiftType = tomorrowShift?.shift_type || (shifts.length === 0 ? 'G' : null);
       
       console.log('🔍 Shift type resolution:', {
         todayShift,
         tomorrowShift,
         todayShiftType,
         tomorrowShiftType,
+        shiftsFound: shifts.length,
         defaultFallback: 'G'
       });
+
+      // If we have shifts in the database but couldn't find today's or tomorrow's shift,
+      // it means the user doesn't have shifts scheduled for those days
+      if (shifts.length > 0 && (!todayShiftType || !tomorrowShiftType)) {
+        console.log('⚠️ User has shifts in database but not for today/tomorrow');
+        // Return null to indicate no shifts for these specific days
+        return null;
+      }
 
       console.log('🌅 Today shift:', { shift: todayShift, type: todayShiftType });
       console.log('🌅 Tomorrow shift:', { shift: tomorrowShift, type: tomorrowShiftType });
