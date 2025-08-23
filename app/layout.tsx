@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Work Log Tracker',
+  title: 'AlignZo',
   description: 'Professional work log tracking and reporting application',
   icons: {
     icon: [

@@ -301,15 +301,15 @@ export default function AnalyticsPage() {
   if (!hasAnyAnalyticsAccess) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <AlertTriangle className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Analytics Access</h3>
-          <p className="text-gray-600">
-            You don't have access to any analytics modules. Please contact your administrator.
-          </p>
+              <div className="text-center">
+        <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mb-4">
+          <AlertTriangle className="w-8 h-8 text-gray-400 dark:text-neutral-500" />
         </div>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Analytics Access</h3>
+        <p className="text-gray-600 dark:text-neutral-400">
+          You don't have access to any analytics modules. Please contact your administrator.
+        </p>
+      </div>
       </div>
     );
   }
@@ -319,8 +319,8 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">IT Operations Analytics</h1>
-          <p className="text-gray-600 text-sm sm:text-base">Comprehensive workload and operations insights for Telecom Product Operations</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">IT Operations Analytics</h1>
+          <p className="text-gray-600 dark:text-neutral-400 text-sm sm:text-base">Comprehensive workload and operations insights for Telecom Product Operations</p>
         </div>
         <div className="flex space-x-2">
           <button
@@ -335,11 +335,11 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Enhanced Filters */}
-      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
           <div className="flex items-center">
-            <Filter className="h-5 w-5 mr-2 text-gray-600" />
-            <h3 className="text-lg font-medium text-gray-900">Advanced Filters</h3>
+            <Filter className="h-5 w-5 mr-2 text-gray-600 dark:text-neutral-400" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Advanced Filters</h3>
           </div>
           <button
             onClick={handleApplyFilters}
@@ -351,7 +351,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Start Date</label>
             <input
               type="date"
               value={filters.dateRange.start}
@@ -359,11 +359,11 @@ export default function AnalyticsPage() {
                 ...prev,
                 dateRange: { ...prev.dateRange, start: e.target.value }
               }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">End Date</label>
             <input
               type="date"
               value={filters.dateRange.end}
@@ -371,18 +371,18 @@ export default function AnalyticsPage() {
                 ...prev,
                 dateRange: { ...prev.dateRange, end: e.target.value }
               }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             />
           </div>
           <div className="relative filter-dropdown">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Teams</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Teams</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showTeamDropdown: !prev.showTeamDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-neutral-700 text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700 truncate">
+                <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">
                   {filters.selectedTeams.length === 0 
                     ? 'All Teams' 
                     : filters.selectedTeams.length === 1 
@@ -394,10 +394,10 @@ export default function AnalyticsPage() {
                 </svg>
               </button>
               {filters.showTeamDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
                   <div className="p-2">
                     {availableTeams.map(team => (
-                      <label key={team} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                      <label key={team} className="flex items-center space-x-2 py-1 hover:bg-gray-50 dark:hover:bg-neutral-600 rounded px-1">
                         <input
                           type="checkbox"
                           checked={filters.selectedTeams.includes(team)}
@@ -408,9 +408,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedTeams: prev.selectedTeams.filter(t => t !== team) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                          className="rounded border-gray-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700 truncate">{team}</span>
+                        <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">{team}</span>
                       </label>
                     ))}
                   </div>
@@ -419,7 +419,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <div className="relative filter-dropdown">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Projects</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Projects</label>
             <div className="relative">
               <button
                 type="button"
@@ -463,7 +463,7 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <div className="relative filter-dropdown">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Users</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Users</label>
             <div className="relative">
               <button
                 type="button"
@@ -510,8 +510,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow">
+        <div className="border-b border-gray-200 dark:border-neutral-600">
           <nav className="flex overflow-x-auto">
             <div className="flex space-x-8 px-6 min-w-full">
               {[

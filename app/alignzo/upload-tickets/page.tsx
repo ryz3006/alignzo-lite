@@ -206,6 +206,22 @@ export default function UploadTicketsPage() {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      const response = await supabaseClient.delete('upload_sessions', sessionId);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      toast.success('Upload session deleted successfully');
+      loadInitialData();
+      
+    } catch (error) {
+      console.error('Error deleting upload session:', error);
+      toast.error('Failed to delete upload session');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -348,12 +364,11 @@ export default function UploadTicketsPage() {
             <table className="table-modern">
               <thead>
                 <tr>
-                  <th className="text-left">File Name</th>
+                  <th className="text-left">Filename</th>
                   <th className="text-left">Status</th>
-                  <th className="text-left">Total Records</th>
-                  <th className="text-left">Successful</th>
-                  <th className="text-left">Failed</th>
-                  <th className="text-left">Upload Date</th>
+                  <th className="text-left">Date Time</th>
+                  <th className="text-left">Uploaded By</th>
+                  <th className="text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -373,17 +388,20 @@ export default function UploadTicketsPage() {
                         {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                       </span>
                     </td>
-                    <td className="text-neutral-900 dark:text-white">
-                      {session.total_records}
-                    </td>
-                    <td className="text-success-600 dark:text-success-400 font-medium">
-                      {session.successful_uploads}
-                    </td>
-                    <td className="text-danger-600 dark:text-danger-400 font-medium">
-                      {session.failed_uploads}
+                    <td className="text-neutral-600 dark:text-neutral-400">
+                      {new Date(session.created_at).toLocaleString()}
                     </td>
                     <td className="text-neutral-600 dark:text-neutral-400">
-                      {new Date(session.created_at).toLocaleDateString()}
+                      System
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleDeleteSession(session.id)}
+                        className="text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300 p-2 rounded-lg hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}

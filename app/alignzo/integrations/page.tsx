@@ -311,7 +311,7 @@ export default function IntegrationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="loading-spinner h-8 w-8"></div>
       </div>
     );
   }
@@ -319,28 +319,28 @@ export default function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Integrations</h1>
+        <p className="text-gray-600 dark:text-neutral-400 mt-2">
           Connect your external tools and services to enhance your workflow.
         </p>
       </div>
 
       {/* JIRA Integration Tile */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ExternalLink className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+              <ExternalLink className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">JIRA</h3>
-              <p className="text-gray-600 text-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">JIRA</h3>
+              <p className="text-gray-600 dark:text-neutral-400 text-sm">
                 Connect to JIRA to sync issues and track work items
               </p>
               {jiraIntegration.is_verified && (
                 <div className="flex items-center mt-2">
                   <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
-                  <span className="text-sm text-green-600">Connected</span>
+                  <span className="text-sm text-green-600 dark:text-green-400">Connected</span>
                 </div>
               )}
             </div>
@@ -351,14 +351,14 @@ export default function IntegrationsPage() {
               <>
                 <button
                   onClick={handleProjectMapping}
-                  className="px-4 py-2 text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                  className="px-4 py-2 text-sm font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                 >
                   <FolderOpen className="w-4 h-4 mr-2 inline" />
                   Project Mapping
                 </button>
                 <button
                   onClick={handleEdit}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-neutral-300 bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-50 dark:hover:bg-neutral-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 >
                   <Settings className="w-4 h-4 mr-2 inline" />
                   Edit
@@ -367,7 +367,7 @@ export default function IntegrationsPage() {
             ) : (
               <button
                 onClick={() => setShowModal(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="btn-primary"
               >
                 Integrate
               </button>
@@ -378,15 +378,15 @@ export default function IntegrationsPage() {
 
       {/* Project Mappings Section */}
       {jiraIntegration.is_verified && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <FolderOpen className="w-5 h-5 mr-2 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">JIRA Project Mappings</h3>
+              <FolderOpen className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">JIRA Project Mappings</h3>
             </div>
             <button
               onClick={handleProjectMapping}
-              className="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 flex items-center"
+              className="btn-secondary text-sm flex items-center"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Mapping
@@ -395,50 +395,50 @@ export default function IntegrationsPage() {
           
           {loadingProjectMappings ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500"></div>
+              <div className="loading-spinner h-6 w-6"></div>
             </div>
           ) : projectMappings.length === 0 ? (
             <div className="text-center py-8">
-              <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 mb-4">No project mappings configured yet.</p>
-              <p className="text-sm text-gray-400">Map your dashboard projects to JIRA projects to enable filtered analytics.</p>
+              <FolderOpen className="w-12 h-12 text-gray-400 dark:text-neutral-500 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-neutral-400 mb-4">No project mappings configured yet.</p>
+              <p className="text-sm text-gray-400 dark:text-neutral-500">Map your dashboard projects to JIRA projects to enable filtered analytics.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
+                <thead className="bg-gray-50 dark:bg-neutral-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dashboard Project</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JIRA Project Key</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JIRA Project Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Dashboard Project</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">JIRA Project Key</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">JIRA Project Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-neutral-800 divide-y divide-gray-200 dark:divide-neutral-700">
                   {projectMappings.map((mapping) => (
-                    <tr key={mapping.id} className="hover:bg-gray-50">
+                    <tr key={mapping.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {mapping.project?.name || 'Unknown Project'}
                         </div>
-                        <div className="text-sm text-gray-500">{mapping.project?.product} • {mapping.project?.country}</div>
+                        <div className="text-sm text-gray-500 dark:text-neutral-400">{mapping.project?.product} • {mapping.project?.country}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {mapping.jira_project_key}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {mapping.jira_project_name || mapping.jira_project_key}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
                           onClick={() => handleEditProjectMapping(mapping)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteProjectMapping(mapping.id!)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -454,16 +454,16 @@ export default function IntegrationsPage() {
 
       {/* Integration Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="modal-overlay">
+          <div className="modal-content w-96">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   {jiraIntegration.is_verified ? 'Edit JIRA Integration' : 'Connect to JIRA'}
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -471,7 +471,7 @@ export default function IntegrationsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
                     JIRA URL (Base URL)
                   </label>
                   <input
@@ -479,12 +479,12 @@ export default function IntegrationsPage() {
                     value={jiraIntegration.base_url}
                     onChange={(e) => setJiraIntegration(prev => ({ ...prev, base_url: e.target.value }))}
                     placeholder="https://your-domain.atlassian.net"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="input-modern w-full"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
                     User Email Address
                   </label>
                   <input
@@ -492,12 +492,12 @@ export default function IntegrationsPage() {
                     value={jiraIntegration.user_email_integration}
                     onChange={(e) => setJiraIntegration(prev => ({ ...prev, user_email_integration: e.target.value }))}
                     placeholder="your-email@company.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="input-modern w-full"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
                     API Token
                   </label>
                   <input
@@ -505,9 +505,9 @@ export default function IntegrationsPage() {
                     value={jiraIntegration.api_token}
                     onChange={(e) => setJiraIntegration(prev => ({ ...prev, api_token: e.target.value }))}
                     placeholder="Enter your JIRA API token"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="input-modern w-full"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-neutral-400 mt-1">
                     You can generate an API token in your Atlassian account settings.
                   </p>
                 </div>
@@ -516,8 +516,8 @@ export default function IntegrationsPage() {
                 {verificationStatus !== 'idle' && (
                   <div className={`p-3 rounded-md ${
                     verificationStatus === 'success' 
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-red-50 border border-red-200'
+                      ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700' 
+                      : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700'
                   }`}>
                     <div className="flex items-center">
                       {verificationStatus === 'success' ? (
@@ -526,7 +526,7 @@ export default function IntegrationsPage() {
                         <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
                       )}
                       <span className={`text-sm ${
-                        verificationStatus === 'success' ? 'text-green-700' : 'text-red-700'
+                        verificationStatus === 'success' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
                       }`}>
                         {verificationMessage}
                       </span>
@@ -538,7 +538,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleVerify}
                     disabled={isVerifying}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="btn-secondary flex-1 text-sm"
                   >
                     {isVerifying ? 'Verifying...' : 'Verify Connection'}
                   </button>
@@ -546,7 +546,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleSave}
                     disabled={isSaving || !jiraIntegration.is_verified}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                    className="btn-primary flex-1 text-sm"
                   >
                     {isSaving ? 'Saving...' : 'Save Integration'}
                   </button>
@@ -559,11 +559,11 @@ export default function IntegrationsPage() {
 
       {/* Project Mapping Modal */}
       {showProjectMappingModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+        <div className="modal-overlay">
+          <div className="modal-content w-[500px]">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   {editingProjectMapping ? 'Edit Project Mapping' : 'Add Project Mapping'}
                 </h3>
                 <button
@@ -571,7 +571,7 @@ export default function IntegrationsPage() {
                     setShowProjectMappingModal(false);
                     setEditingProjectMapping(null);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -711,13 +711,13 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
           Dashboard Project <span className="text-red-500">*</span>
         </label>
         <select
           value={formData.dashboardProjectId}
           onChange={(e) => setFormData(prev => ({ ...prev, dashboardProjectId: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="input-modern w-full"
           required
         >
           <option value="">Select a dashboard project</option>
@@ -730,7 +730,7 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
           JIRA Project <span className="text-red-500">*</span>
         </label>
         <div className="relative">
@@ -751,7 +751,7 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
               }}
               onFocus={() => setShowJiraProjectDropdown(true)}
               placeholder="Type JIRA project name or key..."
-              className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="input-modern w-full pr-20"
             />
             <div className="absolute inset-y-0 right-0 flex items-center">
               <button
@@ -773,12 +773,12 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
             </div>
           </div>
           {showJiraProjectDropdown && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-md shadow-lg max-h-60 overflow-auto">
               {loadingJiraProjects ? (
-                <div className="p-3 text-center text-gray-500">Loading JIRA projects...</div>
+                <div className="p-3 text-center text-gray-500 dark:text-neutral-400">Loading JIRA projects...</div>
               ) : jiraProjectsError ? (
                 <div className="p-3 text-center">
-                  <div className="text-orange-600 text-sm mb-2">{jiraProjectsError}</div>
+                  <div className="text-orange-600 dark:text-orange-400 text-sm mb-2">{jiraProjectsError}</div>
                 </div>
               ) : jiraProjects.length > 0 ? (
                 <>
@@ -793,20 +793,20 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
                         key={project.key}
                         type="button"
                         onClick={() => handleJiraProjectSelect(project)}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none border-b border-gray-100 last:border-b-0"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-neutral-700 focus:bg-gray-100 dark:focus:bg-neutral-700 focus:outline-none border-b border-gray-100 dark:border-neutral-600 last:border-b-0 text-gray-900 dark:text-white"
                       >
                         <div className="font-medium">{project.name}</div>
-                        <div className="text-sm text-gray-500">{project.key} • {project.description}</div>
+                        <div className="text-sm text-gray-500 dark:text-neutral-400">{project.key} • {project.description}</div>
                       </button>
                     ))}
                 </>
               ) : (
-                <div className="p-3 text-center text-gray-500">No JIRA projects found</div>
+                <div className="p-3 text-center text-gray-500 dark:text-neutral-400">No JIRA projects found</div>
               )}
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-neutral-400 mt-1">
           Type a project name or key, then click 🔍 or press Enter to search JIRA projects
         </p>
       </div>
@@ -815,13 +815,13 @@ function ProjectMappingForm({ dashboardProjects, mapping, onSave, onCancel }: Pr
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          className="btn-secondary flex-1 text-sm"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          className="btn-primary flex-1 text-sm"
         >
           {mapping ? 'Update Mapping' : 'Save Mapping'}
         </button>

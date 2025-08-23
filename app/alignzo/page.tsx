@@ -399,16 +399,16 @@ export default function UserDashboardPage() {
         <div className="flex items-center space-x-4">
           <button
             onClick={loadDashboardData}
-            className="p-3 text-neutral-600 hover:text-neutral-900 bg-white rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all duration-200 shadow-soft hover:shadow-medium"
+            className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft hover:shadow-medium"
             title="Refresh Dashboard"
           >
             <RefreshCw className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-neutral-900">
+            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">
               Welcome back, {user?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
             </h1>
-            <p className="text-neutral-600 mt-1">Here's your work summary and shift information.</p>
+            <p className="text-neutral-600 dark:text-neutral-400 mt-1">Here's your work summary and shift information.</p>
           </div>
         </div>
         <button
@@ -428,12 +428,12 @@ export default function UserDashboardPage() {
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-2">
                   <div className="w-2 h-2 bg-success-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900">Today's Shift</h3>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
                 </div>
                 <p className="text-3xl font-bold mb-1" style={{ color: userShift.todayShiftColor }}>
                   {userShift.todayShiftName}
                 </p>
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
@@ -451,12 +451,12 @@ export default function UserDashboardPage() {
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-2">
                   <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900">Tomorrow's Shift</h3>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
                 </div>
                 <p className="text-3xl font-bold mb-1" style={{ color: userShift.tomorrowShiftColor }}>
                   {userShift.tomorrowShiftName}
                 </p>
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
               </div>
@@ -480,13 +480,13 @@ export default function UserDashboardPage() {
                 <stat.icon className="h-6 w-6 text-white" />
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-neutral-900 group-hover:text-primary-600 transition-colors">
+                <p className="text-2xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">
                   {stat.value}
                 </p>
-                <p className="text-sm text-neutral-600">{stat.title}</p>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">{stat.title}</p>
               </div>
             </div>
-            <p className="text-xs text-neutral-500">{stat.description}</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-500">{stat.description}</p>
           </div>
         ))}
       </div>
@@ -495,12 +495,12 @@ export default function UserDashboardPage() {
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-neutral-900">Today's Team Availability</h2>
-            <p className="text-sm text-neutral-600 mt-1">
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Today's Team Availability</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
             <Users className="h-4 w-4" />
             <span>{teamAvailability.length} teams</span>
           </div>
@@ -542,7 +542,7 @@ export default function UserDashboardPage() {
                   <tbody>
                     {teamAvailability.map((team) => (
                       <tr key={team.teamName}>
-                        <td className="font-medium text-neutral-900">
+                        <td className="font-medium text-neutral-900 dark:text-white">
                           {team.teamName}
                         </td>
                         {uniqueShiftTypes.map(([shiftType]) => {
@@ -562,7 +562,7 @@ export default function UserDashboardPage() {
                                   ))}
                                 </div>
                               ) : (
-                                <span className="text-neutral-400">-</span>
+                                <span className="text-neutral-400 dark:text-neutral-500">-</span>
                               )}
                             </td>
                           );
@@ -574,9 +574,9 @@ export default function UserDashboardPage() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Users className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
-                <p className="text-neutral-600 font-medium">No team availability data found.</p>
-                <p className="text-sm text-neutral-500 mt-1">Team schedules will appear here once configured.</p>
+                <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                <p className="text-neutral-600 dark:text-neutral-400 font-medium">No team availability data found.</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Team schedules will appear here once configured.</p>
               </div>
             );
           })()}
@@ -586,10 +586,10 @@ export default function UserDashboardPage() {
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-neutral-900">Hours by Project</h2>
-            <p className="text-sm text-neutral-600 mt-1">Your time distribution across projects</p>
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Hours by Project</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your time distribution across projects</p>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
             <BarChart3 className="h-4 w-4" />
             <span>{projectHours.length} projects</span>
           </div>
@@ -623,11 +623,11 @@ export default function UserDashboardPage() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <BarChart3 className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
-            <p className="text-neutral-600 font-medium">No work logs found</p>
-            <p className="text-sm text-neutral-500 mt-1">Start tracking your time to see project breakdown.</p>
-          </div>
+                        <div className="text-center py-12">
+                <BarChart3 className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                <p className="text-neutral-600 dark:text-neutral-400 font-medium">No work logs found</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Start tracking your time to see project breakdown.</p>
+              </div>
         )}
       </div>
 
@@ -635,10 +635,10 @@ export default function UserDashboardPage() {
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-neutral-900">Recent Activity</h2>
-            <p className="text-sm text-neutral-600 mt-1">Your latest work sessions</p>
+            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Recent Activity</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your latest work sessions</p>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500">
+          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
             <Activity className="h-4 w-4" />
             <span>{recentWorkLogs.length} activities</span>
           </div>
@@ -646,25 +646,25 @@ export default function UserDashboardPage() {
         <div className="space-y-4">
           {recentWorkLogs.length > 0 ? (
             recentWorkLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
+              <div key={log.id} className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-primary-600" />
+                  <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-primary-600 dark:text-primary-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-neutral-900 truncate">
+                    <h4 className="text-sm font-medium text-neutral-900 dark:text-white truncate">
                       {log.project?.name || 'Unknown Project'}
                     </h4>
-                    <p className="text-sm text-neutral-600 truncate">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 truncate">
                       {log.ticket_id} - {log.task_detail}
                     </p>
-                    <p className="text-xs text-neutral-500 mt-1">
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                       {formatDateTime(log.start_time)} • {formatDuration(log.logged_duration_seconds)}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
                     {formatTimeAgo(log.created_at)}
                   </p>
                 </div>
@@ -672,9 +672,9 @@ export default function UserDashboardPage() {
             ))
           ) : (
             <div className="text-center py-12">
-              <Clock className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
-              <p className="text-neutral-600 font-medium">No recent activity</p>
-              <p className="text-sm text-neutral-500 mt-1">Start a timer to begin tracking your work.</p>
+              <Clock className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+              <p className="text-neutral-600 dark:text-neutral-400 font-medium">No recent activity</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Start a timer to begin tracking your work.</p>
             </div>
           )}
         </div>
@@ -693,11 +693,11 @@ export default function UserDashboardPage() {
       {showUserDetailsModal && selectedUser && (
         <div className="modal-overlay" onClick={() => setShowUserDetailsModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-neutral-200">
-              <h2 className="text-xl font-semibold text-neutral-900">User Details</h2>
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">User Details</h2>
               <button
                 onClick={() => setShowUserDetailsModal(false)}
-                className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg hover:bg-neutral-100 transition-colors"
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -706,15 +706,15 @@ export default function UserDashboardPage() {
               <div className="space-y-4">
                 <div>
                   <label className="form-label">Name</label>
-                  <p className="text-sm text-neutral-900">{selectedUser.full_name}</p>
+                  <p className="text-sm text-neutral-900 dark:text-white">{selectedUser.full_name}</p>
                 </div>
                 <div>
                   <label className="form-label">Email</label>
-                  <p className="text-sm text-neutral-900">{selectedUser.email}</p>
+                  <p className="text-sm text-neutral-900 dark:text-white">{selectedUser.email}</p>
                 </div>
                 <div>
                   <label className="form-label">Phone Number</label>
-                  <p className="text-sm text-neutral-900">{selectedUser.phone_number || 'Not provided'}</p>
+                  <p className="text-sm text-neutral-900 dark:text-white">{selectedUser.phone_number || 'Not provided'}</p>
                 </div>
               </div>
             </div>

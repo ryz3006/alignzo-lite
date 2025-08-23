@@ -213,7 +213,7 @@ export default function MasterMappingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+        <div className="loading-spinner h-32 w-32"></div>
       </div>
     );
   }
@@ -223,20 +223,20 @@ export default function MasterMappingsPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Master Mappings</h1>
-          <p className="text-gray-600">Centralized user mappings for all ticket sources (similar to JIRA integrations)</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Master Mappings</h1>
+          <p className="text-gray-600 dark:text-neutral-400">Centralized user mappings for all ticket sources (similar to JIRA integrations)</p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center"
+            className="btn-primary flex items-center"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Master Mapping
           </button>
           <button
             onClick={loadData}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+            className="btn-secondary flex items-center"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -245,57 +245,57 @@ export default function MasterMappingsPage() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-6 border border-neutral-200 dark:border-neutral-700">
         <div className="max-w-md">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-neutral-500 h-4 w-4" />
             <input
               type="text"
               placeholder="Search by assignee value or mapped user..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="input-modern w-full pl-10 pr-4"
             />
           </div>
         </div>
       </div>
 
       {/* Mappings Table */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow border border-neutral-200 dark:border-neutral-700">
         <div className="p-6">
           {filteredMappings.length === 0 ? (
             <div className="text-center py-8">
-              <Search className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">
+              <Search className="mx-auto h-12 w-12 text-gray-400 dark:text-neutral-500" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
                 {searchTerm ? 'No mappings found' : 'No master mappings'}
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-gray-500 dark:text-neutral-400">
                 {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first master mapping.'}
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
+                <thead className="bg-gray-50 dark:bg-neutral-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Assignee</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mapped User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Source</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Source Assignee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Mapped User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-neutral-800 divide-y divide-gray-200 dark:divide-neutral-700">
                   {filteredMappings.map((mapping) => (
-                    <tr key={mapping.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <tr key={mapping.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {(mapping as any).source?.name || 'Unknown'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium">
                         {mapping.source_assignee_value}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {mapping.mapped_user_email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -303,8 +303,8 @@ export default function MasterMappingsPage() {
                           onClick={() => handleToggleActive(mapping)}
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             mapping.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300' 
+                              : 'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300'
                           }`}
                         >
                           {mapping.is_active ? (
@@ -320,21 +320,21 @@ export default function MasterMappingsPage() {
                           )}
                         </button>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">
                         {new Date(mapping.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleEditMapping(mapping)}
-                            className="text-blue-600 hover:text-blue-900"
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                             title="Edit mapping"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteMapping(mapping.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                             title="Delete mapping"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -352,17 +352,17 @@ export default function MasterMappingsPage() {
 
       {/* Add Mapping Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div className="modal-overlay">
+          <div className="modal-content w-full max-w-md">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Add Master Mapping</h3>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add Master Mapping</h3>
                 <button
                   onClick={() => {
                     setShowAddModal(false);
                     resetForm();
                   }}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 text-2xl font-bold"
                 >
                   ×
                 </button>
@@ -388,7 +388,7 @@ export default function MasterMappingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                     Source Assignee Value
                   </label>
                   <input
@@ -396,15 +396,15 @@ export default function MasterMappingsPage() {
                     value={sourceAssigneeValue}
                     onChange={(e) => setSourceAssigneeValue(e.target.value)}
                     placeholder="e.g., john.doe@company.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern w-full"
                   />
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-neutral-400 mt-1">
                     The assignee value as it appears in the source system
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                     Mapped User Email
                   </label>
                   <input
@@ -412,9 +412,9 @@ export default function MasterMappingsPage() {
                     value={mappedUserEmail}
                     onChange={(e) => setMappedUserEmail(e.target.value)}
                     placeholder="e.g., john.doe@alignzo.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern w-full"
                   />
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-neutral-400 mt-1">
                     The user email in your system
                   </p>
                 </div>
@@ -425,13 +425,13 @@ export default function MasterMappingsPage() {
                       setShowAddModal(false);
                       resetForm();
                     }}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    className="btn-secondary text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleAddMapping}
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                    className="btn-primary text-sm"
                   >
                     Add Mapping
                   </button>
@@ -444,17 +444,17 @@ export default function MasterMappingsPage() {
 
       {/* Edit Mapping Modal */}
       {showEditModal && editingMapping && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div className="modal-overlay">
+          <div className="modal-content w-full max-w-md">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Edit Master Mapping</h3>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Edit Master Mapping</h3>
                 <button
                   onClick={() => {
                     setShowEditModal(false);
                     resetForm();
                   }}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 text-2xl font-bold"
                 >
                   ×
                 </button>
@@ -462,13 +462,13 @@ export default function MasterMappingsPage() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                     Ticket Source
                   </label>
                   <select
                     value={selectedSource}
                     onChange={(e) => setSelectedSource(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern w-full"
                   >
                     <option value="">Select a source</option>
                     {sources.map(source => (
@@ -480,7 +480,7 @@ export default function MasterMappingsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                     Source Assignee Value
                   </label>
                   <input
@@ -488,12 +488,12 @@ export default function MasterMappingsPage() {
                     value={sourceAssigneeValue}
                     onChange={(e) => setSourceAssigneeValue(e.target.value)}
                     placeholder="e.g., john.doe@company.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern w-full"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                     Mapped User Email
                   </label>
                   <input
@@ -501,7 +501,7 @@ export default function MasterMappingsPage() {
                     value={mappedUserEmail}
                     onChange={(e) => setMappedUserEmail(e.target.value)}
                     placeholder="e.g., john.doe@alignzo.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="input-modern w-full"
                   />
                 </div>
 
@@ -511,13 +511,13 @@ export default function MasterMappingsPage() {
                       setShowEditModal(false);
                       resetForm();
                     }}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    className="btn-secondary text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleUpdateMapping}
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                    className="btn-primary text-sm"
                   >
                     Update Mapping
                   </button>
