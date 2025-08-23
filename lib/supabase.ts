@@ -87,6 +87,7 @@ export interface User {
   access_analytics_remedy?: boolean;
   access_upload_tickets?: boolean;
   access_master_mappings?: boolean;
+  access_shift_schedule?: boolean;
   access_integrations?: boolean;
   created_at: string;
   updated_at: string;

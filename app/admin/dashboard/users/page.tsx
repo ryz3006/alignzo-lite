@@ -28,6 +28,7 @@ export default function UsersPage() {
     access_analytics_remedy: false,
     access_upload_tickets: false,
     access_master_mappings: false,
+    access_shift_schedule: false,
     access_integrations: false,
   };
 
@@ -112,6 +113,7 @@ export default function UsersPage() {
       access_analytics_remedy: user.access_analytics_remedy ?? false,
       access_upload_tickets: user.access_upload_tickets ?? false,
       access_master_mappings: user.access_master_mappings ?? false,
+      access_shift_schedule: user.access_shift_schedule ?? false,
       access_integrations: user.access_integrations ?? false,
     });
     setShowModal(true);
@@ -363,6 +365,18 @@ export default function UsersPage() {
                       />
                       <label htmlFor="access_master_mappings" className="ml-2 text-sm text-gray-700">
                         Master Mappings
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_shift_schedule"
+                        checked={formData.access_shift_schedule}
+                        onChange={(e) => setFormData({ ...formData, access_shift_schedule: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_shift_schedule" className="ml-2 text-sm text-gray-700">
+                        Shift Schedule
                       </label>
                     </div>
                     <div className="flex items-center">

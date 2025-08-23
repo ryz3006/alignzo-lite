@@ -118,6 +118,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     { name: 'Upload Tickets', href: '/alignzo/upload-tickets', icon: Upload, accessKey: 'access_upload_tickets' },
     { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database, accessKey: 'access_upload_tickets' },
     { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users, accessKey: 'access_master_mappings' },
+    { name: 'Shift Schedule', href: '/alignzo/shift-schedule', icon: Clock, accessKey: 'access_shift_schedule' },
     { name: 'Integrations', href: '/alignzo/integrations', icon: Settings, accessKey: 'access_integrations' },
   ];
 

@@ -466,12 +466,12 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Utilization Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Utilization Distribution</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Utilization Distribution</h3>
             <button
               onClick={() => downloadChartAsImage('utilization-chart', 'utilization-distribution')}
-              className="p-2 text-gray-400 hover:text-gray-600"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
               title="Download Chart"
             >
               <Download className="h-4 w-4" />
@@ -480,10 +480,27 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <div ref={(el) => { chartRefs.current['utilization-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={workloadMetrics}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
-                <YAxis />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-neutral-600" />
+                <XAxis 
+                  dataKey="userName" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={80}
+                  tick={{ fill: '#6b7280' }}
+                  className="dark:fill-neutral-400"
+                />
+                <YAxis 
+                  tick={{ fill: '#6b7280' }}
+                  className="dark:fill-neutral-400"
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg)',
+                    border: '1px solid var(--tooltip-border)',
+                    borderRadius: '8px',
+                    color: 'var(--tooltip-text)'
+                  }}
+                />
                 <Bar dataKey="utilizationRate" fill="#3B82F6" />
               </BarChart>
             </ResponsiveContainer>
@@ -491,12 +508,12 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
         </div>
 
         {/* Workload vs Available Hours */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Workload vs Available Hours</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Workload vs Available Hours</h3>
             <button
               onClick={() => downloadChartAsImage('workload-chart', 'workload-vs-available')}
-              className="p-2 text-gray-400 hover:text-gray-600"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
               title="Download Chart"
             >
               <Download className="h-4 w-4" />
@@ -505,10 +522,17 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <div ref={(el) => { chartRefs.current['workload-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={workloadMetrics}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-neutral-600" />
                 <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg)',
+                    border: '1px solid var(--tooltip-border)',
+                    borderRadius: '8px',
+                    color: 'var(--tooltip-text)'
+                  }}
+                />
                 <Bar dataKey="totalLoggedHours" fill="#10B981" name="Logged Hours" />
                 <Bar dataKey="availableHours" fill="#F59E0B" name="Available Hours" />
               </BarChart>
@@ -531,10 +555,17 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <div ref={(el) => { chartRefs.current['daily-trend-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={workloadMetrics[0]?.dailyWorkload || []}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-neutral-600" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg)',
+                    border: '1px solid var(--tooltip-border)',
+                    borderRadius: '8px',
+                    color: 'var(--tooltip-text)'
+                  }}
+                />
                 <Line type="monotone" dataKey="hours" stroke="#3B82F6" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -556,10 +587,17 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
           <div ref={(el) => { chartRefs.current['leave-chart'] = el; }}>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={workloadMetrics.filter(m => m.leaveCount > 0)}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-neutral-600" />
                 <XAxis dataKey="userName" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg)',
+                    border: '1px solid var(--tooltip-border)',
+                    borderRadius: '8px',
+                    color: 'var(--tooltip-text)'
+                  }}
+                />
                 <Bar dataKey="leaveCount" fill="#F59E0B" />
               </BarChart>
             </ResponsiveContainer>

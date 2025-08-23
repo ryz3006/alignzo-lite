@@ -8,7 +8,7 @@ import { Clock, TrendingUp, Calendar, BarChart3, RefreshCw, Users, Eye, Activity
 import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
-import ShiftScheduleViewer from '@/components/ShiftScheduleViewer';
+
 
 interface DashboardStats {
   todayHours: number;
@@ -65,7 +65,7 @@ export default function UserDashboardPage() {
   const [userShift, setUserShift] = useState<UserShift | null>(null);
   const [teamAvailability, setTeamAvailability] = useState<TeamAvailability[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showShiftSchedule, setShowShiftSchedule] = useState(false);
+
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
@@ -411,13 +411,7 @@ export default function UserDashboardPage() {
             <p className="text-neutral-600 dark:text-neutral-400 mt-1">Here's your work summary and shift information.</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowShiftSchedule(true)}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Eye className="h-4 w-4" />
-          <span>View Shift Schedule</span>
-        </button>
+
       </div>
 
       {/* Shift Information Cards */}
@@ -680,14 +674,7 @@ export default function UserDashboardPage() {
         </div>
       </div>
 
-      {/* Shift Schedule Viewer Modal */}
-      {showShiftSchedule && (
-        <ShiftScheduleViewer
-          isOpen={showShiftSchedule}
-          onClose={() => setShowShiftSchedule(false)}
-          userEmail={user?.email}
-        />
-      )}
+
 
       {/* User Details Modal */}
       {showUserDetailsModal && selectedUser && (

@@ -389,7 +389,7 @@ export default function AnalyticsPage() {
                       ? filters.selectedTeams[0] 
                       : `${filters.selectedTeams.length} teams selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -424,24 +424,24 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showProjectDropdown: !prev.showProjectDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-neutral-700 text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700 truncate">
+                <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">
                   {filters.selectedProjects.length === 0 
                     ? 'All Projects' 
                     : filters.selectedProjects.length === 1 
                       ? filters.selectedProjects[0] 
                       : `${filters.selectedProjects.length} projects selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {filters.showProjectDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
                   <div className="p-2">
                     {availableProjects.map(project => (
-                      <label key={project} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                      <label key={project} className="flex items-center space-x-2 py-1 hover:bg-gray-50 dark:hover:bg-neutral-600 rounded px-1">
                         <input
                           type="checkbox"
                           checked={filters.selectedProjects.includes(project)}
@@ -452,9 +452,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedProjects: prev.selectedProjects.filter(p => p !== project) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                          className="rounded border-gray-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700 truncate">{project}</span>
+                        <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">{project}</span>
                       </label>
                     ))}
                   </div>
@@ -468,24 +468,24 @@ export default function AnalyticsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(prev => ({ ...prev, showUserDropdown: !prev.showUserDropdown }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex justify-between items-center text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-neutral-700 text-left flex justify-between items-center text-sm"
               >
-                <span className="text-sm text-gray-700 truncate">
+                <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">
                   {filters.selectedUsers.length === 0 
                     ? 'All Users' 
                     : filters.selectedUsers.length === 1 
                       ? filters.selectedUsers[0] 
                       : `${filters.selectedUsers.length} users selected`}
                 </span>
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {filters.showUserDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
                   <div className="p-2">
                     {availableUsers.map(user => (
-                      <label key={user} className="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded px-1">
+                      <label key={user} className="flex items-center space-x-2 py-1 hover:bg-gray-50 dark:hover:bg-neutral-600 rounded px-1">
                         <input
                           type="checkbox"
                           checked={filters.selectedUsers.includes(user)}
@@ -496,9 +496,9 @@ export default function AnalyticsPage() {
                               setFilters(prev => ({ ...prev, selectedUsers: prev.selectedUsers.filter(u => u !== user) }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                          className="rounded border-gray-300 dark:border-neutral-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                         />
-                        <span className="text-sm text-gray-700 truncate">{user}</span>
+                        <span className="text-sm text-gray-700 dark:text-neutral-300 truncate">{user}</span>
                       </label>
                     ))}
                   </div>
@@ -565,17 +565,17 @@ export default function AnalyticsPage() {
                   disabled={tab.requiresJira && !jiraEnabled}
                   className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : tab.requiresJira && !jiraEnabled
-                        ? 'border-transparent text-gray-400 cursor-not-allowed'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'border-transparent text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
                   <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
                   <span className="hidden sm:inline">{tab.label}</span>
                   <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                   {tab.requiresJira && !jiraEnabled && (
-                    <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1 rounded flex-shrink-0">JIRA</span>
+                    <span className="ml-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1 rounded flex-shrink-0">JIRA</span>
                   )}
                 </button>
               ))}
@@ -618,16 +618,16 @@ export default function AnalyticsPage() {
 function JiraSetupPrompt() {
   return (
     <div className="text-center py-12">
-      <div className="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-        <AlertTriangle className="w-8 h-8 text-yellow-600" />
+      <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mb-4">
+        <AlertTriangle className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">JIRA Integration Required</h3>
-      <p className="text-gray-600 mb-6">
+      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">JIRA Integration Required</h3>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
         To view JIRA ticket analytics, you need to set up your JIRA integration first.
       </p>
       <Link
         href="/alignzo/integrations"
-        className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+        className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
       >
         <Settings className="w-4 h-4 mr-2" />
         Set Up JIRA Integration

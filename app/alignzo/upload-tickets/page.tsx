@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 
 interface UploadSession {
   id: string;
-  filename: string;
+  file_name: string;
   total_records: number;
   processed_records: number;
   successful_uploads: number;
@@ -375,7 +375,7 @@ export default function UploadTicketsPage() {
                 {uploadSessions.map((session) => (
                   <tr key={session.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
                     <td className="font-medium text-neutral-900 dark:text-white">
-                      {session.filename}
+                      {session.file_name}
                     </td>
                     <td>
                       <span className={`badge ${
