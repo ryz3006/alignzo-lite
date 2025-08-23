@@ -9,7 +9,6 @@ import {
   TrendingUp, 
   Calendar, 
   BarChart3, 
-  RefreshCw, 
   Users, 
   Eye, 
   Activity, 
@@ -135,7 +134,6 @@ export default function UserDashboardPage() {
   });
   
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingShifts, setIsLoadingShifts] = useState(false);
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -167,13 +165,9 @@ export default function UserDashboardPage() {
     }
   }, [darkMode]);
 
-  const loadDashboardData = useCallback(async (isRefresh = false) => {
+  const loadDashboardData = useCallback(async () => {
     try {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
 
       // Load user first for quick greeting display
       const userResult = await loadUser();
@@ -229,16 +223,11 @@ export default function UserDashboardPage() {
       }
 
       setDashboardData(prev => ({ ...prev, ...newData }));
-      
-      if (isRefresh) {
-        toast.success('Dashboard refreshed successfully!');
-      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
       setIsLoadingShifts(false);
     }
   }, []);
@@ -761,24 +750,15 @@ export default function UserDashboardPage() {
         {/* Header with Welcome and Controls */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => loadDashboardData(true)}
-              disabled={isRefreshing}
-              className="group p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft hover:shadow-medium hover:-translate-y-0.5"
-              title="Refresh Dashboard"
-            >
-              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-300'}`} />
-            </button>
-            
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-medium">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-300 bg-clip-text text-transparent">
-                  Welcome back, {dashboardData.user?.full_name || dashboardData.user?.email?.split('@')[0] || 'User'}! 👋
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-300 bg-clip-text text-transparent">
+                  Hey, {dashboardData.user?.full_name || dashboardData.user?.email?.split('@')[0] || 'User'}!
                 </h1>
-                <p className="text-neutral-600 dark:text-neutral-400 mt-1 text-lg">
+                <p className="text-sm sm:text-base lg:text-lg text-neutral-600 dark:text-neutral-400 mt-1">
                   Here's your work summary and shift information for today.
                 </p>
               </div>
@@ -802,7 +782,7 @@ export default function UserDashboardPage() {
                   <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
                   {isLoadingShifts && (
                     <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
-                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <div className="w-3 h-3 bg-blue-400 animate-spin rounded-full"></div>
                       <span>Loading...</span>
                     </div>
                   )}
@@ -856,7 +836,7 @@ export default function UserDashboardPage() {
                   <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
                   {isLoadingShifts && (
                     <div className="flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
-                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <div className="w-3 h-3 bg-purple-400 animate-spin rounded-full"></div>
                       <span>Loading...</span>
                     </div>
                   )}
@@ -1317,16 +1297,6 @@ export default function UserDashboardPage() {
                         className="px-4 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded-lg transition-colors duration-200"
                       >
                         Close
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Add refresh functionality here if needed
-                          console.log('Refresh shift details');
-                        }}
-                        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors duration-200 shadow-soft hover:shadow-medium"
-                      >
-                        <RefreshCw className="h-4 w-4 inline mr-2" />
-                        Refresh
                       </button>
                     </div>
                   </div>

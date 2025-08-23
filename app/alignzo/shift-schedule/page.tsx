@@ -636,16 +636,10 @@ export default function ShiftSchedulePage() {
         ) : shiftMetrics.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-20">
                 <tr className="border-b border-neutral-200 dark:border-neutral-600">
-                  <th className="text-left p-3 font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-700/50 sticky left-0 z-10">
+                  <th className="text-left p-3 font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-700/50 sticky left-0 z-30 min-w-[200px]">
                     User
-                  </th>
-                  <th className="text-left p-3 font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-700/50">
-                    Team
-                  </th>
-                  <th className="text-left p-3 font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-700/50">
-                    Project
                   </th>
                   {getDaysInMonth().map(({ day, dayName, date }) => (
                     <th key={date} className="text-center p-2 font-semibold text-neutral-900 dark:text-white bg-neutral-50 dark:bg-neutral-700/50 min-w-[80px]">
@@ -660,17 +654,11 @@ export default function ShiftSchedulePage() {
               <tbody>
                 {shiftMetrics.map((userMetric, index) => (
                   <tr key={userMetric.userEmail} className="border-b border-neutral-100 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors">
-                    <td className="p-3 font-medium text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 sticky left-0 z-10">
+                    <td className="p-3 font-medium text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 sticky left-0 z-10 min-w-[200px]">
                       <div className="flex flex-col">
                         <span className="font-semibold">{userMetric.userName}</span>
                         <span className="text-xs text-neutral-500 dark:text-neutral-400">{userMetric.userEmail}</span>
                       </div>
-                    </td>
-                    <td className="p-3 text-neutral-700 dark:text-neutral-300">
-                      {userMetric.teamName}
-                    </td>
-                    <td className="p-3 text-neutral-700 dark:text-neutral-300">
-                      {userMetric.projectName}
                     </td>
                     {getDaysInMonth().map(({ date }) => {
                       const shift = userMetric.shifts[date];
