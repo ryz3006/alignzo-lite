@@ -203,9 +203,28 @@ export default function UserDashboardPage() {
       }
       
       if (shiftsResult.status === 'fulfilled') {
-        newData.userShift = shiftsResult.value;
+        console.log('✅ Shift result fulfilled:', shiftsResult.value);
+        if (shiftsResult.value === null) {
+          console.warn('⚠️ Shift result is null, setting default values');
+          newData.userShift = {
+            todayShift: 'G',
+            tomorrowShift: 'G',
+            todayShiftName: 'General',
+            tomorrowShiftName: 'General',
+            todayShiftColor: 'text-green-600',
+            tomorrowShiftColor: 'text-green-600',
+            todayShiftTime: undefined,
+            tomorrowShiftTime: undefined,
+            todayShiftIcon: Sun,
+            tomorrowShiftIcon: Sun,
+            projectId: undefined,
+            teamId: undefined
+          };
+        } else {
+          newData.userShift = shiftsResult.value;
+        }
       } else if (shiftsResult.status === 'rejected') {
-        console.error('Failed to load shift information:', shiftsResult.reason);
+        console.error('❌ Failed to load shift information:', shiftsResult.reason);
         // Set default shift if loading fails
         newData.userShift = {
           todayShift: 'G',
@@ -332,20 +351,25 @@ export default function UserDashboardPage() {
         setTimeout(() => reject(new Error('Shift loading timeout')), 10000); // 10 second timeout
       });
 
+      // First, let's test if we can query the database at all
+      console.log('🧪 Testing database connection...');
+      const testQuery = await supabaseClient.query({
+        table: 'shift_schedules',
+        action: 'select',
+        select: 'count',
+        limit: 1
+      });
+      console.log('🧪 Test query result:', testQuery);
+
       // Fetch shift schedules and user's team/project info in parallel
       const dataPromise = Promise.all([
         supabaseClient.getShiftSchedules({
           filters: { 
             user_email: dashboardData.user.email,
-            shift_date: [todayStr, tomorrowStr]
+            shift_date_in: [todayStr, tomorrowStr]
           }
         }),
-        supabaseClient.query({
-          table: 'team_members',
-          action: 'select',
-          select: 'team_id,teams(id,name),team_project_assignments(project_id,projects(id,name))',
-          filters: { 'users.email': dashboardData.user.email }
-        })
+        supabaseClient.getTeamMemberships(dashboardData.user.email)
       ]);
 
       // Race between timeout and data fetching
@@ -378,6 +402,14 @@ export default function UserDashboardPage() {
       
       const todayShiftType = todayShift?.shift_type || 'G';
       const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
+      
+      console.log('🔍 Shift type resolution:', {
+        todayShift,
+        tomorrowShift,
+        todayShiftType,
+        tomorrowShiftType,
+        defaultFallback: 'G'
+      });
 
       console.log('🌅 Today shift:', { shift: todayShift, type: todayShiftType });
       console.log('🌅 Tomorrow shift:', { shift: tomorrowShift, type: tomorrowShiftType });
@@ -386,31 +418,46 @@ export default function UserDashboardPage() {
       let customEnums: any[] = [];
       
       if (userTeams.length > 0) {
-        const userTeam = userTeams[0]; // Get first team (assuming user is in one team)
-        const projectId = userTeam.team_project_assignments?.[0]?.project_id;
+        // Get the first team membership
+        const userTeam = userTeams[0];
         const teamId = userTeam.team_id;
         
-        console.log('🏢 Team/Project info:', { teamId, projectId });
+        console.log('🏢 Team info:', { teamId });
         
-        if (projectId && teamId) {
+        if (teamId) {
           try {
-            const enumsResponse = await supabaseClient.query({
-              table: 'custom_shift_enums',
+            // Get project assignments for this team
+            const projectAssignmentsResponse = await supabaseClient.query({
+              table: 'team_project_assignments',
               action: 'select',
-              select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
-              filters: { project_id: projectId, team_id: teamId }
+              select: 'project_id,projects(id,name)',
+              filters: { team_id: teamId }
             });
 
-            if (!enumsResponse.error && enumsResponse.data) {
-              customEnums = enumsResponse.data.map((enum_: any) => ({
-                shiftIdentifier: enum_.shift_identifier,
-                shiftName: enum_.shift_name,
-                startTime: enum_.start_time,
-                endTime: enum_.end_time,
-                isDefault: enum_.is_default,
-                color: enum_.color
-              }));
-              console.log('🎨 Custom shift enums:', customEnums);
+            if (!projectAssignmentsResponse.error && projectAssignmentsResponse.data && projectAssignmentsResponse.data.length > 0) {
+              const projectId = projectAssignmentsResponse.data[0].project_id;
+              console.log('🏢 Project info:', { projectId });
+              
+              if (projectId) {
+                const enumsResponse = await supabaseClient.query({
+                  table: 'custom_shift_enums',
+                  action: 'select',
+                  select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
+                  filters: { project_id: projectId, team_id: teamId }
+                });
+
+                if (!enumsResponse.error && enumsResponse.data) {
+                  customEnums = enumsResponse.data.map((enum_: any) => ({
+                    shiftIdentifier: enum_.shift_identifier,
+                    shiftName: enum_.shift_name,
+                    startTime: enum_.start_time,
+                    endTime: enum_.end_time,
+                    isDefault: enum_.is_default,
+                    color: enum_.color
+                  }));
+                  console.log('🎨 Custom shift enums:', customEnums);
+                }
+              }
             }
           } catch (error) {
             console.error('❌ Error fetching custom shift enums:', error);
@@ -449,6 +496,7 @@ export default function UserDashboardPage() {
       };
 
       console.log('✅ Final shift result:', result);
+      console.log('🎯 Shift info objects:', { todayShiftInfo, tomorrowShiftInfo });
       return result;
     } catch (error) {
       console.error('❌ Error in loadShiftInformation:', error);
