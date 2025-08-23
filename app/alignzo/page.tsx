@@ -687,51 +687,81 @@ export default function UserDashboardPage() {
         </div>
 
         {/* Shift Information Cards */}
-        {dashboardData.userShift && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <div className="relative flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Today's Shift */}
+          <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
+                </div>
+                {dashboardData.userShift ? (
+                  <>
+                    <p className="text-4xl font-bold mb-2 text-blue-600 dark:text-blue-400">
+                      {dashboardData.userShift.todayShiftName}
+                    </p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+                  </>
+                ) : (
+                  <div className="animate-pulse">
+                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
                   </div>
-                  <p className="text-4xl font-bold mb-2 text-blue-600 dark:text-blue-400">
-                    {dashboardData.userShift.todayShiftName}
-                  </p>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </p>
-                </div>
-                <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-blue-500 to-blue-600 group-hover:scale-110 transition-transform duration-300">
-                  <dashboardData.userShift.todayShiftIcon className="h-8 w-8" />
-                </div>
+                )}
               </div>
-            </div>
-
-            <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <div className="relative flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
-                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
+              <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-blue-500 to-blue-600 group-hover:scale-110 transition-transform duration-300">
+                {dashboardData.userShift ? (
+                  <dashboardData.userShift.todayShiftIcon className="h-8 w-8" />
+                ) : (
+                  <div className="animate-pulse">
+                    <div className="w-8 h-8 bg-white/20 rounded"></div>
                   </div>
-                  <p className="text-4xl font-bold mb-2 text-purple-600 dark:text-purple-400">
-                    {dashboardData.userShift.tomorrowShiftName}
-                  </p>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </p>
-                </div>
-                <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-purple-500 to-purple-600 group-hover:scale-110 transition-transform duration-300">
-                  <dashboardData.userShift.tomorrowShiftIcon className="h-8 w-8" />
-                </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+
+          {/* Tomorrow's Shift */}
+          <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
+                </div>
+                {dashboardData.userShift ? (
+                  <>
+                    <p className="text-4xl font-bold mb-2 text-purple-600 dark:text-purple-400">
+                      {dashboardData.userShift.tomorrowShiftName}
+                    </p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+                  </>
+                ) : (
+                  <div className="animate-pulse">
+                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+                  </div>
+                )}
+              </div>
+              <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-purple-500 to-purple-600 group-hover:scale-110 transition-transform duration-300">
+                {dashboardData.userShift ? (
+                  <dashboardData.userShift.tomorrowShiftIcon className="h-8 w-8" />
+                ) : (
+                  <div className="animate-pulse">
+                    <div className="w-8 h-8 bg-white/20 rounded"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -790,52 +820,77 @@ export default function UserDashboardPage() {
               </div>
             </div>
             
-            {dashboardData.teamAvailability.length > 0 ? (
-              <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-modern">
-                {dashboardData.teamAvailability.map((team, teamIndex) => (
-                  <div 
-                    key={team.teamName}
-                    className="p-4 bg-neutral-50 dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600"
-                    style={{ animationDelay: `${teamIndex * 50}ms` }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-neutral-900 dark:text-white">{team.teamName}</h3>
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-200 dark:bg-neutral-600 px-2 py-1 rounded-full">
-                        {team.projectName}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(team.shifts).map(([shiftType, shiftData]) => {
-                        const shiftInfo = getShiftTypeInfo(shiftType, team.customEnums);
-                        return (
-                          <button
-                            key={shiftType}
-                            onClick={() => showShiftDetails(shiftType, team.teamName, team.projectName)}
-                            className="flex items-center justify-between p-2 bg-white dark:bg-neutral-800 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer group"
-                          >
-                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-primary-600">
-                              {shiftInfo.label}
-                            </span>
-                            <div className="flex items-center space-x-1">
-                              <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                                {shiftData.count}
-                              </span>
-                              <Users className="h-3 w-3 text-neutral-400 group-hover:text-primary-600" />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
-                <p className="text-neutral-600 dark:text-neutral-400 font-medium">No team availability data found.</p>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Team schedules will appear here once configured.</p>
-              </div>
-            )}
+                         {isLoading ? (
+               <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-modern">
+                 {[...Array(3)].map((_, index) => (
+                   <div 
+                     key={index}
+                     className="p-4 bg-neutral-50 dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600 animate-pulse"
+                   >
+                     <div className="flex items-center justify-between mb-3">
+                       <div className="h-5 bg-neutral-200 dark:bg-neutral-600 rounded w-24"></div>
+                       <div className="h-5 bg-neutral-200 dark:bg-neutral-600 rounded w-20"></div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-2">
+                       {[...Array(4)].map((_, shiftIndex) => (
+                         <div key={shiftIndex} className="flex items-center justify-between p-2 bg-white dark:bg-neutral-800 rounded-lg">
+                           <div className="h-3 bg-neutral-200 dark:bg-neutral-600 rounded w-16"></div>
+                           <div className="flex items-center space-x-1">
+                             <div className="h-3 bg-neutral-200 dark:bg-neutral-600 rounded w-4"></div>
+                             <div className="h-3 w-3 bg-neutral-200 dark:bg-neutral-600 rounded"></div>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             ) : dashboardData.teamAvailability.length > 0 ? (
+               <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-modern">
+                 {dashboardData.teamAvailability.map((team, teamIndex) => (
+                   <div 
+                     key={team.teamName}
+                     className="p-4 bg-neutral-50 dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600"
+                     style={{ animationDelay: `${teamIndex * 50}ms` }}
+                   >
+                     <div className="flex items-center justify-between mb-3">
+                       <h3 className="font-semibold text-neutral-900 dark:text-white">{team.teamName}</h3>
+                       <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-200 dark:bg-neutral-600 px-2 py-1 rounded-full">
+                         {team.projectName}
+                       </span>
+                     </div>
+                     <div className="grid grid-cols-2 gap-2">
+                       {Object.entries(team.shifts).map(([shiftType, shiftData]) => {
+                         const shiftInfo = getShiftTypeInfo(shiftType, team.customEnums);
+                         return (
+                           <button
+                             key={shiftType}
+                             onClick={() => showShiftDetails(shiftType, team.teamName, team.projectName)}
+                             className="flex items-center justify-between p-2 bg-white dark:bg-neutral-800 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer group"
+                           >
+                             <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-primary-600">
+                               {shiftInfo.label}
+                             </span>
+                             <div className="flex items-center space-x-1">
+                               <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                 {shiftData.count}
+                               </span>
+                               <Users className="h-3 w-3 text-neutral-400 group-hover:text-primary-600" />
+                             </div>
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="text-center py-12">
+                 <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                 <p className="text-neutral-600 dark:text-neutral-400 font-medium">No team availability data found.</p>
+                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Team schedules will appear here once configured.</p>
+               </div>
+             )}
           </div>
 
           {/* Project Breakdown Chart */}
