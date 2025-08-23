@@ -57,18 +57,29 @@ interface UserShift {
   tomorrowShiftTime?: string;
   todayShiftIcon: any;
   tomorrowShiftIcon: any;
+  projectId?: string;
+  teamId?: string;
 }
 
 interface TeamAvailability {
   teamName: string;
   projectName: string;
+  projectId: string;
+  teamId: string;
   shifts: {
     [key: string]: {
       users: string[];
       count: number;
     };
   };
-  customEnums: any[];
+  customEnums: {
+    shiftIdentifier: string;
+    shiftName: string;
+    startTime: string;
+    endTime: string;
+    isDefault: boolean;
+    color?: string;
+  }[];
 }
 
 interface DashboardData {
@@ -80,13 +91,32 @@ interface DashboardData {
   teamAvailability: TeamAvailability[];
 }
 
-const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor: string; icon: any } } = {
-  M: { label: 'Morning', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/20', icon: Sun },
-  A: { label: 'Afternoon', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/20', icon: Sun },
-  N: { label: 'Night', color: 'text-indigo-600', bgColor: 'bg-indigo-100 dark:bg-indigo-900/20', icon: Moon },
-  G: { label: 'General/Day', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/20', icon: Sun },
-  H: { label: 'Holiday', color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/20', icon: CheckCircle },
-  L: { label: 'Leave', color: 'text-yellow-600', bgColor: 'bg-yellow-100 dark:bg-yellow-900/20', icon: AlertCircle },
+// Dynamic shift type mapping function
+const getShiftTypeInfo = (shiftType: string, customEnums: any[] = []) => {
+  // First try to find in custom enums
+  const customShift = customEnums.find(enum_ => enum_.shiftIdentifier === shiftType);
+  if (customShift) {
+    return {
+      label: customShift.shiftName,
+      color: customShift.color ? `text-[${customShift.color}]` : 'text-blue-600',
+      bgColor: customShift.color ? `bg-[${customShift.color}]/10 dark:bg-[${customShift.color}]/20` : 'bg-blue-100 dark:bg-blue-900/20',
+      icon: Sun, // Default icon for custom shifts
+      startTime: customShift.startTime,
+      endTime: customShift.endTime
+    };
+  }
+
+  // Fallback to default shift types
+  const defaultShifts: { [key: string]: { label: string; color: string; bgColor: string; icon: any; startTime?: string; endTime?: string } } = {
+    M: { label: 'Morning', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/20', icon: Sun },
+    A: { label: 'Afternoon', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/20', icon: Sun },
+    N: { label: 'Night', color: 'text-indigo-600', bgColor: 'bg-indigo-100 dark:bg-indigo-900/20', icon: Moon },
+    G: { label: 'General/Day', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/20', icon: Sun },
+    H: { label: 'Holiday', color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/20', icon: CheckCircle },
+    L: { label: 'Leave', color: 'text-yellow-600', bgColor: 'bg-yellow-100 dark:bg-yellow-900/20', icon: AlertCircle },
+  };
+
+  return defaultShifts[shiftType] || defaultShifts['G'];
 };
 
 const PROJECT_COLORS = [
@@ -109,6 +139,11 @@ export default function UserDashboardPage() {
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [showShiftDetailsModal, setShowShiftDetailsModal] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<{shiftType: string, teamName: string, projectName: string} | null>(null);
+  const [shiftUsers, setShiftUsers] = useState<any[]>([]);
+  const [loadingShiftUsers, setLoadingShiftUsers] = useState(false);
+  const [greetingLoaded, setGreetingLoaded] = useState(false);
 
   // Check system preference for dark mode
   useEffect(() => {
@@ -139,14 +174,15 @@ export default function UserDashboardPage() {
         setIsLoading(true);
       }
 
-      // Load all data in parallel for better performance
-      const [
-        userResult,
-        workLogsResult,
-        shiftsResult,
-        teamsResult
-      ] = await Promise.allSettled([
-        loadUser(),
+      // Load user first for quick greeting display
+      const userResult = await loadUser();
+      if (userResult) {
+        setDashboardData(prev => ({ ...prev, user: userResult }));
+        setGreetingLoaded(true);
+      }
+
+      // Load rest of the data in parallel
+      const [workLogsResult, shiftsResult, teamsResult] = await Promise.allSettled([
         loadWorkLogs(),
         loadShiftInformation(),
         loadTeamAvailability()
@@ -154,10 +190,6 @@ export default function UserDashboardPage() {
 
       // Handle results and update state
       const newData: Partial<DashboardData> = {};
-      
-      if (userResult.status === 'fulfilled') {
-        newData.user = userResult.value;
-      }
       
       if (workLogsResult.status === 'fulfilled') {
         const { stats, projectHours, recentWorkLogs } = workLogsResult.value;
@@ -281,25 +313,78 @@ export default function UserDashboardPage() {
     }
 
     const shifts = shiftsResponse.data;
-    const todayShift = shifts?.find((s: any) => s.shift_date === todayStr)?.shift_type || 'G';
-    const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr)?.shift_type || 'G';
+    const todayShift = shifts?.find((s: any) => s.shift_date === todayStr);
+    const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr);
+    
+    const todayShiftType = todayShift?.shift_type || 'G';
+    const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
+
+    // Get user's teams and projects to fetch custom shift enums
+    const teamsResponse = await supabaseClient.getTeams();
+    if (teamsResponse.error) {
+      throw new Error(teamsResponse.error);
+    }
+
+    const teams = teamsResponse.data || [];
+    let customEnums: any[] = [];
+
+    // Find the team the user belongs to and get custom shift enums
+    for (const team of teams) {
+      const teamMembersResponse = await supabaseClient.getTeamMembers(team.id);
+      if (teamMembersResponse.error) continue;
+
+      const teamMembers = teamMembersResponse.data || [];
+      const isUserInTeam = teamMembers.some((member: any) => member.users?.email === dashboardData.user.email);
+      
+      if (isUserInTeam) {
+        // Get project assignment for this team
+        const projectResponse = await supabaseClient.get('team_project_assignments', {
+          select: 'project_id',
+          filters: { team_id: team.id }
+        });
+
+        if (!projectResponse.error && projectResponse.data && projectResponse.data.length > 0) {
+          const projectId = projectResponse.data[0].project_id;
+          
+          // Get custom shift enums for this project-team combination
+          const enumsResponse = await supabaseClient.get('custom_shift_enums', {
+            select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
+            filters: { project_id: projectId, team_id: team.id }
+          });
+
+          if (!enumsResponse.error && enumsResponse.data) {
+            customEnums = enumsResponse.data.map((enum_: any) => ({
+              shiftIdentifier: enum_.shift_identifier,
+              shiftName: enum_.shift_name,
+              startTime: enum_.start_time,
+              endTime: enum_.end_time,
+              isDefault: enum_.is_default,
+              color: enum_.color
+            }));
+          }
+          break; // Found user's team, no need to check others
+        }
+      }
+    }
 
     const getShiftDisplay = (shiftType: string) => {
-      const shiftInfo = SHIFT_TYPES[shiftType as ShiftType];
+      const shiftInfo = getShiftTypeInfo(shiftType, customEnums);
       return {
-        name: shiftInfo?.label || 'General',
-        color: shiftInfo?.color || '#3B82F6',
-        bgColor: shiftInfo?.bgColor || 'bg-blue-100 dark:bg-blue-900/20',
-        icon: shiftInfo?.icon || Sun
+        name: shiftInfo.label,
+        color: shiftInfo.color,
+        bgColor: shiftInfo.bgColor,
+        icon: shiftInfo.icon,
+        startTime: shiftInfo.startTime,
+        endTime: shiftInfo.endTime
       };
     };
 
-    const todayShiftInfo = getShiftDisplay(todayShift);
-    const tomorrowShiftInfo = getShiftDisplay(tomorrowShift);
+    const todayShiftInfo = getShiftDisplay(todayShiftType);
+    const tomorrowShiftInfo = getShiftDisplay(tomorrowShiftType);
 
     return {
-      todayShift,
-      tomorrowShift,
+      todayShift: todayShiftType,
+      tomorrowShift: tomorrowShiftType,
       todayShiftName: todayShiftInfo.name,
       tomorrowShiftName: tomorrowShiftInfo.name,
       todayShiftColor: todayShiftInfo.color,
@@ -307,7 +392,9 @@ export default function UserDashboardPage() {
       todayShiftBgColor: todayShiftInfo.bgColor,
       tomorrowShiftBgColor: tomorrowShiftInfo.bgColor,
       todayShiftIcon: todayShiftInfo.icon,
-      tomorrowShiftIcon: tomorrowShiftInfo.icon
+      tomorrowShiftIcon: tomorrowShiftInfo.icon,
+      projectId: todayShift?.project_id,
+      teamId: todayShift?.team_id
     };
   };
 
@@ -356,8 +443,11 @@ export default function UserDashboardPage() {
           shiftGroups[shiftType].count++;
         });
 
-        // Get project name for this team
+        // Get project name and custom shift enums for this team
         let projectName = 'Unknown Project';
+        let projectId = null;
+        let customEnums: any[] = [];
+        
         try {
           const projectResponse = await supabaseClient.get('team_project_assignments', {
             select: 'project_id',
@@ -365,7 +455,7 @@ export default function UserDashboardPage() {
           });
 
           if (!projectResponse.error && projectResponse.data && projectResponse.data.length > 0) {
-            const projectId = projectResponse.data[0].project_id;
+            projectId = projectResponse.data[0].project_id;
             const projectDetailsResponse = await supabaseClient.get('projects', {
               select: 'name',
               filters: { id: projectId }
@@ -373,6 +463,23 @@ export default function UserDashboardPage() {
 
             if (!projectDetailsResponse.error && projectDetailsResponse.data) {
               projectName = projectDetailsResponse.data[0]?.name || 'Unknown Project';
+            }
+
+            // Get custom shift enums for this project-team combination
+            const enumsResponse = await supabaseClient.get('custom_shift_enums', {
+              select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
+              filters: { project_id: projectId, team_id: team.id }
+            });
+
+            if (!enumsResponse.error && enumsResponse.data) {
+              customEnums = enumsResponse.data.map((enum_: any) => ({
+                shiftIdentifier: enum_.shift_identifier,
+                shiftName: enum_.shift_name,
+                startTime: enum_.start_time,
+                endTime: enum_.end_time,
+                isDefault: enum_.is_default,
+                color: enum_.color
+              }));
             }
           }
         } catch (error) {
@@ -382,8 +489,10 @@ export default function UserDashboardPage() {
         return {
           teamName: team.name,
           projectName,
+          projectId: projectId || '',
+          teamId: team.id,
           shifts: shiftGroups,
-          customEnums: []
+          customEnums
         };
       } catch (error) {
         console.error(`Error processing team ${team.id}:`, error);
@@ -415,46 +524,101 @@ export default function UserDashboardPage() {
     }
   };
 
-  const statCards = useMemo(() => [
-    {
-      title: 'Today',
-      value: `${dashboardData.stats.todayHours.toFixed(1)}h`,
-      icon: Clock,
-      gradient: 'from-blue-500 to-blue-600',
-      description: 'Hours worked today',
-      trend: 'up',
-      trendValue: '+12%'
-    },
-    {
-      title: 'This Week',
-      value: `${dashboardData.stats.weekHours.toFixed(1)}h`,
-      icon: Calendar,
-      gradient: 'from-purple-500 to-purple-600',
-      description: 'Hours worked this week',
-      trend: 'up',
-      trendValue: '+8%'
-    },
-    {
-      title: 'This Month',
-      value: `${dashboardData.stats.monthHours.toFixed(1)}h`,
-      icon: TrendingUp,
-      gradient: 'from-green-500 to-green-600',
-      description: 'Hours worked this month',
-      trend: 'up',
-      trendValue: '+15%'
-    },
-    {
-      title: 'This Year',
-      value: `${dashboardData.stats.yearHours.toFixed(1)}h`,
-      icon: BarChart3,
-      gradient: 'from-orange-500 to-orange-600',
-      description: 'Hours worked this year',
-      trend: 'up',
-      trendValue: '+22%'
-    },
-  ], [dashboardData.stats]);
+  const showShiftDetails = async (shiftType: string, teamName: string, projectName: string) => {
+    setSelectedShift({ shiftType, teamName, projectName });
+    setShowShiftDetailsModal(true);
+    setLoadingShiftUsers(true);
+    setShiftUsers([]);
 
-  if (isLoading) {
+    try {
+      // Find the team and get users for this shift
+      const team = dashboardData.teamAvailability.find(t => t.teamName === teamName);
+      if (team && team.shifts[shiftType]) {
+        const userEmails = team.shifts[shiftType].users;
+        
+        // Load user details for each email
+        const userPromises = userEmails.map(async (email: string) => {
+          const response = await supabaseClient.get('users', {
+            select: 'full_name, email, phone_number',
+            filters: { email }
+          });
+          return response.data?.[0] || { full_name: email, email, phone_number: 'Not provided' };
+        });
+
+        const users = await Promise.all(userPromises);
+        setShiftUsers(users);
+      }
+    } catch (error) {
+      console.error('Error loading shift users:', error);
+      toast.error('Failed to load shift user details');
+    } finally {
+      setLoadingShiftUsers(false);
+    }
+  };
+
+  const calculateTrend = (currentHours: number, previousHours: number): { trend: 'up' | 'down' | 'stable', value: string, percentage: number } => {
+    if (previousHours === 0) return { trend: 'stable', value: '0%', percentage: 0 };
+    
+    const change = currentHours - previousHours;
+    const percentage = (change / previousHours) * 100;
+    
+    if (percentage > 5) return { trend: 'up', value: `+${percentage.toFixed(1)}%`, percentage };
+    if (percentage < -5) return { trend: 'down', value: `${percentage.toFixed(1)}%`, percentage };
+    return { trend: 'stable', value: '0%', percentage: 0 };
+  };
+
+  const statCards = useMemo(() => {
+    // Calculate trends based on previous periods
+    const todayTrend = calculateTrend(dashboardData.stats.todayHours, dashboardData.stats.weekHours / 7);
+    const weekTrend = calculateTrend(dashboardData.stats.weekHours, dashboardData.stats.monthHours / 4);
+    const monthTrend = calculateTrend(dashboardData.stats.monthHours, dashboardData.stats.yearHours / 12);
+    const totalTrend = calculateTrend(dashboardData.stats.totalHours, dashboardData.stats.totalHours * 0.9); // Compare with 90% of current total
+
+    return [
+      {
+        title: 'Today',
+        value: `${dashboardData.stats.todayHours.toFixed(1)}h`,
+        icon: Clock,
+        gradient: 'from-blue-500 to-blue-600',
+        description: 'Hours worked today',
+        trend: todayTrend.trend,
+        trendValue: todayTrend.value,
+        trendColor: todayTrend.trend === 'up' ? 'text-green-600' : todayTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+      },
+      {
+        title: 'This Week',
+        value: `${dashboardData.stats.weekHours.toFixed(1)}h`,
+        icon: Calendar,
+        gradient: 'from-purple-500 to-purple-600',
+        description: 'Hours worked this week',
+        trend: weekTrend.trend,
+        trendValue: weekTrend.value,
+        trendColor: weekTrend.trend === 'up' ? 'text-green-600' : weekTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+      },
+      {
+        title: 'This Month',
+        value: `${dashboardData.stats.monthHours.toFixed(1)}h`,
+        icon: TrendingUp,
+        gradient: 'from-green-500 to-green-600',
+        description: 'Hours worked this month',
+        trend: monthTrend.trend,
+        trendValue: monthTrend.value,
+        trendColor: monthTrend.trend === 'up' ? 'text-green-600' : monthTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+      },
+      {
+        title: 'Total',
+        value: `${dashboardData.stats.totalHours.toFixed(1)}h`,
+        icon: BarChart3,
+        gradient: 'from-orange-500 to-orange-600',
+        description: 'Total hours worked',
+        trend: totalTrend.trend,
+        trendValue: totalTrend.value,
+        trendColor: totalTrend.trend === 'up' ? 'text-green-600' : totalTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+      },
+    ];
+  }, [dashboardData.stats]);
+
+  if (isLoading && !greetingLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
         <div className="container mx-auto px-4 py-8">
@@ -518,13 +682,7 @@ export default function UserDashboardPage() {
           </div>
           
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft hover:shadow-medium"
-              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
+            {/* Dark mode toggle removed - available in header bar */}
           </div>
         </div>
 
@@ -598,8 +756,14 @@ export default function UserDashboardPage() {
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-500">{stat.description}</p>
                 <div className="flex items-center space-x-1 mt-2">
-                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">{stat.trendValue}</span>
-                  <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  <span className={`text-xs font-medium ${stat.trendColor}`}>{stat.trendValue}</span>
+                  {stat.trend === 'up' ? (
+                    <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  ) : stat.trend === 'down' ? (
+                    <TrendingUp className="h-3 w-3 text-red-600 dark:text-red-400 rotate-180" />
+                  ) : (
+                    <div className="h-3 w-3 text-gray-600 dark:text-gray-400">—</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -642,19 +806,23 @@ export default function UserDashboardPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {Object.entries(team.shifts).map(([shiftType, shiftData]) => {
-                        const shiftInfo = SHIFT_TYPES[shiftType as ShiftType];
+                        const shiftInfo = getShiftTypeInfo(shiftType, team.customEnums);
                         return (
-                          <div key={shiftType} className="flex items-center justify-between p-2 bg-white dark:bg-neutral-800 rounded-lg">
-                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-                              {shiftInfo?.label || shiftType}
+                          <button
+                            key={shiftType}
+                            onClick={() => showShiftDetails(shiftType, team.teamName, team.projectName)}
+                            className="flex items-center justify-between p-2 bg-white dark:bg-neutral-800 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer group"
+                          >
+                            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-primary-600">
+                              {shiftInfo.label}
                             </span>
                             <div className="flex items-center space-x-1">
                               <span className="text-xs text-neutral-500 dark:text-neutral-400">
                                 {shiftData.count}
                               </span>
-                              <Users className="h-3 w-3 text-neutral-400" />
+                              <Users className="h-3 w-3 text-neutral-400 group-hover:text-primary-600" />
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -811,6 +979,80 @@ export default function UserDashboardPage() {
                     <p className="text-sm text-neutral-900 dark:text-white">{selectedUser.phone_number || 'Not provided'}</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Shift Details Modal */}
+        {showShiftDetailsModal && selectedShift && (
+          <div className="modal-overlay" onClick={() => setShowShiftDetailsModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+                <div>
+                  <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Shift Details</h2>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    {selectedShift.teamName} - {selectedShift.projectName}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowShiftDetailsModal(false)}
+                  className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+                    {(() => {
+                      // Find the team's custom enums to get the shift name
+                      const team = dashboardData.teamAvailability.find(t => t.teamName === selectedShift.teamName);
+                      const shiftInfo = getShiftTypeInfo(selectedShift.shiftType, team?.customEnums || []);
+                      return shiftInfo.label;
+                    })()} Shift
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    People assigned to this shift
+                  </p>
+                </div>
+                
+                {loadingShiftUsers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                    <span className="ml-3 text-neutral-600 dark:text-neutral-400">Loading shift details...</span>
+                  </div>
+                ) : shiftUsers.length > 0 ? (
+                  <div className="space-y-3">
+                    {shiftUsers.map((user, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-700 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">
+                              {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-neutral-900 dark:text-white">
+                              {user.full_name || 'Unknown Name'}
+                            </p>
+                            <p className="text-sm text-neutral-600 dark:text-neutral-400">{user.email}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                            {user.phone_number || 'No phone'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                    <p className="text-neutral-600 dark:text-neutral-400 font-medium">No users found in this shift</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
