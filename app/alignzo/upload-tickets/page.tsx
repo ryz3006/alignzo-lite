@@ -266,12 +266,12 @@ export default function UploadTicketsPage() {
         <div className="space-y-6">
           {/* File Selection */}
           <div>
-            <label className="form-label">
+            <label className="form-label dark:text-neutral-200">
               Select File (CSV, Excel)
             </label>
             <div className="mt-2 flex justify-center px-6 pt-8 pb-8 border-2 border-neutral-300 dark:border-neutral-600 border-dashed rounded-xl hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
               <div className="space-y-3 text-center">
-                <Upload className="mx-auto h-12 w-12 text-neutral-400" />
+                <Upload className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
                 <div className="flex text-sm text-neutral-600 dark:text-neutral-400">
                   <label className="relative cursor-pointer bg-white dark:bg-neutral-800 rounded-lg font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500 px-4 py-2 border border-neutral-200 dark:border-neutral-600 hover:border-primary-300 dark:hover:border-primary-500 transition-colors">
                     <span>Upload a file</span>
@@ -302,13 +302,13 @@ export default function UploadTicketsPage() {
 
           {/* Mapping Selection */}
           <div>
-            <label className="form-label">
+            <label className="form-label dark:text-neutral-200">
               Select Upload Mapping
             </label>
             <select
               value={selectedMapping}
               onChange={(e) => setSelectedMapping(e.target.value)}
-              className="input-modern"
+              className="input-modern dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:text-neutral-200"
             >
               <option value="">Choose a mapping configuration...</option>
               {uploadMappings.map((mapping) => (
@@ -364,11 +364,11 @@ export default function UploadTicketsPage() {
             <table className="table-modern">
               <thead>
                 <tr>
-                  <th className="text-left">Filename</th>
-                  <th className="text-left">Status</th>
-                  <th className="text-left">Date Time</th>
-                  <th className="text-left">Uploaded By</th>
-                  <th className="text-left">Actions</th>
+                  <th className="text-left dark:text-neutral-200">Filename</th>
+                  <th className="text-left dark:text-neutral-200">Status</th>
+                  <th className="text-left dark:text-neutral-200">Date Time</th>
+                  <th className="text-left dark:text-neutral-200">Uploaded By</th>
+                  <th className="text-left dark:text-neutral-200">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,11 +430,11 @@ export default function UploadTicketsPage() {
               <h4 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Create New Mapping</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="form-group">
-                  <label className="form-label">Source</label>
+                  <label className="form-label dark:text-neutral-200">Source</label>
                   <select
                     value={newMapping.source_id}
                     onChange={(e) => setNewMapping({...newMapping, source_id: e.target.value})}
-                    className="input-modern"
+                    className="input-modern dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:text-neutral-200"
                     required
                   >
                     <option value="">Select source...</option>
@@ -446,11 +446,11 @@ export default function UploadTicketsPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Project</label>
+                  <label className="form-label dark:text-neutral-200">Project</label>
                   <select
                     value={newMapping.project_id}
                     onChange={(e) => setNewMapping({...newMapping, project_id: e.target.value})}
-                    className="input-modern"
+                    className="input-modern dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:text-neutral-200"
                     required
                   >
                     <option value="">Select project...</option>
@@ -462,24 +462,24 @@ export default function UploadTicketsPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Organization Field</label>
+                  <label className="form-label dark:text-neutral-200">Organization Field</label>
                   <input
                     type="text"
                     value={newMapping.source_organization_field}
                     onChange={(e) => setNewMapping({...newMapping, source_organization_field: e.target.value})}
-                    className="input-modern"
+                    className="input-modern dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-neutral-400"
                     placeholder="e.g., department"
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Organization Value</label>
+                  <label className="form-label dark:text-neutral-200">Organization Value</label>
                   <input
                     type="text"
                     value={newMapping.source_organization_value}
                     onChange={(e) => setNewMapping({...newMapping, source_organization_value: e.target.value})}
-                    className="input-modern"
-                    placeholder="e.g., IT Support"
+                    className="input-modern dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-neutral-400"
+                    placeholder="e.g., department"
                     required
                   />
                 </div>
@@ -505,42 +505,42 @@ export default function UploadTicketsPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="table-modern">
-                    <thead>
-                      <tr>
-                        <th className="text-left">Source</th>
-                        <th className="text-left">Project</th>
-                        <th className="text-left">Field</th>
-                        <th className="text-left">Value</th>
-                        <th className="text-left">Actions</th>
+                                      <thead>
+                    <tr>
+                      <th className="text-left dark:text-neutral-200">Source</th>
+                      <th className="text-left dark:text-neutral-200">Project</th>
+                      <th className="text-left dark:text-neutral-200">Field</th>
+                      <th className="text-left dark:text-neutral-200">Value</th>
+                      <th className="text-left dark:text-neutral-200">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadMappings.map((mapping) => (
+                      <tr key={mapping.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
+                        <td className="text-neutral-900 dark:text-white">
+                          {(mapping as any).source?.name || 'Unknown'}
+                        </td>
+                        <td className="text-neutral-900 dark:text-white">
+                          {(mapping as any).project?.name || 'Unknown'}
+                        </td>
+                        <td className="text-neutral-900 dark:text-white">
+                          {mapping.source_organization_field}
+                        </td>
+                        <td className="text-neutral-900 dark:text-white">
+                          {mapping.source_organization_value}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => handleDeleteMapping(mapping.id)}
+                            className="p-2 text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
+                            title="Delete mapping"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {uploadMappings.map((mapping) => (
-                        <tr key={mapping.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
-                          <td className="text-neutral-900 dark:text-white">
-                            {(mapping as any).source?.name || 'Unknown'}
-                          </td>
-                          <td className="text-neutral-900 dark:text-white">
-                            {(mapping as any).project?.name || 'Unknown'}
-                          </td>
-                          <td className="text-neutral-900 dark:text-white">
-                            {mapping.source_organization_field}
-                          </td>
-                          <td className="text-neutral-900 dark:text-white">
-                            {mapping.source_organization_value}
-                          </td>
-                          <td>
-                            <button
-                              onClick={() => handleDeleteMapping(mapping.id)}
-                              className="p-2 text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors"
-                              title="Delete mapping"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
+                    ))}
+                  </tbody>
                   </table>
                 </div>
               )}

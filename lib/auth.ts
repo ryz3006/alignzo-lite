@@ -108,6 +108,7 @@ export async function getUserAccessControls(userEmail: string) {
         access_analytics_remedy,
         access_upload_tickets,
         access_master_mappings,
+        access_shift_schedule,
         access_integrations
       `,
       filters: { email: userEmail }
@@ -129,6 +130,7 @@ export async function getUserAccessControls(userEmail: string) {
         access_analytics_remedy: false,
         access_upload_tickets: false,
         access_master_mappings: false,
+        access_shift_schedule: false,
         access_integrations: false,
       };
     }
@@ -151,6 +153,7 @@ export async function getUserAccessControls(userEmail: string) {
         access_analytics_remedy: false,
         access_upload_tickets: false,
         access_master_mappings: false,
+        access_shift_schedule: false,
         access_integrations: false,
       };
     }
@@ -169,6 +172,7 @@ export async function getUserAccessControls(userEmail: string) {
       access_analytics_remedy: userData?.access_analytics_remedy ?? false,
       access_upload_tickets: userData?.access_upload_tickets ?? false,
       access_master_mappings: userData?.access_master_mappings ?? false,
+      access_shift_schedule: userData?.access_shift_schedule ?? false,
       access_integrations: userData?.access_integrations ?? false,
     };
 
@@ -189,6 +193,7 @@ export async function getUserAccessControls(userEmail: string) {
       access_analytics_remedy: false,
       access_upload_tickets: false,
       access_master_mappings: false,
+      access_shift_schedule: false,
       access_integrations: false,
     };
   }

@@ -64,7 +64,14 @@ export default function UserDashboardPage() {
   const [recentWorkLogs, setRecentWorkLogs] = useState<WorkLogWithProject[]>([]);
   const [userShift, setUserShift] = useState<UserShift | null>(null);
   const [teamAvailability, setTeamAvailability] = useState<TeamAvailability[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Individual loading states for sequential loading
+  const [userLoading, setUserLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [shiftLoading, setShiftLoading] = useState(true);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -75,152 +82,194 @@ export default function UserDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-
-      if (!currentUser?.email) return;
-
-      const userEmail = currentUser.email;
-
-      // Load work logs and stats
-      await loadWorkLogs(userEmail);
+      // Load user first
+      await loadUser();
       
-      // Load shift information
-      await loadShiftInformation(userEmail);
-      
-      // Load team availability - TODO: Update with proxy calls
+      // Then load other components sequentially
+      await loadWorkLogs();
+      await loadShiftInformation();
       await loadTeamAvailability();
+      
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
+    }
+  };
+
+  const loadUser = async () => {
+    try {
+      setUserLoading(true);
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      
+      if (!currentUser?.email) {
+        throw new Error('No user email found');
+      }
+      
+      // Small delay for visual effect
+      await new Promise(resolve => setTimeout(resolve, 300));
+    } catch (error) {
+      console.error('Error loading user:', error);
+      throw error;
     } finally {
-      setLoading(false);
+      setUserLoading(false);
     }
   };
 
-  const loadWorkLogs = async (userEmail: string) => {
-    const response = await supabaseClient.getUserWorkLogs(userEmail, {
-      order: { column: 'created_at', ascending: false }
-    });
-
-    if (response.error) {
-      console.error('Error loading work logs:', response.error);
-      throw new Error(response.error);
-    }
-
-    const logs = response.data || [];
-    const todayRange = getTodayRange();
-    const weekRange = getWeekRange();
-    const monthRange = getMonthRange();
-
-    // Calculate stats
-    const todayHours = logs
-      .filter((log: any) => {
-        const logDate = new Date(log.start_time);
-        return logDate >= todayRange.start && logDate <= todayRange.end;
-      })
-      .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-    const weekHours = logs
-      .filter((log: any) => {
-        const logDate = new Date(log.start_time);
-        return logDate >= weekRange.start && logDate <= weekRange.end;
-      })
-      .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-    const monthHours = logs
-      .filter((log: any) => {
-        const logDate = new Date(log.start_time);
-        return logDate >= monthRange.start && logDate <= monthRange.end;
-      })
-      .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-    const totalHours = logs
-      .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
-
-    setStats({
-      todayHours: Math.round(todayHours * 100) / 100,
-      weekHours: Math.round(weekHours * 100) / 100,
-      monthHours: Math.round(monthHours * 100) / 100,
-      totalHours: Math.round(totalHours * 100) / 100,
-    });
-
-    // Calculate project breakdown
-    const projectMap = new Map<string, number>();
-    logs.forEach((log: any) => {
-      const projectName = log.project?.name || 'Unknown Project';
-      const hours = (log.logged_duration_seconds || 0) / 3600;
-      projectMap.set(projectName, (projectMap.get(projectName) || 0) + hours);
-    });
-
-    const projectData = Array.from(projectMap.entries())
-      .map(([name, hours]) => ({
-        projectName: name,
-        hours: Math.round(hours * 100) / 100,
-      }))
-      .sort((a, b) => b.hours - a.hours)
-      .slice(0, 10);
-
-    setProjectHours(projectData);
-    setRecentWorkLogs(logs.slice(0, 5));
-  };
-
-  const loadShiftInformation = async (userEmail: string) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  const loadWorkLogs = async () => {
+    if (!user?.email) return;
     
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    try {
+      setStatsLoading(true);
+      setProjectsLoading(true);
+      setActivityLoading(true);
+      
+      const response = await supabaseClient.getUserWorkLogs(user.email, {
+        order: { column: 'created_at', ascending: false }
+      });
 
-    // Get user's shifts for today and tomorrow
-    const shiftsResponse = await supabaseClient.getShiftSchedules({
-      filters: { 
-        user_email: userEmail,
-        shift_date: [todayStr, tomorrowStr]
+      if (response.error) {
+        console.error('Error loading work logs:', response.error);
+        throw new Error(response.error);
       }
-    });
 
-    if (shiftsResponse.error) {
-      console.error('Error loading shifts:', shiftsResponse.error);
-      throw new Error(shiftsResponse.error);
+      const logs = response.data || [];
+      const todayRange = getTodayRange();
+      const weekRange = getWeekRange();
+      const monthRange = getMonthRange();
+
+      // Calculate stats
+      const todayHours = logs
+        .filter((log: any) => {
+          const logDate = new Date(log.start_time);
+          return logDate >= todayRange.start && logDate <= todayRange.end;
+        })
+        .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+      const weekHours = logs
+        .filter((log: any) => {
+          const logDate = new Date(log.start_time);
+          return logDate >= weekRange.start && logDate <= weekRange.end;
+        })
+        .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+      const monthHours = logs
+        .filter((log: any) => {
+          const logDate = new Date(log.start_time);
+          return logDate >= monthRange.start && logDate <= monthRange.end;
+        })
+        .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+      const totalHours = logs
+        .reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
+
+      setStats({
+        todayHours: Math.round(todayHours * 100) / 100,
+        weekHours: Math.round(weekHours * 100) / 100,
+        monthHours: Math.round(monthHours * 100) / 100,
+        totalHours: Math.round(totalHours * 100) / 100,
+      });
+
+      // Calculate project breakdown
+      const projectMap = new Map<string, number>();
+      logs.forEach((log: any) => {
+        const projectName = log.project?.name || 'Unknown Project';
+        const hours = (log.logged_duration_seconds || 0) / 3600;
+        projectMap.set(projectName, (projectMap.get(projectName) || 0) + hours);
+      });
+
+      const projectData = Array.from(projectMap.entries())
+        .map(([name, hours]) => ({
+          projectName: name,
+          hours: Math.round(hours * 100) / 100,
+        }))
+        .sort((a, b) => b.hours - a.hours)
+        .slice(0, 10);
+
+      setProjectHours(projectData);
+      setRecentWorkLogs(logs.slice(0, 5));
+      
+      // Small delay for visual effect
+      await new Promise(resolve => setTimeout(resolve, 200));
+    } catch (error) {
+      console.error('Error loading work logs:', error);
+      throw error;
+    } finally {
+      setStatsLoading(false);
+      setProjectsLoading(false);
+      setActivityLoading(false);
     }
+  };
 
-    const shifts = shiftsResponse.data;
+  const loadShiftInformation = async () => {
+    if (!user?.email) return;
+    
+    try {
+      setShiftLoading(true);
+      
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const todayStr = today.toISOString().split('T')[0];
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const todayShift = shifts?.find((s: any) => s.shift_date === todayStr)?.shift_type || 'G';
-    const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr)?.shift_type || 'G';
+      // Get user's shifts for today and tomorrow
+      const shiftsResponse = await supabaseClient.getShiftSchedules({
+        filters: { 
+          user_email: user.email,
+          shift_date: [todayStr, tomorrowStr]
+        }
+      });
 
-    // TODO: Get user's team and project for custom shift enums
-    // This requires complex queries that need to be updated for the proxy system
-    let customEnums: any[] = [];
-
-    const getShiftDisplay = (shiftType: string) => {
-      const customEnum = customEnums?.find((e: any) => e.shift_identifier === shiftType);
-      if (customEnum) {
-        return {
-          name: customEnum.shift_name,
-          color: customEnum.color || '#3B82F6'
-        };
+      if (shiftsResponse.error) {
+        console.error('Error loading shifts:', shiftsResponse.error);
+        throw new Error(shiftsResponse.error);
       }
-      return {
-        name: SHIFT_TYPES[shiftType as ShiftType]?.label || 'General',
-        color: '#3B82F6'
+
+      const shifts = shiftsResponse.data;
+
+      const todayShift = shifts?.find((s: any) => s.shift_date === todayStr)?.shift_type || 'G';
+      const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr)?.shift_type || 'G';
+
+      // TODO: Get user's team and project for custom shift enums
+      // This requires complex queries that need to be updated for the proxy system
+      let customEnums: any[] = [];
+
+      const getShiftDisplay = (shiftType: string) => {
+        const customEnum = customEnums?.find((e: any) => e.shift_identifier === shiftType);
+        if (customEnum) {
+          return {
+            name: customEnum.shift_name,
+            color: customEnum.color || '#3B82F6'
+          };
+        }
+        return {
+          name: SHIFT_TYPES[shiftType as ShiftType]?.label || 'General',
+          color: '#3B82F6'
+        };
       };
-    };
 
-    const todayShiftInfo = getShiftDisplay(todayShift);
-    const tomorrowShiftInfo = getShiftDisplay(tomorrowShift);
+      const todayShiftInfo = getShiftDisplay(todayShift);
+      const tomorrowShiftInfo = getShiftDisplay(tomorrowShift);
 
-    setUserShift({
-      todayShift,
-      tomorrowShift,
-      todayShiftName: todayShiftInfo.name,
-      tomorrowShiftName: tomorrowShiftInfo.name,
-      todayShiftColor: todayShiftInfo.color,
-      tomorrowShiftColor: tomorrowShiftInfo.color,
-    });
+      setUserShift({
+        todayShift,
+        tomorrowShift,
+        todayShiftName: todayShiftInfo.name,
+        tomorrowShiftName: tomorrowShiftInfo.name,
+        todayShiftColor: todayShiftInfo.color,
+        tomorrowShiftColor: tomorrowShiftInfo.color,
+      });
+      
+      // Small delay for visual effect
+      await new Promise(resolve => setTimeout(resolve, 200));
+    } catch (error) {
+      console.error('Error loading shift information:', error);
+      throw error;
+    } finally {
+      setShiftLoading(false);
+    }
   };
 
   const showUserDetails = async (email: string) => {
@@ -247,6 +296,8 @@ export default function UserDashboardPage() {
 
   const loadTeamAvailability = async () => {
     try {
+      setTeamLoading(true);
+      
       // Get all teams and their members for today
       const today = new Date().toISOString().split('T')[0];
       
@@ -343,10 +394,15 @@ export default function UserDashboardPage() {
       }
 
       setTeamAvailability(availability);
+      
+      // Small delay for visual effect
+      await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
       console.error('Error loading team availability:', error);
       toast.error('Failed to load team availability');
       setTeamAvailability([]);
+    } finally {
+      setTeamLoading(false);
     }
   };
 
@@ -381,300 +437,323 @@ export default function UserDashboardPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
-          <p className="text-neutral-600 font-medium">Loading your dashboard...</p>
+  // Loading component for individual sections
+  const SectionLoader = ({ children, loading, delay = 0 }: { children: React.ReactNode, loading: boolean, delay?: number }) => {
+    if (loading) {
+      return (
+        <div className="animate-pulse">
+          <div className="h-8 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-4 w-1/3"></div>
+          <div className="space-y-3">
+            <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+            <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4"></div>
+            <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2"></div>
+          </div>
         </div>
+      );
+    }
+    
+    return (
+      <div 
+        className="animate-fade-in-up" 
+        style={{ animationDelay: `${delay}ms` }}
+      >
+        {children}
       </div>
     );
-  }
+  };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8">
       {/* Header with Welcome and Refresh */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={loadDashboardData}
-            className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft hover:shadow-medium"
-            title="Refresh Dashboard"
-          >
-            <RefreshCw className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">
-              Welcome back, {user?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
-            </h1>
-            <p className="text-neutral-600 dark:text-neutral-400 mt-1">Here's your work summary and shift information.</p>
+      <SectionLoader loading={userLoading} delay={0}>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={loadDashboardData}
+              className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft hover:shadow-medium"
+              title="Refresh Dashboard"
+            >
+              <RefreshCw className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">
+                Welcome back, {user?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
+              </h1>
+              <p className="text-neutral-600 dark:text-neutral-400 mt-1">Here's your work summary and shift information.</p>
+            </div>
           </div>
         </div>
-
-      </div>
+      </SectionLoader>
 
       {/* Shift Information Cards */}
-      {userShift && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card card-hover">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-success-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
+      <SectionLoader loading={shiftLoading} delay={300}>
+        {userShift && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card card-hover">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-2 h-2 bg-success-500 rounded-full"></div>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
+                  </div>
+                  <p className="text-3xl font-bold mb-1" style={{ color: userShift.todayShiftColor }}>
+                    {userShift.todayShiftName}
+                  </p>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </p>
                 </div>
-                <p className="text-3xl font-bold mb-1" style={{ color: userShift.todayShiftColor }}>
-                  {userShift.todayShiftName}
-                </p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-              <div 
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
-                style={{ backgroundColor: userShift.todayShiftColor }}
-              >
-                {userShift.todayShift}
+                <div 
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
+                  style={{ backgroundColor: userShift.todayShiftColor }}
+                >
+                  {userShift.todayShift}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="card card-hover">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
+            <div className="card card-hover">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
+                  </div>
+                  <p className="text-3xl font-bold mb-1" style={{ color: userShift.tomorrowShiftColor }}>
+                    {userShift.tomorrowShiftName}
+                  </p>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </p>
                 </div>
-                <p className="text-3xl font-bold mb-1" style={{ color: userShift.tomorrowShiftColor }}>
-                  {userShift.tomorrowShiftName}
-                </p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-              <div 
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
-                style={{ backgroundColor: userShift.tomorrowShiftColor }}
-              >
-                {userShift.tomorrowShift}
+                <div 
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
+                  style={{ backgroundColor: userShift.tomorrowShiftColor }}
+                >
+                  {userShift.tomorrowShift}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </SectionLoader>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat) => (
-          <div key={stat.title} className="stats-card group">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-xl ${stat.gradient} shadow-medium`}>
-                <stat.icon className="h-6 w-6 text-white" />
+      <SectionLoader loading={statsLoading} delay={600}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statCards.map((stat) => (
+            <div key={stat.title} className="stats-card group">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl ${stat.gradient} shadow-medium`}>
+                  <stat.icon className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">
+                    {stat.value}
+                  </p>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">{stat.title}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">
-                  {stat.value}
-                </p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{stat.title}</p>
-              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-500">{stat.description}</p>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500">{stat.description}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </SectionLoader>
 
       {/* Team Availability Table */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Today's Team Availability</h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
+      <SectionLoader loading={teamLoading} delay={900}>
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Today's Team Availability</h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
+              <Users className="h-4 w-4" />
+              <span>{teamAvailability.length} teams</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
-            <Users className="h-4 w-4" />
-            <span>{teamAvailability.length} teams</span>
-          </div>
-        </div>
-        
-        {(() => {
-            // Collect all unique shift types across all teams with their display names
-            const allShiftTypesMap = new Map<string, string>();
-            
-            // Add default shift types
-            Object.entries(SHIFT_TYPES).forEach(([key, value]) => {
-              allShiftTypesMap.set(key, value.label);
-            });
-            
-            // Add custom shift types from all teams
-            teamAvailability.forEach(team => {
-              team.customEnums?.forEach((customEnum: any) => {
-                allShiftTypesMap.set(customEnum.shift_identifier, customEnum.shift_name);
+          
+          {(() => {
+              // Collect all unique shift types across all teams with their display names
+              const allShiftTypesMap = new Map<string, string>();
+              
+              // Add default shift types
+              Object.entries(SHIFT_TYPES).forEach(([key, value]) => {
+                allShiftTypesMap.set(key, value.label);
               });
-            });
-            
-            const uniqueShiftTypes = Array.from(allShiftTypesMap.entries());
-            
-            return teamAvailability.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="table-modern">
-                  <thead>
-                    <tr>
-                      <th className="text-left">
-                        Team
-                      </th>
-                      {uniqueShiftTypes.map(([shiftType, shiftName]) => (
-                        <th key={shiftType} className="text-center">
-                          {shiftName}
+              
+              // Add custom shift types from all teams
+              teamAvailability.forEach(team => {
+                team.customEnums?.forEach((customEnum: any) => {
+                  allShiftTypesMap.set(customEnum.shift_identifier, customEnum.shift_name);
+                });
+              });
+              
+              const uniqueShiftTypes = Array.from(allShiftTypesMap.entries());
+              
+              return teamAvailability.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="table-modern">
+                    <thead>
+                      <tr>
+                        <th className="text-left">
+                          Team
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamAvailability.map((team) => (
-                      <tr key={team.teamName}>
-                        <td className="font-medium text-neutral-900 dark:text-white">
-                          {team.teamName}
-                        </td>
-                        {uniqueShiftTypes.map(([shiftType]) => {
-                          const users = team.shifts[shiftType] || [];
-                          return (
-                            <td key={shiftType} className="text-center">
-                              {users.length > 0 ? (
-                                <div className="flex flex-col space-y-1">
-                                  {users.map((email, index) => (
-                                    <button
-                                      key={index}
-                                      onClick={() => showUserDetails(email)}
-                                      className="badge badge-primary hover:bg-primary-200 transition-colors cursor-pointer text-xs"
-                                    >
-                                      {email.split('@')[0]}
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-neutral-400 dark:text-neutral-500">-</span>
-                              )}
-                            </td>
-                          );
-                        })}
+                        {uniqueShiftTypes.map(([shiftType, shiftName]) => (
+                          <th key={shiftType} className="text-center">
+                            {shiftName}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
-                <p className="text-neutral-600 dark:text-neutral-400 font-medium">No team availability data found.</p>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Team schedules will appear here once configured.</p>
-              </div>
-            );
-          })()}
-      </div>
+                    </thead>
+                    <tbody>
+                      {teamAvailability.map((team) => (
+                        <tr key={team.teamName}>
+                          <td className="font-medium text-neutral-900 dark:text-white">
+                            {team.teamName}
+                          </td>
+                          {uniqueShiftTypes.map(([shiftType]) => {
+                            const users = team.shifts[shiftType] || [];
+                            return (
+                              <td key={shiftType} className="text-center">
+                                {users.length > 0 ? (
+                                  <div className="flex flex-col space-y-1">
+                                    {users.map((email, index) => (
+                                      <button
+                                        key={index}
+                                        onClick={() => showUserDetails(email)}
+                                        className="badge badge-primary hover:bg-primary-200 transition-colors cursor-pointer text-xs"
+                                      >
+                                        {email.split('@')[0]}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-neutral-400 dark:text-neutral-500">-</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                  <p className="text-neutral-600 dark:text-neutral-400 font-medium">No team availability data found.</p>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Team schedules will appear here once configured.</p>
+                </div>
+              );
+            })()}
+        </div>
+      </SectionLoader>
 
       {/* Project Breakdown Chart */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Hours by Project</h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your time distribution across projects</p>
+      <SectionLoader loading={projectsLoading} delay={1200}>
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Hours by Project</h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your time distribution across projects</p>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
+              <BarChart3 className="h-4 w-4" />
+              <span>{projectHours.length} projects</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
-            <BarChart3 className="h-4 w-4" />
-            <span>{projectHours.length} projects</span>
-          </div>
-        </div>
-        {projectHours.length > 0 ? (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectHours}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="projectName" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  fontSize={12}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <YAxis tick={{ fill: '#6b7280' }} />
-                <Tooltip 
-                  formatter={(value: any) => [`${value} hours`, 'Duration']}
-                  labelFormatter={(label) => `Project: ${label}`}
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}
-                />
-                <Bar dataKey="hours" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
+          {projectHours.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={projectHours}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="projectName" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    fontSize={12}
+                    tick={{ fill: '#6b7280' }}
+                  />
+                  <YAxis tick={{ fill: '#6b7280' }} />
+                  <Tooltip 
+                    formatter={(value: any) => [`${value} hours`, 'Duration']}
+                    labelFormatter={(label) => `Project: ${label}`}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Bar dataKey="hours" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
                         <div className="text-center py-12">
                 <BarChart3 className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
                 <p className="text-neutral-600 dark:text-neutral-400 font-medium">No work logs found</p>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Start tracking your time to see project breakdown.</p>
               </div>
-        )}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Recent Activity</h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your latest work sessions</p>
-          </div>
-          <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
-            <Activity className="h-4 w-4" />
-            <span>{recentWorkLogs.length} activities</span>
-          </div>
-        </div>
-        <div className="space-y-4">
-          {recentWorkLogs.length > 0 ? (
-            recentWorkLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-neutral-900 dark:text-white truncate">
-                      {log.project?.name || 'Unknown Project'}
-                    </h4>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 truncate">
-                      {log.ticket_id} - {log.task_detail}
-                    </p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                      {formatDateTime(log.start_time)} • {formatDuration(log.logged_duration_seconds)}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    {formatTimeAgo(log.created_at)}
-                  </p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12">
-              <Clock className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
-              <p className="text-neutral-600 dark:text-neutral-400 font-medium">No recent activity</p>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Start a timer to begin tracking your work.</p>
-            </div>
           )}
         </div>
-      </div>
+      </SectionLoader>
 
-
+      {/* Recent Activity */}
+      <SectionLoader loading={activityLoading} delay={1500}>
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Recent Activity</h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Your latest work sessions</p>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
+              <Activity className="h-4 w-4" />
+              <span>{recentWorkLogs.length} activities</span>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {recentWorkLogs.length > 0 ? (
+              recentWorkLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
+                      <Clock className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                        {log.project?.name || 'Unknown Project'}
+                      </h4>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400 truncate">
+                        {log.ticket_id} - {log.task_detail}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        {formatDateTime(log.start_time)} • {formatDuration(log.logged_duration_seconds)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {formatTimeAgo(log.created_at)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <Clock className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
+                <p className="text-neutral-600 dark:text-neutral-400 font-medium">No recent activity</p>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Start a timer to begin tracking your work.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionLoader>
 
       {/* User Details Modal */}
       {showUserDetailsModal && selectedUser && (

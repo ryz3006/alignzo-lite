@@ -89,6 +89,20 @@ body {
     @apply bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 transition-all duration-200 hover:shadow-medium;
   }
   
+  /* Animation utilities */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
   .card-hover {
     @apply hover:shadow-medium hover:-translate-y-1 transition-all duration-200;
   }
