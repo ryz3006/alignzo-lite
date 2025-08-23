@@ -94,15 +94,15 @@ interface DashboardData {
 // Dynamic shift type mapping function
 const getShiftTypeInfo = (shiftType: string, customEnums: any[] = []) => {
   // First try to find in custom enums
-  const customShift = customEnums.find(enum_ => enum_.shiftIdentifier === shiftType);
+  const customShift = customEnums.find(enum_ => enum_.shift_identifier === shiftType);
   if (customShift) {
     return {
-      label: customShift.shiftName,
-      color: customShift.color ? `text-[${customShift.color}]` : 'text-blue-600',
-      bgColor: customShift.color ? `bg-[${customShift.color}]/10 dark:bg-[${customShift.color}]/20` : 'bg-blue-100 dark:bg-blue-900/20',
+      label: customShift.shift_name,
+      color: customShift.color || 'text-blue-600',
+      bgColor: customShift.color ? `bg-blue-100 dark:bg-blue-900/20` : 'bg-blue-100 dark:bg-blue-900/20',
       icon: Sun, // Default icon for custom shifts
-      startTime: customShift.startTime,
-      endTime: customShift.endTime
+      startTime: customShift.start_time,
+      endTime: customShift.end_time
     };
   }
 
@@ -202,17 +202,10 @@ export default function UserDashboardPage() {
         newData.recentWorkLogs = recentWorkLogs;
       }
       
-      if (shiftsResult.status === 'fulfilled') {
-        console.log('✅ Shift result fulfilled:', shiftsResult.value);
-        if (shiftsResult.value === null) {
-          console.warn('⚠️ Shift result is null - user has no shifts scheduled for today/tomorrow');
-          // Don't set default values when user has no shifts scheduled
-          // This allows the UI to show "No shifts scheduled" instead of "General"
-          newData.userShift = null;
-        } else {
-          newData.userShift = shiftsResult.value;
-        }
-      } else if (shiftsResult.status === 'rejected') {
+             if (shiftsResult.status === 'fulfilled') {
+         console.log('✅ Shift result fulfilled:', shiftsResult.value);
+         newData.userShift = shiftsResult.value;
+       } else if (shiftsResult.status === 'rejected') {
         console.error('❌ Failed to load shift information:', shiftsResult.reason);
         // Set default shift only if loading fails due to error
         newData.userShift = {
@@ -335,133 +328,70 @@ export default function UserDashboardPage() {
     console.log('📅 Date range:', { today: todayStr, tomorrow: tomorrowStr });
 
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Shift loading timeout')), 10000); // 10 second timeout
+      // Get user's shifts for today and tomorrow - using the same logic as shift schedule page
+      const shiftsResponse = await supabaseClient.getShiftSchedules({
+        filters: { 
+          user_email: dashboardData.user.email,
+          shift_date_in: [todayStr, tomorrowStr]
+        }
       });
-
-      // First, let's test if we can query the database at all
-      console.log('🧪 Testing database connection...');
-      const testQuery = await supabaseClient.query({
-        table: 'shift_schedules',
-        action: 'select',
-        select: 'count',
-        limit: 1
-      });
-      console.log('🧪 Test query result:', testQuery);
-
-      // Fetch shift schedules and user's team/project info in parallel
-      const dataPromise = Promise.all([
-        supabaseClient.getShiftSchedules({
-          filters: { 
-            user_email: dashboardData.user.email,
-            shift_date_in: [todayStr, tomorrowStr]
-          }
-        }),
-        supabaseClient.getTeamMemberships(dashboardData.user.email)
-      ]);
-
-      // Race between timeout and data fetching
-      const [shiftsResponse, userTeamsResponse] = await Promise.race([
-        dataPromise,
-        timeoutPromise
-      ]) as [any, any];
-
-      console.log('📊 Shifts response:', shiftsResponse);
-      console.log('👥 User teams response:', userTeamsResponse);
 
       if (shiftsResponse.error) {
         console.error('❌ Error fetching shifts:', shiftsResponse.error);
-        return null;
-      }
-
-      if (userTeamsResponse.error) {
-        console.error('❌ Error fetching user teams:', userTeamsResponse.error);
-        return null;
+        throw new Error(shiftsResponse.error);
       }
 
       const shifts = shiftsResponse.data || [];
-      const userTeams = userTeamsResponse.data || [];
-      
       console.log('📋 Found shifts:', shifts);
-      console.log('👥 User teams:', userTeams);
       
       const todayShift = shifts?.find((s: any) => s.shift_date === todayStr);
       const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr);
       
-      // Only use 'G' as fallback if no shifts are found at all, not if shifts exist but are empty
-      const todayShiftType = todayShift?.shift_type || (shifts.length === 0 ? 'G' : null);
-      const tomorrowShiftType = tomorrowShift?.shift_type || (shifts.length === 0 ? 'G' : null);
+      // Use the same logic as shift schedule page - always provide a fallback
+      const todayShiftType = todayShift?.shift_type || 'G';
+      const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
       
       console.log('🔍 Shift type resolution:', {
         todayShift,
         tomorrowShift,
         todayShiftType,
         tomorrowShiftType,
-        shiftsFound: shifts.length,
-        defaultFallback: 'G'
+        shiftsFound: shifts.length
       });
 
-      // If we have shifts in the database but couldn't find today's or tomorrow's shift,
-      // it means the user doesn't have shifts scheduled for those days
-      if (shifts.length > 0 && (!todayShiftType || !tomorrowShiftType)) {
-        console.log('⚠️ User has shifts in database but not for today/tomorrow');
-        // Return null to indicate no shifts for these specific days
-        return null;
-      }
-
-      console.log('🌅 Today shift:', { shift: todayShift, type: todayShiftType });
-      console.log('🌅 Tomorrow shift:', { shift: tomorrowShift, type: tomorrowShiftType });
-
-      // Get custom shift enums if user has team/project assignments
+      // Get custom shift enums for the user's team/project
       let customEnums: any[] = [];
-      
-      if (userTeams.length > 0) {
-        // Get the first team membership
-        const userTeam = userTeams[0];
-        const teamId = userTeam.team_id;
-        
-        console.log('🏢 Team info:', { teamId });
-        
-        if (teamId) {
-          try {
-            // Get project assignments for this team
-            const projectAssignmentsResponse = await supabaseClient.query({
-              table: 'team_project_assignments',
-              action: 'select',
-              select: 'project_id,projects(id,name)',
+      try {
+        const userResponse = await supabaseClient.get('users', {
+          select: 'id',
+          filters: { email: dashboardData.user.email }
+        });
+
+        if (!userResponse.error && userResponse.data && userResponse.data.length > 0) {
+          const userId = userResponse.data[0].id;
+          
+          // Get user's team assignments
+          const teamAssignmentsResponse = await supabaseClient.get('team_members', {
+            select: 'team_id',
+            filters: { user_id: userId }
+          });
+
+          if (!teamAssignmentsResponse.error && teamAssignmentsResponse.data && teamAssignmentsResponse.data.length > 0) {
+            const teamId = teamAssignmentsResponse.data[0].team_id;
+            
+            // Get custom shift enums for this team
+            const enumsResponse = await supabaseClient.get('custom_shift_enums', {
+              select: '*',
               filters: { team_id: teamId }
             });
 
-            if (!projectAssignmentsResponse.error && projectAssignmentsResponse.data && projectAssignmentsResponse.data.length > 0) {
-              const projectId = projectAssignmentsResponse.data[0].project_id;
-              console.log('🏢 Project info:', { projectId });
-              
-              if (projectId) {
-                const enumsResponse = await supabaseClient.query({
-                  table: 'custom_shift_enums',
-                  action: 'select',
-                  select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
-                  filters: { project_id: projectId, team_id: teamId }
-                });
-
-                if (!enumsResponse.error && enumsResponse.data) {
-                  customEnums = enumsResponse.data.map((enum_: any) => ({
-                    shiftIdentifier: enum_.shift_identifier,
-                    shiftName: enum_.shift_name,
-                    startTime: enum_.start_time,
-                    endTime: enum_.end_time,
-                    isDefault: enum_.is_default,
-                    color: enum_.color
-                  }));
-                  console.log('🎨 Custom shift enums:', customEnums);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('❌ Error fetching custom shift enums:', error);
+                         if (!enumsResponse.error && enumsResponse.data) {
+               customEnums = enumsResponse.data;
+             }
           }
         }
+      } catch (enumError) {
+        console.error('Error loading custom enums:', enumError);
       }
 
       const getShiftDisplay = (shiftType: string) => {
@@ -495,29 +425,24 @@ export default function UserDashboardPage() {
       };
 
       console.log('✅ Final shift result:', result);
-      console.log('🎯 Shift info objects:', { todayShiftInfo, tomorrowShiftInfo });
       return result;
     } catch (error) {
       console.error('❌ Error in loadShiftInformation:', error);
-      if (error instanceof Error && error.message === 'Shift loading timeout') {
-        console.warn('⚠️ Shift loading timed out, returning default values');
-        // Return default shift on timeout
-        return {
-          todayShift: 'G',
-          tomorrowShift: 'G',
-          todayShiftName: 'General',
-          tomorrowShiftName: 'General',
-          todayShiftColor: 'text-green-600',
-          tomorrowShiftColor: 'text-green-600',
-          todayShiftTime: undefined,
-          tomorrowShiftTime: undefined,
-          todayShiftIcon: Sun,
-          tomorrowShiftIcon: Sun,
-          projectId: undefined,
-          teamId: undefined
-        };
-      }
-      return null;
+      // Return default shift on error (same as shift schedule page)
+      return {
+        todayShift: 'G',
+        tomorrowShift: 'G',
+        todayShiftName: 'General',
+        tomorrowShiftName: 'General',
+        todayShiftColor: 'text-green-600',
+        tomorrowShiftColor: 'text-green-600',
+        todayShiftTime: undefined,
+        tomorrowShiftTime: undefined,
+        todayShiftIcon: Sun,
+        tomorrowShiftIcon: Sun,
+        projectId: undefined,
+        teamId: undefined
+      };
     }
   };
 
