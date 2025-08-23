@@ -256,9 +256,14 @@ export default function UserDashboardPage() {
   };
 
   const loadWorkLogs = async () => {
-    if (!dashboardData.user?.email) return { stats: dashboardData.stats, projectHours: [], recentWorkLogs: [] };
+    // Get current user email directly instead of relying on dashboardData.user
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.email) {
+      console.log('❌ No user email found in loadWorkLogs, returning empty data');
+      return { stats: dashboardData.stats, projectHours: [], recentWorkLogs: [] };
+    }
     
-    const response = await supabaseClient.getUserWorkLogs(dashboardData.user.email, {
+    const response = await supabaseClient.getUserWorkLogs(currentUser.email, {
       order: { column: 'created_at', ascending: false }
     });
 
@@ -315,7 +320,25 @@ export default function UserDashboardPage() {
   };
 
   const loadShiftInformation = async () => {
-    if (!dashboardData.user?.email) return null;
+    // Get current user email directly instead of relying on dashboardData.user
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.email) {
+      console.log('❌ No user email found, returning default shift');
+      return {
+        todayShift: 'G',
+        tomorrowShift: 'G',
+        todayShiftName: 'General',
+        tomorrowShiftName: 'General',
+        todayShiftColor: 'text-green-600',
+        tomorrowShiftColor: 'text-green-600',
+        todayShiftTime: undefined,
+        tomorrowShiftTime: undefined,
+        todayShiftIcon: Sun,
+        tomorrowShiftIcon: Sun,
+        projectId: undefined,
+        teamId: undefined
+      };
+    }
     
     const today = new Date();
     const tomorrow = new Date(today);
@@ -324,14 +347,17 @@ export default function UserDashboardPage() {
     const todayStr = today.toISOString().split('T')[0];
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    console.log('🔄 Loading shift information for:', dashboardData.user.email);
+    console.log('🔄 Loading shift information for:', currentUser.email);
     console.log('📅 Date range:', { today: todayStr, tomorrow: tomorrowStr });
 
     try {
-      // Get user's shifts for today and tomorrow - using the same logic as shift schedule page
+            // Get user's shifts for today and tomorrow - using the same logic as shift schedule page
+      console.log('🔍 Querying shifts for user:', currentUser.email);
+      console.log('📅 Today:', todayStr, 'Tomorrow:', tomorrowStr);
+      
       const shiftsResponse = await supabaseClient.getShiftSchedules({
         filters: { 
-          user_email: dashboardData.user.email,
+          user_email: currentUser.email,
           shift_date_in: [todayStr, tomorrowStr]
         }
       });
@@ -364,7 +390,7 @@ export default function UserDashboardPage() {
       try {
         const userResponse = await supabaseClient.get('users', {
           select: 'id',
-          filters: { email: dashboardData.user.email }
+          filters: { email: currentUser.email }
         });
 
         if (!userResponse.error && userResponse.data && userResponse.data.length > 0) {
