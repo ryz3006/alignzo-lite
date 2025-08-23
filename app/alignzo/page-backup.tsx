@@ -55,8 +55,6 @@ interface UserShift {
   tomorrowShiftColor: string;
   todayShiftTime?: string;
   tomorrowShiftTime?: string;
-  todayShiftIcon: any;
-  tomorrowShiftIcon: any;
 }
 
 interface TeamAvailability {
@@ -323,7 +321,7 @@ export default function UserDashboardPage() {
     const availability: TeamAvailability[] = [];
 
     // Process teams in parallel for better performance
-    const teamPromises = teams.map(async (team: any) => {
+    const teamPromises = teams.map(async (team) => {
       try {
         const [teamMembersResponse, shiftsResponse] = await Promise.all([
           supabaseClient.getTeamMembers(team.id),
