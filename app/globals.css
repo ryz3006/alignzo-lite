@@ -213,7 +213,102 @@ body {
   }
   
   .modal-content {
-    @apply bg-white dark:bg-neutral-800 rounded-2xl shadow-large max-w-md w-full max-h-[90vh] overflow-y-auto;
+    @apply bg-white dark:bg-neutral-800 rounded-2xl shadow-large w-full max-h-[90vh] overflow-y-auto;
+  }
+  
+  /* Responsive modal sizing */
+  .modal-content.max-w-2xl {
+    @apply max-w-2xl;
+  }
+  
+  .modal-content.max-w-md {
+    @apply max-w-md;
+  }
+  
+  .modal-content.max-w-lg {
+    @apply max-w-lg;
+  }
+  
+  .modal-content.max-w-xl {
+    @apply max-w-xl;
+  }
+  
+  .modal-content.max-w-3xl {
+    @apply max-w-3xl;
+  }
+  
+  .modal-content.max-w-4xl {
+    @apply max-w-4xl;
+  }
+  
+  .modal-content.max-w-5xl {
+    @apply max-w-5xl;
+  }
+  
+  .modal-content.max-w-6xl {
+    @apply max-w-6xl;
+  }
+  
+  .modal-content.max-w-7xl {
+    @apply max-w-7xl;
+  }
+  
+  /* Phone number formatting */
+  .phone-number {
+    @apply font-mono text-xs break-all;
+    word-break: break-all;
+    overflow-wrap: break-word;
+  }
+  
+  /* Phone number container */
+  .phone-container {
+    @apply inline-flex items-center space-x-2 bg-white dark:bg-neutral-800 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-600;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  
+  .phone-container .phone-text {
+    @apply font-mono text-sm text-neutral-700 dark:text-neutral-300;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    max-width: 200px;
+  }
+  
+  @media (min-width: 640px) {
+    .phone-container .phone-text {
+      max-width: none;
+    }
+  }
+  
+  /* User card hover effects */
+  .user-card {
+    @apply transition-all duration-200 hover:shadow-soft hover:-translate-y-0.5;
+  }
+  
+  .user-card:hover {
+    @apply border-neutral-300 dark:border-neutral-500;
+  }
+  
+  /* Shift details modal responsive improvements */
+  .shift-details-modal {
+    @apply mx-4;
+  }
+  
+  @media (min-width: 640px) {
+    .shift-details-modal {
+      @apply mx-0;
+    }
+  }
+  
+  /* User avatar responsive sizing */
+  .user-avatar {
+    @apply w-12 h-12;
+  }
+  
+  @media (max-width: 639px) {
+    .user-avatar {
+      @apply w-16 h-16;
+    }
   }
   
   /* Modern loading states */

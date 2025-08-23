@@ -136,6 +136,7 @@ export default function UserDashboardPage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingShifts, setIsLoadingShifts] = useState(false);
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [darkMode, setDarkMode] = useState(false);
@@ -181,6 +182,9 @@ export default function UserDashboardPage() {
         setGreetingLoaded(true);
       }
 
+      // Set shift loading state
+      setIsLoadingShifts(true);
+
       // Load rest of the data in parallel
       const [workLogsResult, shiftsResult, teamsResult] = await Promise.allSettled([
         loadWorkLogs(),
@@ -200,6 +204,23 @@ export default function UserDashboardPage() {
       
       if (shiftsResult.status === 'fulfilled') {
         newData.userShift = shiftsResult.value;
+      } else if (shiftsResult.status === 'rejected') {
+        console.error('Failed to load shift information:', shiftsResult.reason);
+        // Set default shift if loading fails
+        newData.userShift = {
+          todayShift: 'G',
+          tomorrowShift: 'G',
+          todayShiftName: 'General',
+          tomorrowShiftName: 'General',
+          todayShiftColor: 'text-green-600',
+          tomorrowShiftColor: 'text-green-600',
+          todayShiftTime: undefined,
+          tomorrowShiftTime: undefined,
+          todayShiftIcon: Sun,
+          tomorrowShiftIcon: Sun,
+          projectId: undefined,
+          teamId: undefined
+        };
       }
       
       if (teamsResult.status === 'fulfilled') {
@@ -217,6 +238,7 @@ export default function UserDashboardPage() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingShifts(false);
     }
   }, []);
 
@@ -301,174 +323,82 @@ export default function UserDashboardPage() {
     const todayStr = today.toISOString().split('T')[0];
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const shiftsResponse = await supabaseClient.getShiftSchedules({
-      filters: { 
-        user_email: dashboardData.user.email,
-        shift_date: [todayStr, tomorrowStr]
+    console.log('🔄 Loading shift information for:', dashboardData.user.email);
+    console.log('📅 Date range:', { today: todayStr, tomorrow: tomorrowStr });
+
+    try {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Shift loading timeout')), 10000); // 10 second timeout
+      });
+
+      // Fetch shift schedules and user's team/project info in parallel
+      const dataPromise = Promise.all([
+        supabaseClient.getShiftSchedules({
+          filters: { 
+            user_email: dashboardData.user.email,
+            shift_date: [todayStr, tomorrowStr]
+          }
+        }),
+        supabaseClient.query({
+          table: 'team_members',
+          action: 'select',
+          select: 'team_id,teams(id,name),team_project_assignments(project_id,projects(id,name))',
+          filters: { 'users.email': dashboardData.user.email }
+        })
+      ]);
+
+      // Race between timeout and data fetching
+      const [shiftsResponse, userTeamsResponse] = await Promise.race([
+        dataPromise,
+        timeoutPromise
+      ]) as [any, any];
+
+      console.log('📊 Shifts response:', shiftsResponse);
+      console.log('👥 User teams response:', userTeamsResponse);
+
+      if (shiftsResponse.error) {
+        console.error('❌ Error fetching shifts:', shiftsResponse.error);
+        return null;
       }
-    });
 
-    if (shiftsResponse.error) {
-      throw new Error(shiftsResponse.error);
-    }
+      if (userTeamsResponse.error) {
+        console.error('❌ Error fetching user teams:', userTeamsResponse.error);
+        return null;
+      }
 
-    const shifts = shiftsResponse.data;
-    const todayShift = shifts?.find((s: any) => s.shift_date === todayStr);
-    const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr);
-    
-    const todayShiftType = todayShift?.shift_type || 'G';
-    const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
-
-    // Get user's teams and projects to fetch custom shift enums
-    const teamsResponse = await supabaseClient.getTeams();
-    if (teamsResponse.error) {
-      throw new Error(teamsResponse.error);
-    }
-
-    const teams = teamsResponse.data || [];
-    let customEnums: any[] = [];
-
-    // Find the team the user belongs to and get custom shift enums
-    for (const team of teams) {
-      const teamMembersResponse = await supabaseClient.getTeamMembers(team.id);
-      if (teamMembersResponse.error) continue;
-
-      const teamMembers = teamMembersResponse.data || [];
-      const isUserInTeam = teamMembers.some((member: any) => member.users?.email === dashboardData.user.email);
+      const shifts = shiftsResponse.data || [];
+      const userTeams = userTeamsResponse.data || [];
       
-      if (isUserInTeam) {
-        // Get project assignment for this team
-        const projectResponse = await supabaseClient.get('team_project_assignments', {
-          select: 'project_id',
-          filters: { team_id: team.id }
-        });
+      console.log('📋 Found shifts:', shifts);
+      console.log('👥 User teams:', userTeams);
+      
+      const todayShift = shifts?.find((s: any) => s.shift_date === todayStr);
+      const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr);
+      
+      const todayShiftType = todayShift?.shift_type || 'G';
+      const tomorrowShiftType = tomorrowShift?.shift_type || 'G';
 
-        if (!projectResponse.error && projectResponse.data && projectResponse.data.length > 0) {
-          const projectId = projectResponse.data[0].project_id;
-          
-          // Get custom shift enums for this project-team combination
-          const enumsResponse = await supabaseClient.get('custom_shift_enums', {
-            select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
-            filters: { project_id: projectId, team_id: team.id }
-          });
+      console.log('🌅 Today shift:', { shift: todayShift, type: todayShiftType });
+      console.log('🌅 Tomorrow shift:', { shift: tomorrowShift, type: tomorrowShiftType });
 
-          if (!enumsResponse.error && enumsResponse.data) {
-            customEnums = enumsResponse.data.map((enum_: any) => ({
-              shiftIdentifier: enum_.shift_identifier,
-              shiftName: enum_.shift_name,
-              startTime: enum_.start_time,
-              endTime: enum_.end_time,
-              isDefault: enum_.is_default,
-              color: enum_.color
-            }));
-          }
-          break; // Found user's team, no need to check others
-        }
-      }
-    }
-
-    const getShiftDisplay = (shiftType: string) => {
-      const shiftInfo = getShiftTypeInfo(shiftType, customEnums);
-      return {
-        name: shiftInfo.label,
-        color: shiftInfo.color,
-        bgColor: shiftInfo.bgColor,
-        icon: shiftInfo.icon,
-        startTime: shiftInfo.startTime,
-        endTime: shiftInfo.endTime
-      };
-    };
-
-    const todayShiftInfo = getShiftDisplay(todayShiftType);
-    const tomorrowShiftInfo = getShiftDisplay(tomorrowShiftType);
-
-    return {
-      todayShift: todayShiftType,
-      tomorrowShift: tomorrowShiftType,
-      todayShiftName: todayShiftInfo.name,
-      tomorrowShiftName: tomorrowShiftInfo.name,
-      todayShiftColor: todayShiftInfo.color,
-      tomorrowShiftColor: tomorrowShiftInfo.color,
-      todayShiftBgColor: todayShiftInfo.bgColor,
-      tomorrowShiftBgColor: tomorrowShiftInfo.bgColor,
-      todayShiftIcon: todayShiftInfo.icon,
-      tomorrowShiftIcon: tomorrowShiftInfo.icon,
-      projectId: todayShift?.project_id,
-      teamId: todayShift?.team_id
-    };
-  };
-
-  const loadTeamAvailability = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const teamsResponse = await supabaseClient.getTeams();
-    if (teamsResponse.error) {
-      throw new Error(teamsResponse.error);
-    }
-
-    const teams = teamsResponse.data || [];
-    const availability: TeamAvailability[] = [];
-
-    // Process teams in parallel for better performance
-    const teamPromises = teams.map(async (team: any) => {
-      try {
-        const [teamMembersResponse, shiftsResponse] = await Promise.all([
-          supabaseClient.getTeamMembers(team.id),
-          supabaseClient.getShiftSchedules({
-            filters: { team_id: team.id, shift_date: today }
-          })
-        ]);
-
-        if (teamMembersResponse.error || shiftsResponse.error) {
-          return null;
-        }
-
-        const teamMembers = teamMembersResponse.data || [];
-        const shifts = shiftsResponse.data || [];
-
-        // Group users by shift type
-        const shiftGroups: { [key: string]: { users: string[], count: number } } = {};
+      // Get custom shift enums if user has team/project assignments
+      let customEnums: any[] = [];
+      
+      if (userTeams.length > 0) {
+        const userTeam = userTeams[0]; // Get first team (assuming user is in one team)
+        const projectId = userTeam.team_project_assignments?.[0]?.project_id;
+        const teamId = userTeam.team_id;
         
-        teamMembers.forEach((member: any) => {
-          const userEmail = member.users?.email;
-          if (!userEmail) return;
-          
-          const shift = shifts.find((s: any) => s.user_email === userEmail);
-          const shiftType = shift?.shift_type || 'G';
-          
-          if (!shiftGroups[shiftType]) {
-            shiftGroups[shiftType] = { users: [], count: 0 };
-          }
-          shiftGroups[shiftType].users.push(userEmail);
-          shiftGroups[shiftType].count++;
-        });
-
-        // Get project name and custom shift enums for this team
-        let projectName = 'Unknown Project';
-        let projectId = null;
-        let customEnums: any[] = [];
+        console.log('🏢 Team/Project info:', { teamId, projectId });
         
-        try {
-          const projectResponse = await supabaseClient.get('team_project_assignments', {
-            select: 'project_id',
-            filters: { team_id: team.id }
-          });
-
-          if (!projectResponse.error && projectResponse.data && projectResponse.data.length > 0) {
-            projectId = projectResponse.data[0].project_id;
-            const projectDetailsResponse = await supabaseClient.get('projects', {
-              select: 'name',
-              filters: { id: projectId }
-            });
-
-            if (!projectDetailsResponse.error && projectDetailsResponse.data) {
-              projectName = projectDetailsResponse.data[0]?.name || 'Unknown Project';
-            }
-
-            // Get custom shift enums for this project-team combination
-            const enumsResponse = await supabaseClient.get('custom_shift_enums', {
+        if (projectId && teamId) {
+          try {
+            const enumsResponse = await supabaseClient.query({
+              table: 'custom_shift_enums',
+              action: 'select',
               select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
-              filters: { project_id: projectId, team_id: team.id }
+              filters: { project_id: projectId, team_id: teamId }
             });
 
             if (!enumsResponse.error && enumsResponse.data) {
@@ -480,28 +410,204 @@ export default function UserDashboardPage() {
                 isDefault: enum_.is_default,
                 color: enum_.color
               }));
+              console.log('🎨 Custom shift enums:', customEnums);
             }
+          } catch (error) {
+            console.error('❌ Error fetching custom shift enums:', error);
           }
-        } catch (error) {
-          console.error(`Error loading project for team ${team.id}:`, error);
         }
-
-        return {
-          teamName: team.name,
-          projectName,
-          projectId: projectId || '',
-          teamId: team.id,
-          shifts: shiftGroups,
-          customEnums
-        };
-      } catch (error) {
-        console.error(`Error processing team ${team.id}:`, error);
-        return null;
       }
-    });
 
-    const teamResults = await Promise.all(teamPromises);
-    return teamResults.filter(Boolean) as TeamAvailability[];
+      const getShiftDisplay = (shiftType: string) => {
+        const shiftInfo = getShiftTypeInfo(shiftType, customEnums);
+        return {
+          name: shiftInfo.label,
+          color: shiftInfo.color,
+          bgColor: shiftInfo.bgColor,
+          icon: shiftInfo.icon,
+          startTime: shiftInfo.startTime,
+          endTime: shiftInfo.endTime
+        };
+      };
+
+      const todayShiftInfo = getShiftDisplay(todayShiftType);
+      const tomorrowShiftInfo = getShiftDisplay(tomorrowShiftType);
+
+      const result = {
+        todayShift: todayShiftType,
+        tomorrowShift: tomorrowShiftType,
+        todayShiftName: todayShiftInfo.name,
+        tomorrowShiftName: tomorrowShiftInfo.name,
+        todayShiftColor: todayShiftInfo.color,
+        tomorrowShiftColor: tomorrowShiftInfo.color,
+        todayShiftTime: todayShiftInfo.startTime,
+        tomorrowShiftTime: tomorrowShiftInfo.startTime,
+        todayShiftIcon: todayShiftInfo.icon,
+        tomorrowShiftIcon: tomorrowShiftInfo.icon,
+        projectId: todayShift?.project_id,
+        teamId: todayShift?.team_id
+      };
+
+      console.log('✅ Final shift result:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error in loadShiftInformation:', error);
+      if (error instanceof Error && error.message === 'Shift loading timeout') {
+        console.warn('⚠️ Shift loading timed out, returning default values');
+        // Return default shift on timeout
+        return {
+          todayShift: 'G',
+          tomorrowShift: 'G',
+          todayShiftName: 'General',
+          tomorrowShiftName: 'General',
+          todayShiftColor: 'text-green-600',
+          tomorrowShiftColor: 'text-green-600',
+          todayShiftTime: undefined,
+          tomorrowShiftTime: undefined,
+          todayShiftIcon: Sun,
+          tomorrowShiftIcon: Sun,
+          projectId: undefined,
+          teamId: undefined
+        };
+      }
+      return null;
+    }
+  };
+
+  const loadTeamAvailability = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      // Fetch all teams with their members and today's shifts in parallel
+      const teamsResponse = await supabaseClient.getTeams();
+      if (teamsResponse.error) {
+        throw new Error(teamsResponse.error);
+      }
+
+      const teams = teamsResponse.data || [];
+      
+      // Fetch all team members and shifts for today in parallel
+      const [allTeamMembersResponse, allShiftsResponse] = await Promise.all([
+        supabaseClient.query({
+          table: 'team_members',
+          action: 'select',
+          select: 'team_id,user_id,users(email,full_name)'
+        }),
+        supabaseClient.getShiftSchedules({
+          filters: { shift_date: today }
+        })
+      ]);
+
+      if (allTeamMembersResponse.error || allShiftsResponse.error) {
+        throw new Error('Failed to fetch team data');
+      }
+
+      const allTeamMembers = allTeamMembersResponse.data || [];
+      const allShifts = allShiftsResponse.data || [];
+
+      // Group team members by team
+      const teamMembersMap = new Map<string, any[]>();
+      allTeamMembers.forEach((member: any) => {
+        const teamId = member.team_id;
+        if (!teamMembersMap.has(teamId)) {
+          teamMembersMap.set(teamId, []);
+        }
+        teamMembersMap.get(teamId)!.push(member);
+      });
+
+      // Group shifts by team
+      const shiftsMap = new Map<string, any[]>();
+      allShifts.forEach((shift: any) => {
+        const teamId = shift.team_id;
+        if (!shiftsMap.has(teamId)) {
+          shiftsMap.set(teamId, []);
+        }
+        shiftsMap.get(teamId)!.push(shift);
+      });
+
+      // Process teams efficiently
+      const availability: TeamAvailability[] = [];
+
+      for (const team of teams) {
+        try {
+          const teamMembers = teamMembersMap.get(team.id) || [];
+          const shifts = shiftsMap.get(team.id) || [];
+
+          // Group users by shift type
+          const shiftGroups: { [key: string]: { users: string[], count: number } } = {};
+          
+          teamMembers.forEach((member: any) => {
+            const userEmail = member.users?.email;
+            if (!userEmail) return;
+            
+            const shift = shifts.find((s: any) => s.user_email === userEmail);
+            const shiftType = shift?.shift_type || 'G';
+            
+            if (!shiftGroups[shiftType]) {
+              shiftGroups[shiftType] = { users: [], count: 0 };
+            }
+            shiftGroups[shiftType].users.push(userEmail);
+            shiftGroups[shiftType].count++;
+          });
+
+          // Get project name and custom shift enums for this team
+          let projectName = 'Unknown Project';
+          let projectId = null;
+          let customEnums: any[] = [];
+          
+          try {
+            const projectResponse = await supabaseClient.query({
+              table: 'team_project_assignments',
+              action: 'select',
+              select: 'project_id,projects(name)',
+              filters: { team_id: team.id }
+            });
+
+            if (!projectResponse.error && projectResponse.data && projectResponse.data.length > 0) {
+              projectId = projectResponse.data[0].project_id;
+              projectName = projectResponse.data[0].projects?.name || 'Unknown Project';
+
+              // Get custom shift enums for this project-team combination
+              const enumsResponse = await supabaseClient.query({
+                table: 'custom_shift_enums',
+                action: 'select',
+                select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
+                filters: { project_id: projectId, team_id: team.id }
+              });
+
+              if (!enumsResponse.error && enumsResponse.data) {
+                customEnums = enumsResponse.data.map((enum_: any) => ({
+                  shiftIdentifier: enum_.shift_identifier,
+                  shiftName: enum_.shift_name,
+                  startTime: enum_.start_time,
+                  endTime: enum_.end_time,
+                  isDefault: enum_.is_default,
+                  color: enum_.color
+                }));
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading project for team ${team.id}:`, error);
+          }
+
+          availability.push({
+            teamName: team.name,
+            projectName,
+            projectId: projectId || '',
+            teamId: team.id,
+            shifts: shiftGroups,
+            customEnums
+          });
+        } catch (error) {
+          console.error(`Error processing team ${team.id}:`, error);
+        }
+      }
+
+      return availability;
+    } catch (error) {
+      console.error('Error in loadTeamAvailability:', error);
+      return [];
+    }
   };
 
   const showUserDetails = async (email: string) => {
@@ -689,15 +795,26 @@ export default function UserDashboardPage() {
         {/* Shift Information Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Today's Shift */}
-          <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
+          <div className={`group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1 ${isLoadingShifts ? 'opacity-75' : ''}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-3">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                  <div className={`w-3 h-3 rounded-full ${isLoadingShifts ? 'bg-blue-400 animate-pulse' : 'bg-blue-500'}`}></div>
                   <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
+                  {isLoadingShifts && (
+                    <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  )}
                 </div>
-                {dashboardData.userShift ? (
+                {isLoadingShifts ? (
+                  <div className="animate-pulse">
+                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+                  </div>
+                ) : dashboardData.userShift ? (
                   <>
                     <p className="text-4xl font-bold mb-2 text-blue-600 dark:text-blue-400">
                       {dashboardData.userShift.todayShiftName}
@@ -707,34 +824,51 @@ export default function UserDashboardPage() {
                     </p>
                   </>
                 ) : (
-                  <div className="animate-pulse">
-                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
-                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold mb-2 text-neutral-400 dark:text-neutral-500">
+                      No Shift
+                    </p>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
                   </div>
                 )}
               </div>
               <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-blue-500 to-blue-600 group-hover:scale-110 transition-transform duration-300">
-                {dashboardData.userShift ? (
-                  <dashboardData.userShift.todayShiftIcon className="h-8 w-8" />
-                ) : (
+                {isLoadingShifts ? (
                   <div className="animate-pulse">
                     <div className="w-8 h-8 bg-white/20 rounded"></div>
                   </div>
+                ) : dashboardData.userShift ? (
+                  <dashboardData.userShift.todayShiftIcon className="h-8 w-8" />
+                ) : (
+                  <Sun className="h-8 w-8" />
                 )}
               </div>
             </div>
           </div>
 
           {/* Tomorrow's Shift */}
-          <div className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1">
+          <div className={`group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1 ${isLoadingShifts ? 'opacity-75' : ''}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-3">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+                  <div className={`w-3 h-3 rounded-full ${isLoadingShifts ? 'bg-purple-400 animate-pulse' : 'bg-purple-500'}`}></div>
                   <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
+                  {isLoadingShifts && (
+                    <div className="flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  )}
                 </div>
-                {dashboardData.userShift ? (
+                {isLoadingShifts ? (
+                  <div className="animate-pulse">
+                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+                  </div>
+                ) : dashboardData.userShift ? (
                   <>
                     <p className="text-4xl font-bold mb-2 text-purple-600 dark:text-purple-400">
                       {dashboardData.userShift.tomorrowShiftName}
@@ -744,19 +878,25 @@ export default function UserDashboardPage() {
                     </p>
                   </>
                 ) : (
-                  <div className="animate-pulse">
-                    <div className="h-12 bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2"></div>
-                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-32"></div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold mb-2 text-neutral-400 dark:text-neutral-500">
+                      No Shift
+                    </p>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
                   </div>
                 )}
               </div>
               <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-medium bg-gradient-to-br from-purple-500 to-purple-600 group-hover:scale-110 transition-transform duration-300">
-                {dashboardData.userShift ? (
-                  <dashboardData.userShift.tomorrowShiftIcon className="h-8 w-8" />
-                ) : (
+                {isLoadingShifts ? (
                   <div className="animate-pulse">
                     <div className="w-8 h-8 bg-white/20 rounded"></div>
                   </div>
+                ) : dashboardData.userShift ? (
+                  <dashboardData.userShift.tomorrowShiftIcon className="h-8 w-8" />
+                ) : (
+                  <Sun className="h-8 w-8" />
                 )}
               </div>
             </div>
@@ -1042,23 +1182,25 @@ export default function UserDashboardPage() {
         {/* Shift Details Modal */}
         {showShiftDetailsModal && selectedShift && (
           <div className="modal-overlay" onClick={() => setShowShiftDetailsModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
-                <div>
-                  <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Shift Details</h2>
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            <div className="modal-content max-w-2xl shift-details-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-neutral-200 dark:border-neutral-700">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-white truncate">
+                    Shift Details
+                  </h2>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 truncate">
                     {selectedShift.teamName} - {selectedShift.projectName}
                   </p>
                 </div>
                 <button
                   onClick={() => setShowShiftDetailsModal(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                  className="flex-shrink-0 p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors ml-3"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="p-6">
-                <div className="mb-4">
+              <div className="p-4 sm:p-6">
+                <div className="mb-6">
                   <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
                     {(() => {
                       // Find the team's custom enums to get the shift name
@@ -1073,41 +1215,124 @@ export default function UserDashboardPage() {
                 </div>
                 
                 {loadingShiftUsers ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                    <span className="ml-3 text-neutral-600 dark:text-neutral-400">Loading shift details...</span>
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                      <span className="text-neutral-600 dark:text-neutral-400 font-medium">Loading shift details...</span>
+                    </div>
                   </div>
                 ) : shiftUsers.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {shiftUsers.map((user, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">
-                              {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase()}
-                            </span>
+                      <div 
+                        key={index} 
+                        className="group bg-neutral-50 dark:bg-neutral-700/50 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 hover:shadow-soft"
+                      >
+                        <div className="p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                            {/* User Avatar */}
+                            <div className="flex-shrink-0 flex justify-center sm:justify-start">
+                              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-medium group-hover:scale-105 transition-transform duration-200">
+                                <span className="text-white font-semibold text-base">
+                                  {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* User Info */}
+                            <div className="flex-1 min-w-0 text-center sm:text-left">
+                              <div className="space-y-3">
+                                <div className="min-w-0">
+                                  <h4 className="font-semibold text-neutral-900 dark:text-white truncate">
+                                    {user.full_name || 'Unknown Name'}
+                                  </h4>
+                                  <p className="text-sm text-neutral-600 dark:text-neutral-400 truncate">
+                                    {user.email}
+                                  </p>
+                                </div>
+                                
+                                {/* Phone Number */}
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                  <div className="flex items-center justify-center sm:justify-start space-x-2">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-xs text-neutral-500 dark:text-neutral-400 uppercase tracking-wide font-medium">
+                                      Phone
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="text-center sm:text-right">
+                                    {user.phone_number ? (
+                                      <div className="phone-container">
+                                        <span className="text-lg">📞</span>
+                                        <span className="phone-text">
+                                          {user.phone_number}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="inline-flex items-center px-3 py-2 text-neutral-400 dark:text-neutral-500 italic bg-neutral-100 dark:bg-neutral-800 rounded-lg text-sm">
+                                        Not provided
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* Additional Info Row */}
+                                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-600">
+                                  <div className="flex items-center justify-center sm:justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                                    <span>User #{index + 1}</span>
+                                    <span className="flex items-center space-x-1">
+                                      <span>👤</span>
+                                      <span>Active</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-neutral-900 dark:text-white">
-                              {user.full_name || 'Unknown Name'}
-                            </p>
-                            <p className="text-sm text-neutral-600 dark:text-neutral-400">{user.email}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                            {user.phone_number || 'No phone'}
-                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Users className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500 mb-4" />
-                    <p className="text-neutral-600 dark:text-neutral-400 font-medium">No users found in this shift</p>
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center">
+                      <Users className="h-8 w-8 text-neutral-400 dark:text-neutral-500" />
+                    </div>
+                    <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+                      No Users Found
+                    </h3>
+                    <p className="text-neutral-600 dark:text-neutral-400">
+                      No users are currently assigned to this shift.
+                    </p>
                   </div>
                 )}
+                
+                {/* Footer Actions */}
+                <div className="mt-8 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400 text-center sm:text-left">
+                      <span className="font-medium">{shiftUsers.length}</span> user{shiftUsers.length !== 1 ? 's' : ''} in this shift
+                    </div>
+                    <div className="flex items-center justify-center sm:justify-end space-x-3">
+                      <button
+                        onClick={() => setShowShiftDetailsModal(false)}
+                        className="px-4 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded-lg transition-colors duration-200"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Add refresh functionality here if needed
+                          console.log('Refresh shift details');
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors duration-200 shadow-soft hover:shadow-medium"
+                      >
+                        <RefreshCw className="h-4 w-4 inline mr-2" />
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
