@@ -29,7 +29,7 @@ export default function ProjectsPage() {
     product: '',
     country: '',
   });
-  const [categories, setCategories] = useState<{ name: string; options: string[] }[]>([]);
+  const [categories, setCategories] = useState<{ name: string; options: string[]; description?: string }[]>([]);
   const [subcategories, setSubcategories] = useState<{ name: string; category_id: string; description?: string }[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
 
@@ -175,13 +175,66 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleManageCategories = (project: ProjectWithCategories) => {
+  const handleManageCategories = async (project: ProjectWithCategories) => {
     setSelectedProject(project);
-    setCategories(project.categories.map(cat => ({
-      name: cat.name,
-      options: cat.options,
-    })));
-    setShowCategoriesModal(true);
+    
+    try {
+      // Load categories with their options from the new table structure
+      const categoriesWithOptions = [];
+      
+      for (const category of project.categories) {
+        // Fetch options for this category
+        const optionsResponse = await fetch(`/api/categories/options?categoryId=${category.id}`);
+        
+        if (optionsResponse.ok) {
+          const options = await optionsResponse.json();
+          categoriesWithOptions.push({
+            name: category.name,
+            options: options.map((opt: any) => opt.option_value),
+            description: category.description || ''
+          });
+        } else {
+          // Fallback to parsing from description if API fails
+          let options: string[] = [];
+          if (category.description && category.description.includes('Category with options:')) {
+            const optionsMatch = category.description.match(/Category with options: (.+)/);
+            if (optionsMatch) {
+              options = optionsMatch[1].split(', ').map(opt => opt.trim());
+            }
+          }
+          
+          categoriesWithOptions.push({
+            name: category.name,
+            options: options.length > 0 ? options : [''],
+            description: category.description || ''
+          });
+        }
+      }
+      
+      setCategories(categoriesWithOptions);
+      setShowCategoriesModal(true);
+    } catch (error) {
+      console.error('Error loading categories with options:', error);
+      toast.error('Failed to load category options');
+      
+      // Fallback to the old method
+      const projectCategories = project.categories.map(cat => {
+        let options: string[] = [];
+        if (cat.description && cat.description.includes('Category with options:')) {
+          const optionsMatch = cat.description.match(/Category with options: (.+)/);
+          if (optionsMatch) {
+            options = optionsMatch[1].split(', ').map(opt => opt.trim());
+          }
+        }
+        
+        return {
+          name: cat.name,
+          options: options.length > 0 ? options : [''],
+        };
+      });
+      setCategories(projectCategories);
+      setShowCategoriesModal(true);
+    }
   };
 
   const handleManageSubcategories = (project: ProjectWithCategories) => {
@@ -222,10 +275,28 @@ export default function ProjectsPage() {
   };
 
   const handleUpdateCategories = async () => {
-    if (!selectedProject) return;
+    if (!selectedProject) {
+      toast.error('No project selected');
+      return;
+    }
+
+    // Validate categories before sending
+    const validCategories = categories.filter(cat => 
+      cat.name && cat.name.trim() !== '' && 
+      cat.options && cat.options.length > 0 && 
+      cat.options.every(option => option && option.trim() !== '')
+    );
+
+    if (validCategories.length === 0) {
+      toast.error('Please add at least one category with a name and options');
+      return;
+    }
 
     try {
-      // Remove all current categories
+      console.log('Updating categories for project:', selectedProject.id);
+      console.log('Categories to insert:', validCategories);
+
+      // Remove all current categories and their options
       const deleteResponse = await supabaseClient.query({
         table: 'project_categories',
         action: 'delete',
@@ -237,19 +308,50 @@ export default function ProjectsPage() {
         throw new Error(deleteResponse.error);
       }
 
-      // Add new categories
-      if (categories.length > 0) {
-        const newCategories = categories.map(cat => ({
+      // Add new categories with the new table-based structure
+      for (const cat of validCategories) {
+        // Create the category
+        const categoryResponse = await supabaseClient.insert('project_categories', {
           project_id: selectedProject.id,
-          name: cat.name,
-          options: cat.options,
-        }));
+          name: cat.name.trim(),
+          description: cat.description || '',
+          color: '#3B82F6', // Default blue color
+          sort_order: 0,
+          is_active: true
+        });
 
-        const insertResponse = await supabaseClient.insert('project_categories', newCategories);
+        if (categoryResponse.error) {
+          console.error('Error creating category:', categoryResponse.error);
+          throw new Error(categoryResponse.error);
+        }
 
-        if (insertResponse.error) {
-          console.error('Error inserting project categories:', insertResponse.error);
-          throw new Error(insertResponse.error);
+        const categoryId = categoryResponse.data?.[0]?.id;
+        if (!categoryId) {
+          throw new Error('Failed to get category ID');
+        }
+
+        // Create category options
+        for (let i = 0; i < cat.options.length; i++) {
+          const option = cat.options[i].trim();
+          if (option) {
+            const optionResponse = await fetch('/api/categories/options', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                category_id: categoryId,
+                option_name: option,
+                option_value: option,
+                sort_order: i
+              })
+            });
+
+            if (!optionResponse.ok) {
+              const errorData = await optionResponse.json();
+              throw new Error(errorData.error || 'Failed to create category option');
+            }
+          }
         }
       }
 
@@ -357,9 +459,26 @@ export default function ProjectsPage() {
   };
 
   const handleUpdateSubcategories = async () => {
-    if (!selectedProject) return;
+    if (!selectedProject) {
+      toast.error('No project selected');
+      return;
+    }
+
+    // Validate subcategories before sending
+    const validSubcategories = subcategories.filter(sub => 
+      sub.name && sub.name.trim() !== '' && 
+      sub.category_id && sub.category_id.trim() !== ''
+    );
+
+    if (validSubcategories.length === 0) {
+      toast.error('Please add at least one subcategory with a name and category');
+      return;
+    }
 
     try {
+      console.log('Updating subcategories for project:', selectedProject.id);
+      console.log('Subcategories to insert:', validSubcategories);
+
       // Remove all current subcategories for this project
       const deleteResponse = await supabaseClient.query({
         table: 'project_subcategories',
@@ -373,19 +492,19 @@ export default function ProjectsPage() {
       }
 
       // Add new subcategories
-      if (subcategories.length > 0) {
-        const newSubcategories = subcategories.map(sub => ({
-          category_id: sub.category_id,
-          name: sub.name,
-          description: sub.description || '',
-        }));
+      const newSubcategories = validSubcategories.map(sub => ({
+        category_id: sub.category_id,
+        name: sub.name.trim(),
+        description: sub.description?.trim() || '',
+      }));
 
-        const insertResponse = await supabaseClient.insert('project_subcategories', newSubcategories);
+      console.log('Final subcategories to insert:', newSubcategories);
 
-        if (insertResponse.error) {
-          console.error('Error inserting project subcategories:', insertResponse.error);
-          throw new Error(insertResponse.error);
-        }
+      const insertResponse = await supabaseClient.insert('project_subcategories', newSubcategories);
+
+      if (insertResponse.error) {
+        console.error('Error inserting project subcategories:', insertResponse.error);
+        throw new Error(insertResponse.error);
       }
 
       toast.success('Project subcategories updated successfully');

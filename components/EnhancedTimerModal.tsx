@@ -187,13 +187,30 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
 
   const loadProjectCategories = async (projectId: string) => {
     try {
-      const response = await supabaseClient.get('project_categories', {
-        select: '*',
-        filters: { project_id: projectId }
-      });
+      // Use the new API endpoint to get categories with options
+      const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Transform the data to match the expected format
+        const categoriesWithOptions = data.categories.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name,
+          description: cat.description,
+          project_id: projectId,
+          options: cat.options.map((opt: any) => opt.value)
+        }));
+        setProjectCategories(categoriesWithOptions);
+      } else {
+        // Fallback to the old method
+        const response = await supabaseClient.get('project_categories', {
+          select: '*',
+          filters: { project_id: projectId }
+        });
 
-      if (response.error) throw new Error(response.error);
-      setProjectCategories(response.data || []);
+        if (response.error) throw new Error(response.error);
+        setProjectCategories(response.data || []);
+      }
     } catch (error) {
       console.error('Error loading project categories:', error);
       toast.error('Failed to load project categories');
@@ -670,11 +687,11 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
                       className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
                     >
                       <option value="">Select {category.name}</option>
-                      {category.options.map((option) => (
+                      {category.options?.map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
-                      ))}
+                      )) || []}
                     </select>
                   </div>
                 ))}
