@@ -793,10 +793,84 @@ export async function getKanbanBoard(projectId: string, teamId?: string): Promis
 
 export async function getUserAccessibleProjects(userEmail: string): Promise<ApiResponse<ProjectWithCategories[]>> {
   try {
-    // This would need to be implemented based on your existing project access logic
-    // For now, returning empty array
+    // Get user's team memberships first
+    const userResponse = await supabaseClient.get('users', {
+      select: 'id',
+      filters: { email: userEmail }
+    });
+
+    if (userResponse.error || !userResponse.data || userResponse.data.length === 0) {
+      return {
+        data: [],
+        success: false,
+        error: 'User not found'
+      };
+    }
+
+    const userId = userResponse.data[0].id;
+
+    // Get user's team memberships
+    const teamMembershipsResponse = await supabaseClient.get('team_members', {
+      select: 'team_id',
+      filters: { user_id: userId }
+    });
+
+    if (teamMembershipsResponse.error) {
+      throw new Error(teamMembershipsResponse.error);
+    }
+
+    const teamIds = teamMembershipsResponse.data?.map((membership: any) => membership.team_id) || [];
+
+    if (teamIds.length === 0) {
+      return {
+        data: [],
+        success: true
+      };
+    }
+
+    // Get projects assigned to these teams
+    const projectAssignmentsResponse = await supabaseClient.query({
+      table: 'team_project_assignments',
+      action: 'select',
+      select: 'project_id',
+      filters: { team_id: teamIds }
+    });
+
+    if (projectAssignmentsResponse.error) {
+      throw new Error(projectAssignmentsResponse.error);
+    }
+
+    const projectIds = projectAssignmentsResponse.data?.map((assignment: any) => assignment.project_id) || [];
+
+    if (projectIds.length === 0) {
+      return {
+        data: [],
+        success: true
+      };
+    }
+
+    // Get the actual projects
+    const projectsResponse = await supabaseClient.query({
+      table: 'projects',
+      action: 'select',
+      select: '*',
+      filters: { id: projectIds }
+    });
+
+    if (projectsResponse.error) {
+      throw new Error(projectsResponse.error);
+    }
+
+    // Convert to ProjectWithCategories format
+    const projectsWithCategories: ProjectWithCategories[] = (projectsResponse.data || []).map((project: any) => ({
+      ...project,
+      categories: [],
+      subcategories: [],
+      columns: []
+    }));
+
     return {
-      data: [],
+      data: projectsWithCategories,
       success: true
     };
   } catch (error) {
