@@ -331,9 +331,9 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
       {/* Header */}
-      <div className="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
+      <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
         <div className="px-6 py-4">
                       <div className="mb-6">
               <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
@@ -343,11 +343,11 @@ export default function KanbanBoardPage() {
             </div>
 
           {/* Project and Team Selector */}
-          <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-4">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <FolderOpen className="h-4 w-4 text-neutral-500" />
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Project:</label>
+          <div className="bg-neutral-50/80 dark:bg-neutral-700/80 backdrop-blur-sm rounded-2xl p-6 border border-neutral-200/50 dark:border-neutral-600/50">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-4 lg:space-y-0 lg:space-x-6">
+              <div className="flex items-center space-x-3">
+                <FolderOpen className="h-5 w-5 text-neutral-500" />
+                <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Project:</label>
                 <select
                   value={selectedProject?.id || ''}
                   onChange={(e) => {
@@ -356,7 +356,7 @@ export default function KanbanBoardPage() {
         setCategories([]);
                     setBoardLoaded(false);
                   }}
-                  className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
+                  className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">Select Project</option>
                   {projects.map(project => (
@@ -367,16 +367,16 @@ export default function KanbanBoardPage() {
                 </select>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Users className="h-4 w-4 text-neutral-500" />
-                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Team:</label>
+              <div className="flex items-center space-x-3">
+                <Users className="h-5 w-5 text-neutral-500" />
+                <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Team:</label>
                 <select
                   value={selectedTeam}
                   onChange={(e) => {
                     setSelectedTeam(e.target.value);
                     setBoardLoaded(false);
                   }}
-                  className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
+                  className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">Select Team</option>
                   {teams.map(team => (
@@ -387,51 +387,27 @@ export default function KanbanBoardPage() {
                 </select>
               </div>
 
-              <button
-                onClick={handleRefresh}
-                disabled={!selectedProject || !selectedTeam || isRefreshing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed transition-colors"
-              >
-                Apply
-              </button>
-
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
-              
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/debug/categories');
-                    const data = await response.json();
-                    console.log('Debug categories data:', data);
-                    alert(`Categories: ${data.data.totalCategories}`);
-                  } catch (error) {
-                    console.error('Error fetching debug data:', error);
-                  }
-                }}
-                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-              >
-                Debug Categories
-              </button>
+                             <button
+                 onClick={handleRefresh}
+                 disabled={isRefreshing}
+                 className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
+               >
+                 <RefreshCw className="h-5 w-5" />
+               </button>
             </div>
           </div>
 
           {/* Search and View Mode */}
-          <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center justify-between mt-6">
             <div className="flex items-center space-x-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
                 <input
                   type="text"
                   placeholder="Search tasks..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white w-64 text-sm"
+                  className="pl-12 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white w-72 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -439,23 +415,23 @@ export default function KanbanBoardPage() {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`p-2 rounded-lg transition-colors ${
+                className={`p-3 rounded-xl transition-all duration-200 ${
                   viewMode === 'kanban' 
-                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
-                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
+                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600'
                 }`}
               >
-                <Grid3X3 className="h-4 w-4" />
+                <Grid3X3 className="h-5 w-5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${
+                className={`p-3 rounded-xl transition-all duration-200 ${
                   viewMode === 'list' 
-                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
-                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
+                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600'
                 }`}
               >
-                <List className="h-4 w-4" />
+                <List className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -464,37 +440,37 @@ export default function KanbanBoardPage() {
 
       {/* Kanban Board */}
       {boardLoaded && (
-        <div className="p-6">
+        <div className="px-6 pb-6">
           {viewMode === 'kanban' ? (
             <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="flex space-x-6 overflow-x-auto pb-4">
+              <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0">
                 {kanbanBoard.map((column) => (
-                  <div key={column.id} className="flex-shrink-0 w-80">
-                    <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+                  <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
+                    <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
                       {/* Column Header */}
-                      <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                      <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-3">
                             <div 
-                              className="w-3 h-3 rounded-full"
+                              className="w-4 h-4 rounded-full shadow-sm"
                               style={{ backgroundColor: column.color }}
                             ></div>
-                            <h3 className="font-semibold text-neutral-900 dark:text-white">
+                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
                               {column.name}
                             </h3>
-                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-2 py-1 rounded-full">
+                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
                               {filteredTasks(column.tasks).length}
                             </span>
                           </div>
                           <button
                             onClick={() => openCreateTaskModal(column.id)}
-                            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
                           >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-5 w-5" />
                           </button>
                         </div>
                         {column.description && (
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
                             {column.description}
                           </p>
                         )}
@@ -506,8 +482,8 @@ export default function KanbanBoardPage() {
                           <div
                             ref={provided.innerRef}
                             {...provided.droppableProps}
-                            className={`p-2 min-h-[200px] ${
-                              snapshot.isDraggingOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                            className={`p-4 min-h-[300px] ${
+                              snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                             }`}
                           >
                             {filteredTasks(column.tasks).map((task, index) => (
@@ -517,18 +493,18 @@ export default function KanbanBoardPage() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 mb-3 cursor-pointer hover:shadow-md transition-all ${
-                                      snapshot.isDragging ? 'shadow-lg rotate-2' : ''
+                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${
+                                      snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : ''
                                     }`}
                                     onClick={() => openTaskDetailModal(task)}
                                   >
                                     {/* Task Header */}
-                                    <div className="flex items-start justify-between mb-2">
-                                      <h4 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-2">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <h4 className="font-semibold text-neutral-900 dark:text-white text-sm leading-tight line-clamp-2 flex-1 mr-3">
                                         {task.title}
                                       </h4>
-                                      <div className="flex items-center space-x-1">
-                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                                      <div className="flex items-center space-x-1 flex-shrink-0">
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                                           {getPriorityIcon(task.priority)}
                                           <span className="ml-1 capitalize">{task.priority}</span>
                                         </span>
@@ -537,32 +513,32 @@ export default function KanbanBoardPage() {
 
                                     {/* Task Description */}
                                     {task.description && (
-                                      <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3 line-clamp-2">
+                                      <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4 line-clamp-2 leading-relaxed">
                                         {task.description}
                                       </p>
                                     )}
 
                                     {/* Task Meta */}
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                       {/* Task Details */}
-                                      <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                                        <div className="flex items-center space-x-3">
+                                      <div className="flex flex-col space-y-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                        <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
                                           {task.assigned_to && (
-                                            <div className="flex items-center space-x-1">
+                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
                                               <User className="h-3 w-3" />
-                                              <span>{task.assigned_to_user?.full_name || task.assigned_to}</span>
+                                              <span className="truncate max-w-16 lg:max-w-20 text-xs">{task.assigned_to_user?.full_name || task.assigned_to}</span>
                                             </div>
                                           )}
                                           {task.due_date && (
-                                            <div className="flex items-center space-x-1">
+                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
                                               <Calendar className="h-3 w-3" />
-                                              <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                                              <span className="text-xs">{new Date(task.due_date).toLocaleDateString()}</span>
                                             </div>
                                           )}
                                           {task.estimated_hours && (
-                                            <div className="flex items-center space-x-1">
+                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
                                               <Clock className="h-3 w-3" />
-                                              <span>{task.estimated_hours}h</span>
+                                              <span className="text-xs">{task.estimated_hours}h</span>
                                             </div>
                                           )}
                                         </div>
@@ -570,15 +546,15 @@ export default function KanbanBoardPage() {
 
                                       {/* JIRA Link */}
                                       {task.jira_ticket_key && (
-                                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
+                                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg">
                                           <Link className="h-3 w-3" />
-                                          <span>{task.jira_ticket_key}</span>
+                                          <span className="truncate">{task.jira_ticket_key}</span>
                                         </div>
                                       )}
 
-                                      {/* Scope Badge */}
-                                      <div className="flex items-center justify-between">
-                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                      {/* Scope Badge and Actions */}
+                                      <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-600">
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                                           task.scope === 'personal' 
                                             ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' 
                                             : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
@@ -593,9 +569,9 @@ export default function KanbanBoardPage() {
                                               e.stopPropagation();
                                               openEditTaskModal(task);
                                             }}
-                                            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                                            className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded transition-colors"
                                           >
-                                            <Edit3 className="h-3 w-3" />
+                                            <Edit3 className="h-3.5 w-3.5" />
                                           </button>
                                           {(task.created_by === user?.email || user?.access_dashboard) && (
                                             <button
@@ -603,9 +579,9 @@ export default function KanbanBoardPage() {
                                                 e.stopPropagation();
                                                 handleDeleteTask(task.id);
                                               }}
-                                              className="p-1 text-neutral-400 hover:text-red-600 transition-colors"
+                                              className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                             >
-                                              <Trash2 className="h-3 w-3" />
+                                              <Trash2 className="h-3.5 w-3.5" />
                                             </button>
                                           )}
                                         </div>
@@ -627,44 +603,44 @@ export default function KanbanBoardPage() {
                 <div className="flex-shrink-0 w-80">
                   <button
                     onClick={openCreateColumnModal}
-                    className="w-full h-32 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 transition-colors"
+                    className="w-full h-32 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm"
                   >
-                    <Plus className="h-6 w-6 mr-2" />
-                    Add New Column
+                    <Plus className="h-8 w-8 mr-3" />
+                    <span className="font-medium">Add New Column</span>
                   </button>
                 </div>
               </div>
             </DragDropContext>
           ) : (
             // List View
-            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
-              <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
-                <h3 className="font-semibold text-neutral-900 dark:text-white">All Tasks</h3>
+            <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
+              <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
+                <h3 className="font-bold text-xl text-neutral-900 dark:text-white">All Tasks</h3>
               </div>
-              <div className="p-4">
+              <div className="p-6">
                 {kanbanBoard.flatMap(column => filteredTasks(column.tasks)).length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-neutral-500 dark:text-neutral-400">No tasks found</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {kanbanBoard.flatMap(column => 
                       filteredTasks(column.tasks).map(task => (
-                        <div key={task.id} className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-600 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
+                        <div key={task.id} className="flex items-center justify-between p-4 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl hover:bg-neutral-50/50 dark:hover:bg-neutral-700/50 transition-all duration-200">
+                          <div className="flex items-center space-x-6">
+                            <div className="flex items-center space-x-3">
                               <div 
-                                className="w-3 h-3 rounded-full"
+                                className="w-4 h-4 rounded-full shadow-sm"
                                 style={{ backgroundColor: column.color }}
                               ></div>
-                              <span className="text-sm text-neutral-600 dark:text-neutral-400">{column.name}</span>
+                              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-3 py-1 rounded-full">{column.name}</span>
                             </div>
-                            <h4 className="font-medium text-neutral-900 dark:text-white">{task.title}</h4>
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                            <h4 className="font-semibold text-neutral-900 dark:text-white flex-1">{task.title}</h4>
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                               {task.priority}
                             </span>
                             {task.assigned_to && (
-                              <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                              <span className="text-sm text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-3 py-1 rounded-full">
                                 {task.assigned_to_user?.full_name || task.assigned_to}
                               </span>
                             )}
@@ -672,13 +648,13 @@ export default function KanbanBoardPage() {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => openTaskDetailModal(task)}
-                              className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
                             >
                               <Eye className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => openEditTaskModal(task)}
-                              className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
                             >
                               <Edit3 className="h-4 w-4" />
                             </button>
@@ -696,15 +672,15 @@ export default function KanbanBoardPage() {
 
       {/* Empty State */}
       {!boardLoaded && !loading && (
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center justify-center min-h-[500px]">
           <div className="text-center">
-            <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Grid3X3 className="h-8 w-8 text-neutral-400" />
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Grid3X3 className="h-10 w-10 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+            <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">
               Select Project and Team
             </h3>
-            <p className="text-neutral-600 dark:text-neutral-400">
+            <p className="text-neutral-600 dark:text-neutral-400 text-lg">
               Choose a project and team to load the Kanban board
             </p>
           </div>
@@ -740,7 +716,11 @@ export default function KanbanBoardPage() {
           }}
           onSubmit={handleUpdateTask}
           task={editingTask}
-          projectData={null}
+          projectData={selectedProject ? {
+            ...selectedProject,
+            categories: categories,
+            columns: kanbanBoard
+          } : null}
         />
       )}
 
