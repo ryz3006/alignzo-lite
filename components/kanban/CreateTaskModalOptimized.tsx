@@ -69,6 +69,9 @@ export default function CreateTaskModalOptimized({
     assigned_to: ''
   });
 
+  // Add state for multiple category selections
+  const [categorySelections, setCategorySelections] = useState<Record<string, string>>({});
+
   const [errors, setErrors] = useState<Record<keyof CreateTaskForm, string | undefined>>({} as Record<keyof CreateTaskForm, string | undefined>);
 
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -467,8 +470,10 @@ export default function CreateTaskModalOptimized({
       newErrors.project_id = 'Project is required';
     }
 
-    if (!formData.category_id) {
-      newErrors.category_id = 'Category is required';
+    // Check if at least one category has been selected
+    const hasCategorySelection = Object.values(categorySelections).some(optionId => optionId && optionId.trim() !== '');
+    if (!hasCategorySelection) {
+      newErrors.category_id = 'At least one category option is required';
     }
 
     if (!formData.column_id) {
@@ -485,9 +490,16 @@ export default function CreateTaskModalOptimized({
     if (!validateForm()) return;
 
     try {
+      // Get the first selected category and option for backward compatibility
+      const selectedCategoryEntry = Object.entries(categorySelections).find(([categoryId, optionId]) => optionId && optionId.trim() !== '');
+      const selectedCategoryId = selectedCategoryEntry ? selectedCategoryEntry[0] : '';
+      const selectedOptionId = selectedCategoryEntry ? selectedCategoryEntry[1] : '';
+
       // Fix timestamp issue: convert empty string to null for due_date
       const formDataToSubmit = {
         ...formData,
+        category_id: selectedCategoryId,
+        category_option_id: selectedOptionId,
         due_date: formData.due_date || null
       };
       
@@ -515,7 +527,7 @@ export default function CreateTaskModalOptimized({
       assigned_to: ''
     });
     setErrors({} as Record<keyof CreateTaskForm, string | undefined>);
-
+    setCategorySelections({});
     setLocalCategories([]);
     setTeamMembers([]);
     setJiraProjectMappings([]);
@@ -604,7 +616,7 @@ export default function CreateTaskModalOptimized({
 
           {/* Project and Category Selection */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Project & Category</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Project & Categories</h3>
             
             {/* Project */}
             <div>
@@ -619,64 +631,48 @@ export default function CreateTaskModalOptimized({
               />
             </div>
 
-            {/* Category */}
+            {/* Categories */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Category *
+                Categories *
               </label>
-              <div className="relative">
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value, category_option_id: '' }))}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.category_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
-                  disabled={isLoadingCategories}
-                >
-                  <option value="">Select a category</option>
-                  {isLoadingCategories ? (
-                    <option value="" disabled>Loading categories...</option>
-                  ) : availableCategories.length === 0 ? (
-                    <option value="" disabled>No categories available</option>
-                  ) : (
-                    availableCategories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-                {isLoadingCategories && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              <div className="space-y-3">
+                {isLoadingCategories ? (
+                  <div className="flex items-center space-x-2 text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading categories...</span>
                   </div>
+                ) : availableCategories.length === 0 ? (
+                  <div className="text-gray-500">No categories available for this project</div>
+                ) : (
+                  availableCategories.map((category) => (
+                    <div key={category.id} className="border border-gray-200 dark:border-gray-600 rounded-md p-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {category.name}
+                      </label>
+                      <select
+                        value={categorySelections[category.id] || ''}
+                        onChange={(e) => setCategorySelections(prev => ({
+                          ...prev,
+                          [category.id]: e.target.value
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Select an option (optional)</option>
+                        {(category.options || []).map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.option_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))
                 )}
               </div>
               {errors.category_id && (
                 <p className="mt-1 text-sm text-red-600">{errors.category_id}</p>
               )}
             </div>
-
-            {/* Category Option */}
-            {formData.category_id && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category Option
-                </label>
-                <select
-                  value={formData.category_option_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category_option_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select a category option (optional)</option>
-                  {(availableCategories.find(cat => cat.id === formData.category_id)?.options || []).map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.option_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* Column */}
             <div>
