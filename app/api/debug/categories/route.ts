@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Get subcategories for all categories
     const categoryIds = categoriesResponse.data?.map((cat: any) => cat.id) || [];
     
-    let subcategoriesResponse = { data: [] };
+    let subcategoriesResponse: any = { data: [], error: null };
     if (categoryIds.length > 0) {
       subcategoriesResponse = await supabaseClient.get('project_subcategories', {
         select: '*',
