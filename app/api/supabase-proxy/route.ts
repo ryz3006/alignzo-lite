@@ -4,18 +4,44 @@ import { createClient } from '@supabase/supabase-js';
 // Server-side Supabase client with environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ CRITICAL: Supabase environment variables not configured!');
   console.error('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
   console.error('   SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+  console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'Set' : 'Missing');
   console.error('   Please configure these variables in your Vercel deployment.');
 }
 
+// Create both anon and service role clients
 const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key'
 );
+
+const supabaseAdmin = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseServiceKey || 'placeholder-service-key'
+);
+
+// Helper function to determine if an operation is admin-related
+function isAdminOperation(table: string, action: string): boolean {
+  const adminTables = [
+    'project_categories',
+    'project_subcategories', 
+    'team_project_assignments',
+    'projects',
+    'teams',
+    'users',
+    'audit_trail',
+    'security_alerts'
+  ];
+  
+  const adminActions = ['insert', 'update', 'delete'];
+  
+  return adminTables.includes(table) && adminActions.includes(action);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,11 +59,19 @@ export async function POST(request: NextRequest) {
 
     const { table, action, data, filters, select, order, limit, offset, userEmail, functionName, params } = await request.json();
 
+    // Determine which client to use based on the operation
+    const isAdmin = isAdminOperation(table, action);
+    const client = isAdmin ? supabaseAdmin : supabase;
+    
+    if (isAdmin) {
+      console.log(`Using admin client for ${action} operation on ${table}`);
+    }
+
     let result;
 
     switch (action) {
       case 'select':
-        let query = supabase.from(table).select(select || '*');
+        let query = client.from(table).select(select || '*');
         
         // Apply filters
         if (filters) {
@@ -125,8 +159,8 @@ export async function POST(request: NextRequest) {
           });
         }
         
-        // Apply user-specific filtering for user pages
-        if (userEmail && table === 'work_logs') {
+        // Apply user-specific filtering for user pages (only for non-admin operations)
+        if (userEmail && table === 'work_logs' && !isAdmin) {
           query = query.eq('user_email', userEmail);
         }
         
@@ -147,11 +181,11 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'insert':
-        result = await supabase.from(table).insert(data);
+        result = await client.from(table).insert(data);
         break;
 
       case 'update':
-        let updateQuery = supabase.from(table).update(data);
+        let updateQuery = client.from(table).update(data);
         
         // Apply filters for update operation
         if (filters) {
@@ -166,7 +200,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'delete':
-        let deleteQuery = supabase.from(table).delete();
+        let deleteQuery = client.from(table).delete();
         
         // Apply filters for delete operation
         if (filters) {
@@ -181,13 +215,13 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'upsert':
-        result = await supabase.from(table).upsert(data, { 
+        result = await client.from(table).upsert(data, { 
           onConflict: 'project_id,team_id,user_email,shift_date' 
         });
         break;
 
       case 'rpc':
-        result = await supabase.rpc(functionName, params || {});
+        result = await client.rpc(functionName, params || {});
         break;
 
       default:
