@@ -391,7 +391,10 @@ export async function getKanbanTask(taskId: string): Promise<ApiResponse<KanbanT
 
 export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiResponse<KanbanTask>> {
   try {
-    const response = await supabaseClient.insert('kanban_tasks', taskData);
+    // Remove team_id from taskData as kanban_tasks table doesn't have this column
+    const { team_id, ...taskDataWithoutTeamId } = taskData as any;
+    
+    const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
 
     if (response.error) throw new Error(response.error);
 
