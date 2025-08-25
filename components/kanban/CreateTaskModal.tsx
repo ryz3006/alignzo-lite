@@ -72,6 +72,8 @@ export default function CreateTaskModal({
   const [errors, setErrors] = useState<Record<keyof CreateTaskForm, string | undefined>>({} as Record<keyof CreateTaskForm, string | undefined>);
   const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [localCategories, setLocalCategories] = useState<ProjectCategory[]>([]);
+  const [localSubcategories, setLocalSubcategories] = useState<ProjectSubcategory[]>([]);
   
   // JIRA Integration states
   const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
@@ -87,13 +89,62 @@ export default function CreateTaskModal({
 
   useEffect(() => {
     if (isOpen) {
+      console.log('CreateTaskModal opened with projectData:', projectData);
+      console.log('Categories:', projectData?.categories);
+      console.log('Subcategories:', projectData?.subcategories);
       checkJiraIntegration();
       setTicketCreated(false);
       if (selectedTeam) {
         loadTeamMembers();
       }
+      
+      // Load categories and subcategories if not available in projectData
+      if (projectData?.id && (!projectData.categories || projectData.categories.length === 0)) {
+        loadCategoriesForProject(projectData.id);
+      }
     }
-  }, [isOpen, selectedTeam]);
+  }, [isOpen, selectedTeam, projectData]);
+
+  const loadCategoriesForProject = async (projectId: string) => {
+    try {
+      console.log('Loading categories for project:', projectId);
+      
+      // Load categories
+      const categoriesResponse = await supabaseClient.get('project_categories', {
+        select: '*',
+        filters: { project_id: projectId, is_active: true },
+        order: { column: 'sort_order', ascending: true }
+      });
+
+      if (categoriesResponse.error) throw new Error(categoriesResponse.error);
+      
+      const categories = categoriesResponse.data || [];
+      console.log('Loaded categories:', categories);
+
+      // Load subcategories for all categories
+      const categoryIds = categories.map((cat: any) => cat.id);
+      let subcategories: any[] = [];
+      
+      if (categoryIds.length > 0) {
+        const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
+          select: '*',
+          filters: { category_id: categoryIds, is_active: true },
+          order: { column: 'sort_order', ascending: true }
+        });
+
+        if (subcategoriesResponse.error) throw new Error(subcategoriesResponse.error);
+        subcategories = subcategoriesResponse.data || [];
+      }
+
+      console.log('Loaded subcategories:', subcategories);
+      
+      // Update local state with loaded categories and subcategories
+      setLocalCategories(categories);
+      setLocalSubcategories(subcategories);
+    } catch (error) {
+      console.error('Error loading categories for project:', error);
+    }
+  };
 
   useEffect(() => {
     if (projectData) {
@@ -107,12 +158,23 @@ export default function CreateTaskModal({
   }, [projectData, columnId]);
 
   useEffect(() => {
-    if (formData.category_id && projectData) {
-      const category = projectData.categories.find(c => c.id === formData.category_id);
-      if (category) {
-        const categorySubcategories = projectData.subcategories.filter(s => s.category_id === formData.category_id);
-        setSubcategories(categorySubcategories);
+    if (formData.category_id) {
+      let categorySubcategories: ProjectSubcategory[] = [];
+      
+      // First try to get subcategories from projectData
+      if (projectData) {
+        const category = projectData.categories.find(c => c.id === formData.category_id);
+        if (category) {
+          categorySubcategories = projectData.subcategories.filter(s => s.category_id === formData.category_id);
+        }
       }
+      
+      // If no subcategories found in projectData, try local subcategories
+      if (categorySubcategories.length === 0) {
+        categorySubcategories = localSubcategories.filter(s => s.category_id === formData.category_id);
+      }
+      
+      setSubcategories(categorySubcategories);
     } else {
       setSubcategories([]);
     }
@@ -121,7 +183,7 @@ export default function CreateTaskModal({
     if (formData.subcategory_id && !subcategories.find(s => s.id === formData.subcategory_id)) {
       setFormData(prev => ({ ...prev, subcategory_id: '' }));
     }
-  }, [formData.category_id, projectData]);
+  }, [formData.category_id, projectData, localSubcategories]);
 
   useEffect(() => {
     if (jiraTicketType === 'existing') {
@@ -520,11 +582,15 @@ export default function CreateTaskModal({
                   } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
                 >
                   <option value="">Select Category</option>
-                  {projectData?.categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
+                  {(projectData?.categories && projectData.categories.length > 0) || localCategories.length > 0 ? (
+                    (projectData?.categories || localCategories).map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No categories available</option>
+                  )}
                 </select>
                 {errors.category_id && (
                   <p className="mt-1 text-sm text-red-600">{errors.category_id}</p>
@@ -542,11 +608,21 @@ export default function CreateTaskModal({
                   disabled={!formData.category_id}
                 >
                   <option value="">Select Subcategory</option>
-                  {subcategories.map(subcategory => (
-                    <option key={subcategory.id} value={subcategory.id}>
-                      {subcategory.name}
-                    </option>
-                  ))}
+                  {subcategories && subcategories.length > 0 ? (
+                    subcategories.map(subcategory => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
+                      </option>
+                    ))
+                  ) : localSubcategories.length > 0 ? (
+                    localSubcategories.filter(sub => sub.category_id === formData.category_id).map(subcategory => (
+                      <option key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No subcategories available</option>
+                  )}
                 </select>
               </div>
             </div>
