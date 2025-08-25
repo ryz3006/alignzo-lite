@@ -282,20 +282,41 @@ export default function KanbanBoardPage() {
     if (selectedProject && (!categories.length || !subcategories.length)) {
       try {
         console.log('Loading categories for modal...', { projectId: selectedProject.id, teamId: selectedTeam });
-        const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
-        if (response.success) {
-          console.log('Categories loaded:', response.data.categories);
-          console.log('Subcategories loaded:', response.data.subcategories);
-          setCategories(response.data.categories);
-          setSubcategories(response.data.subcategories);
+        
+        // Try to load categories directly using the debug endpoint first
+        const debugResponse = await fetch(`/api/debug/categories?projectId=${selectedProject.id}`);
+        const debugData = await debugResponse.json();
+        
+        if (debugData.success && debugData.data.projectCategories && debugData.data.projectCategories.length > 0) {
+          console.log('Categories loaded from debug endpoint:', debugData.data.projectCategories);
+          console.log('Subcategories loaded from debug endpoint:', debugData.data.projectSubcategories);
+          setCategories(debugData.data.projectCategories);
+          setSubcategories(debugData.data.projectSubcategories);
           
           // Update selectedProject with the fetched data
           setSelectedProject({
             ...selectedProject,
-            categories: response.data.categories,
-            subcategories: response.data.subcategories,
-            columns: response.data.columns
+            categories: debugData.data.projectCategories,
+            subcategories: debugData.data.projectSubcategories,
+            columns: selectedProject.columns || []
           });
+        } else {
+          // Fallback to original method
+          const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
+          if (response.success) {
+            console.log('Categories loaded from kanban API:', response.data.categories);
+            console.log('Subcategories loaded from kanban API:', response.data.subcategories);
+            setCategories(response.data.categories);
+            setSubcategories(response.data.subcategories);
+            
+            // Update selectedProject with the fetched data
+            setSelectedProject({
+              ...selectedProject,
+              categories: response.data.categories,
+              subcategories: response.data.subcategories,
+              columns: response.data.columns
+            });
+          }
         }
       } catch (error) {
         console.error('Error loading categories for modal:', error);

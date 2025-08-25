@@ -1,100 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseClient } from '@/lib/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl) {
+      return NextResponse.json({
+        success: false,
+        error: 'SUPABASE_URL not configured'
+      }, { status: 500 });
+    }
+    
+    // Try to use service role key first (bypasses RLS), fall back to anon key
+    const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+    if (!supabaseKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'No Supabase key configured (neither service role nor anon key)'
+      }, { status: 500 });
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
     // First, let's get all projects to see what we're working with
-    const projectsResponse = await supabaseClient.get('projects', {
-      select: 'id, name, product, country',
-      order: { column: 'name', ascending: true }
-    });
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('id, name, product, country')
+      .order('name', { ascending: true });
 
-    if (projectsResponse.error) {
-      throw new Error(projectsResponse.error);
+    if (projectsError) {
+      throw new Error(`Projects error: ${projectsError.message}`);
     }
 
     // Get ALL categories without any filters to see what's in the table
-    const allCategoriesResponse = await supabaseClient.get('project_categories', {
-      select: '*',
-      order: { column: 'sort_order', ascending: true }
-    });
+    const { data: allCategories, error: allCategoriesError } = await supabase
+      .from('project_categories')
+      .select('*')
+      .order('sort_order', { ascending: true });
 
-    if (allCategoriesResponse.error) {
-      throw new Error(allCategoriesResponse.error);
+    if (allCategoriesError) {
+      throw new Error(`All categories error: ${allCategoriesError.message}`);
     }
 
     // Get categories for specific project if provided
-    let projectCategoriesResponse: any = { data: [], error: null };
+    let projectCategories: any[] = [];
     if (projectId) {
-      projectCategoriesResponse = await supabaseClient.get('project_categories', {
-        select: '*',
-        filters: { project_id: projectId },
-        order: { column: 'sort_order', ascending: true }
-      });
-    }
+      const { data: projectCategoriesData, error: projectCategoriesError } = await supabase
+        .from('project_categories')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true });
 
-    if (projectCategoriesResponse.error) {
-      throw new Error(projectCategoriesResponse.error);
+      if (projectCategoriesError) {
+        throw new Error(`Project categories error: ${projectCategoriesError.message}`);
+      }
+      projectCategories = projectCategoriesData || [];
     }
 
     // Get ALL subcategories to see what's in the table
-    const allSubcategoriesResponse = await supabaseClient.get('project_subcategories', {
-      select: '*',
-      order: { column: 'sort_order', ascending: true }
-    });
+    const { data: allSubcategories, error: allSubcategoriesError } = await supabase
+      .from('project_subcategories')
+      .select('*')
+      .order('sort_order', { ascending: true });
 
-    if (allSubcategoriesResponse.error) {
-      throw new Error(allSubcategoriesResponse.error);
+    if (allSubcategoriesError) {
+      throw new Error(`All subcategories error: ${allSubcategoriesError.message}`);
     }
 
     // Get subcategories for the project's categories
-    const categoryIds = projectCategoriesResponse.data?.map((cat: any) => cat.id) || [];
+    const categoryIds = projectCategories.map((cat: any) => cat.id);
     
-    let projectSubcategoriesResponse: any = { data: [], error: null };
+    let projectSubcategories: any[] = [];
     if (categoryIds.length > 0) {
-      projectSubcategoriesResponse = await supabaseClient.get('project_subcategories', {
-        select: '*',
-        filters: { category_id: categoryIds },
-        order: { column: 'sort_order', ascending: true }
-      });
-    }
+      const { data: projectSubcategoriesData, error: projectSubcategoriesError } = await supabase
+        .from('project_subcategories')
+        .select('*')
+        .in('category_id', categoryIds)
+        .order('sort_order', { ascending: true });
 
-    if (projectSubcategoriesResponse.error) {
-      throw new Error(projectSubcategoriesResponse.error);
+      if (projectSubcategoriesError) {
+        throw new Error(`Project subcategories error: ${projectSubcategoriesError.message}`);
+      }
+      projectSubcategories = projectSubcategoriesData || [];
     }
 
     // Let's also check if there are any category_options
-    const categoryOptionsResponse = await supabaseClient.get('category_options', {
-      select: '*',
-      order: { column: 'sort_order', ascending: true }
-    });
+    let categoryOptions: any[] = [];
+    try {
+      const { data: categoryOptionsData, error: categoryOptionsError } = await supabase
+        .from('category_options')
+        .select('*')
+        .order('sort_order', { ascending: true });
 
-    if (categoryOptionsResponse.error) {
-      // If this table doesn't exist, that's okay
-      console.log('category_options table might not exist:', categoryOptionsResponse.error);
+      if (!categoryOptionsError) {
+        categoryOptions = categoryOptionsData || [];
+      }
+    } catch (error) {
+      console.log('category_options table might not exist or have access issues');
     }
 
     return NextResponse.json({
       success: true,
+      connection: {
+        url: supabaseUrl ? 'Configured' : 'Missing',
+        serviceKey: supabaseServiceKey ? 'Available' : 'Missing',
+        anonKey: supabaseAnonKey ? 'Available' : 'Missing',
+        usedKey: supabaseServiceKey ? 'Service Role' : 'Anon'
+      },
       data: {
-        projects: projectsResponse.data || [],
-        allCategories: allCategoriesResponse.data || [],
-        projectCategories: projectCategoriesResponse.data || [],
-        allSubcategories: allSubcategoriesResponse.data || [],
-        projectSubcategories: projectSubcategoriesResponse.data || [],
-        categoryOptions: categoryOptionsResponse.data || [],
-        totalCategories: allCategoriesResponse.data?.length || 0,
-        totalSubcategories: allSubcategoriesResponse.data?.length || 0,
-        projectTotalCategories: projectCategoriesResponse.data?.length || 0,
-        projectTotalSubcategories: projectSubcategoriesResponse.data?.length || 0,
+        projects: projects || [],
+        allCategories: allCategories || [],
+        projectCategories: projectCategories || [],
+        allSubcategories: allSubcategories || [],
+        projectSubcategories: projectSubcategories || [],
+        categoryOptions: categoryOptions || [],
+        totalCategories: allCategories?.length || 0,
+        totalSubcategories: allSubcategories?.length || 0,
+        projectTotalCategories: projectCategories?.length || 0,
+        projectTotalSubcategories: projectSubcategories?.length || 0,
         debug: {
           requestedProjectId: projectId,
           foundCategoryIds: categoryIds,
-          allCategoryIds: allCategoriesResponse.data?.map((cat: any) => ({ id: cat.id, project_id: cat.project_id, name: cat.name })) || [],
-          allSubcategoryIds: allSubcategoriesResponse.data?.map((sub: any) => ({ id: sub.id, category_id: sub.category_id, name: sub.name })) || []
+          allCategoryIds: allCategories?.map((cat: any) => ({ id: cat.id, project_id: cat.project_id, name: cat.name })) || [],
+          allSubcategoryIds: allSubcategories?.map((sub: any) => ({ id: sub.id, category_id: sub.category_id, name: sub.name })) || []
         }
       }
     });
