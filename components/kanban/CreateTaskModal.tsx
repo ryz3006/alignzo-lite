@@ -13,6 +13,7 @@ interface CreateTaskModalProps {
   onSubmit: (taskData: CreateTaskForm) => void;
   projectData: ProjectWithCategories | null;
   userEmail: string | null;
+  selectedTeam: string;
 }
 
 interface JiraProjectMapping {
@@ -47,7 +48,8 @@ export default function CreateTaskModal({
   onClose,
   onSubmit,
   projectData,
-  userEmail
+  userEmail,
+  selectedTeam
 }: CreateTaskModalProps) {
   const [formData, setFormData] = useState<CreateTaskForm>({
     title: '',
@@ -67,6 +69,7 @@ export default function CreateTaskModal({
 
   const [errors, setErrors] = useState<Record<keyof CreateTaskForm, string | undefined>>({} as Record<keyof CreateTaskForm, string | undefined>);
   const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   
   // JIRA Integration states
   const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
@@ -84,8 +87,11 @@ export default function CreateTaskModal({
     if (isOpen) {
       checkJiraIntegration();
       setTicketCreated(false);
+      if (selectedTeam) {
+        loadTeamMembers();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, selectedTeam]);
 
   useEffect(() => {
     if (projectData) {
@@ -163,6 +169,20 @@ export default function CreateTaskModal({
     } catch (error) {
       console.error('Error checking Jira integration:', error);
       setHasJiraIntegration(false);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      if (!selectedTeam) return;
+
+      const response = await fetch(`/api/teams/team-members?teamId=${selectedTeam}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTeamMembers(data.teamMembers || []);
+      }
+    } catch (error) {
+      console.error('Error loading team members:', error);
     }
   };
 
@@ -456,27 +476,11 @@ export default function CreateTaskModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Project *
+                  Project
                 </label>
-                <select
-                  value={formData.project_id}
-                  onChange={(e) => handleInputChange('project_id', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.project_id 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                >
-                  <option value="">Select Project</option>
-                  {projectData && (
-                    <option value={projectData.id}>
-                      {projectData.name} - {projectData.product} ({projectData.country})
-                    </option>
-                  )}
-                </select>
-                {errors.project_id && (
-                  <p className="mt-1 text-sm text-red-600">{errors.project_id}</p>
-                )}
+                <div className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                  {projectData ? `${projectData.name} - ${projectData.product} (${projectData.country})` : 'No project selected'}
+                </div>
               </div>
 
               <div>
@@ -643,13 +647,18 @@ export default function CreateTaskModal({
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Assign To
                 </label>
-                <input
-                  type="email"
+                <select
                   value={formData.assigned_to}
                   onChange={(e) => handleInputChange('assigned_to', e.target.value)}
                   className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                  placeholder="user@example.com"
-                />
+                >
+                  <option value="">Select Team Member</option>
+                  {teamMembers.map((member) => (
+                    <option key={member.id} value={member.email}>
+                      {member.first_name} {member.last_name} ({member.email})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -667,18 +676,24 @@ export default function CreateTaskModal({
                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                     JIRA Project
                   </label>
-                  <select
-                    value={selectedJiraProject}
-                    onChange={(e) => setSelectedJiraProject(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                  >
-                    <option value="">Select JIRA Project</option>
-                    {jiraProjectMappings.map(mapping => (
-                      <option key={mapping.id} value={mapping.jira_project_key}>
-                        {mapping.jira_project_key} - {mapping.jira_project_name || mapping.jira_project_key}
-                      </option>
-                    ))}
-                  </select>
+                  {jiraProjectMappings.length > 0 ? (
+                    <select
+                      value={selectedJiraProject}
+                      onChange={(e) => setSelectedJiraProject(e.target.value)}
+                      className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    >
+                      <option value="">Select JIRA Project</option>
+                      {jiraProjectMappings.map(mapping => (
+                        <option key={mapping.id} value={mapping.jira_project_key}>
+                          {mapping.jira_project_key} - {mapping.jira_project_name || mapping.jira_project_key}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                      No JIRA projects mapped for this project
+                    </div>
+                  )}
                 </div>
 
                 {/* Ticket Type Selection */}

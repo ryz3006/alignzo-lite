@@ -38,6 +38,7 @@ import {
   CreateTaskForm,
   UpdateTaskForm,
   Project,
+  ProjectWithCategories,
   CreateColumnForm
 } from '@/lib/kanban-types';
 import CreateTaskModal from '@/components/kanban/CreateTaskModal';
@@ -48,7 +49,7 @@ import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 export default function KanbanBoardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithCategories | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -84,7 +85,7 @@ export default function KanbanBoardPage() {
       const projectsResponse = await getUserAccessibleProjects(currentUser.email!);
       if (projectsResponse.success && projectsResponse.data.length > 0) {
         setProjects(projectsResponse.data);
-        setSelectedProject(projectsResponse.data[0]);
+        setSelectedProject(projectsResponse.data[0] as ProjectWithCategories);
       }
       
       // Load user's teams
@@ -94,6 +95,34 @@ export default function KanbanBoardPage() {
     } catch (error) {
       console.error('Error initializing page:', error);
       setLoading(false);
+    }
+  };
+
+  const loadProjectData = async (projectId: string) => {
+    try {
+      // Load categories
+      const categoriesResponse = await fetch(`/api/kanban/project-categories?projectId=${projectId}`);
+      const categoriesData = await categoriesResponse.json();
+      
+      // Load subcategories
+      const subcategoriesResponse = await fetch(`/api/kanban/project-subcategories?projectId=${projectId}`);
+      const subcategoriesData = await subcategoriesResponse.json();
+      
+      // Load columns
+      const columnsResponse = await fetch(`/api/kanban/project-columns?projectId=${projectId}`);
+      const columnsData = await columnsResponse.json();
+      
+      // Update the selected project with full data
+      if (selectedProject) {
+        setSelectedProject({
+          ...selectedProject,
+          categories: categoriesData.categories || [],
+          subcategories: subcategoriesData.subcategories || [],
+          columns: columnsData.columns || []
+        });
+      }
+    } catch (error) {
+      console.error('Error loading project data:', error);
     }
   };
 
@@ -111,6 +140,7 @@ export default function KanbanBoardPage() {
 
   useEffect(() => {
     if (selectedProject && selectedTeam) {
+      loadProjectData(selectedProject.id);
       loadKanbanBoard();
     }
   }, [selectedProject, selectedTeam]);
@@ -325,7 +355,7 @@ export default function KanbanBoardPage() {
                   value={selectedProject?.id || ''}
                   onChange={(e) => {
                     const project = projects.find(p => p.id === e.target.value);
-                    setSelectedProject(project || null);
+                    setSelectedProject(project ? { ...project, categories: [], subcategories: [], columns: [] } as ProjectWithCategories : null);
                     setBoardLoaded(false);
                   }}
                   className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
@@ -672,8 +702,14 @@ export default function KanbanBoardPage() {
           isOpen={showCreateTaskModal}
           onClose={() => setShowCreateTaskModal(false)}
           onSubmit={handleCreateTask}
-          projectData={null}
+          projectData={selectedProject ? {
+            ...selectedProject,
+            categories: [],
+            subcategories: [],
+            columns: []
+          } : null}
           userEmail={user?.email}
+          selectedTeam={selectedTeam}
         />
       )}
 
