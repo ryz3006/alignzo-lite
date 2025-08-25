@@ -54,25 +54,70 @@ export default function CreateTaskModalOptimized({
   const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Memoized function to load categories with options - optimized
+  // Memoized function to load categories with options - optimized with fallback
   const loadCategoriesForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
     
     setIsLoadingCategories(true);
     try {
-      // Use the optimized database function
+      // First try the optimized database function
       const { data, error } = await supabaseClient.rpc('get_project_categories_with_options', {
         project_uuid: projectId
       });
 
-      if (error) throw new Error(error);
-      
-      // Parse the JSON result
-      const categories = data ? JSON.parse(data) : [];
-      setLocalCategories(categories);
+      if (error) {
+        console.warn('Optimized function not available, falling back to direct query:', error);
+        // Fallback to direct query if the optimized function doesn't exist
+        const { data: fallbackData, error: fallbackError } = await supabaseClient
+          .query({
+            table: 'project_categories',
+            action: 'select',
+            select: `
+              id,
+              name,
+              description,
+              color,
+              sort_order,
+              created_at,
+              updated_at,
+              category_options (
+                id,
+                option_name,
+                option_value,
+                sort_order
+              )
+            `,
+            filters: {
+              project_id: projectId,
+              is_active: true
+            },
+            order: { column: 'sort_order', ascending: true }
+          });
+
+        if (fallbackError) throw new Error(fallbackError);
+        
+        // Transform the data to match the expected format
+        const transformedCategories = fallbackData?.map((cat: any) => ({
+          ...cat,
+          options: cat.category_options?.map((opt: any) => ({
+            id: opt.id,
+            option_name: opt.option_name,
+            option_value: opt.option_value,
+            sort_order: opt.sort_order
+          })) || []
+        })) || [];
+        
+        setLocalCategories(transformedCategories);
+      } else {
+        // Parse the JSON result from optimized function
+        const categories = data ? JSON.parse(data) : [];
+        setLocalCategories(categories);
+      }
     } catch (error) {
       console.error('Error loading categories for project:', error);
       toast.error('Failed to load categories. Please try again.');
+      // Set empty array to prevent infinite loading
+      setLocalCategories([]);
     } finally {
       setIsLoadingCategories(false);
     }
@@ -96,9 +141,10 @@ export default function CreateTaskModalOptimized({
     }
   }, [selectedTeam]);
 
-  // Initialize modal when it opens - optimized with parallel loading
+  // Initialize modal when it opens - show immediately with loading overlay
   useEffect(() => {
     if (isOpen) {
+      // Show loading overlay immediately
       setIsLoading(true);
       
       // Reset form data
@@ -125,10 +171,8 @@ export default function CreateTaskModalOptimized({
       const loadData = async () => {
         try {
           await Promise.all([
-            // Load categories if not available in projectData
-            projectData?.id && (!projectData.categories || projectData.categories.length === 0) 
-              ? loadCategoriesForProject(projectData.id) 
-              : Promise.resolve(),
+            // Always try to load categories to ensure we have the latest data
+            projectData?.id ? loadCategoriesForProject(projectData.id) : Promise.resolve(),
             // Load team members
             selectedTeam ? loadTeamMembers() : Promise.resolve()
           ]);
@@ -154,12 +198,10 @@ export default function CreateTaskModalOptimized({
     }
   }, [projectData, columnId]);
 
-  // Memoized available categories
+  // Memoized available categories - prioritize local categories for fresh data
   const availableCategories = useMemo(() => {
-    return (projectData?.categories && projectData.categories.length > 0)
-      ? projectData.categories
-      : localCategories;
-  }, [projectData?.categories, localCategories]);
+    return localCategories.length > 0 ? localCategories : (projectData?.categories || []);
+  }, [localCategories, projectData?.categories]);
 
   // Memoized available columns
   const availableColumns = useMemo(() => {
@@ -258,7 +300,7 @@ export default function CreateTaskModalOptimized({
           </button>
         </div>
 
-        {/* Loading Overlay */}
+        {/* Loading Overlay - Show immediately when modal opens */}
         {isLoading && (
           <div className="absolute inset-0 bg-white dark:bg-gray-800 bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
             <div className="flex flex-col items-center space-y-4">

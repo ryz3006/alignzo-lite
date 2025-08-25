@@ -328,15 +328,7 @@ export default function KanbanBoardPageOptimized() {
       setSelectedColumnForTask(columnId);
     }
     
-    // Ensure categories are loaded before opening modal
-    if (selectedProject && !categories.length) {
-      try {
-        await loadKanbanBoard(true);
-      } catch (error) {
-        console.error('Error loading categories for modal:', error);
-      }
-    }
-    
+    // Show modal immediately - loading will be handled inside the modal
     setShowCreateTaskModal(true);
   };
 
