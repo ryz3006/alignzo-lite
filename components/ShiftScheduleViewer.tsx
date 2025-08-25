@@ -20,6 +20,7 @@ const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor
   G: { label: 'General/Day', color: 'text-green-700', bgColor: 'bg-green-100' },
   H: { label: 'Holiday', color: 'text-red-700', bgColor: 'bg-red-100' },
   L: { label: 'Leave', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
+  E: { label: 'Evening', color: 'text-orange-700', bgColor: 'bg-orange-100' },
 };
 
 export default function ShiftScheduleViewer({ isOpen, onClose, userEmail }: ShiftScheduleViewerProps) {

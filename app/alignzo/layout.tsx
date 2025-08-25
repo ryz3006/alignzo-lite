@@ -99,6 +99,7 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/alignzo', icon: Home, accessKey: 'access_dashboard' },
+    { name: 'Kanban Board', href: '/alignzo/kanban-board', icon: BarChart3, accessKey: 'access_dashboard' },
     { name: 'My Work Logs', href: '/alignzo/reports', icon: Clock, accessKey: 'access_work_report' },
     { name: 'Work Report', href: '/alignzo/work-reports', icon: BarChart3, accessKey: 'access_team_work_reports' },
     { 
