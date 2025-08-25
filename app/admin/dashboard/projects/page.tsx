@@ -348,28 +348,42 @@ export default function ProjectsPage() {
 
   const loadProjectSubcategories = async (projectId: string) => {
     try {
-      const response = await supabaseClient.get('project_subcategories', {
-        select: '*,project_categories(name)',
-        filters: { 'project_categories.project_id': projectId }
-      });
+      // Use the dedicated admin API endpoint
+      const response = await fetch(`/api/admin/subcategories?projectId=${projectId}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        const subcategoriesData = (result.data || []).map((sub: any) => ({
+          name: sub.name,
+          category_id: sub.category_id,
+          description: sub.description || ''
+        }));
+        
+        setSubcategories(subcategoriesData);
+      } else {
+        // Fallback to the old method if admin API fails
+        console.warn('Admin subcategories API failed, falling back to old method');
+        const response = await supabaseClient.get('project_subcategories', {
+          select: '*,project_categories(name)',
+          filters: { 'project_categories.project_id': projectId }
+        });
 
-      if (response.error) {
-        console.error('Error loading subcategories:', response.error);
-        // Don't throw error, just set empty array
-        setSubcategories([]);
-        return;
+        if (response.error) {
+          console.error('Error loading subcategories:', response.error);
+          setSubcategories([]);
+          return;
+        }
+
+        const subcategoriesData = response.data?.map((sub: any) => ({
+          name: sub.name,
+          category_id: sub.category_id,
+          description: sub.description || ''
+        })) || [];
+
+        setSubcategories(subcategoriesData);
       }
-
-      const subcategoriesData = response.data?.map((sub: any) => ({
-        name: sub.name,
-        category_id: sub.category_id,
-        description: sub.description || ''
-      })) || [];
-
-      setSubcategories(subcategoriesData);
     } catch (error) {
       console.error('Error loading subcategories:', error);
-      // Don't throw error, just set empty array
       setSubcategories([]);
     }
   };
@@ -554,33 +568,26 @@ export default function ProjectsPage() {
       console.log('Updating subcategories for project:', selectedProject.id);
       console.log('Subcategories to insert:', validSubcategories);
 
-      // Remove all current subcategories for this project
-      const deleteResponse = await supabaseClient.query({
-        table: 'project_subcategories',
-        action: 'delete',
-        filters: { 'project_categories.project_id': selectedProject.id }
+      // Use the dedicated admin API endpoint
+      const response = await fetch('/api/admin/subcategories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          subcategories: validSubcategories
+        })
       });
 
-      if (deleteResponse.error) {
-        console.error('Error deleting project subcategories:', deleteResponse.error);
-        throw new Error(deleteResponse.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Admin API error:', errorData);
+        throw new Error(errorData.error || 'Failed to update subcategories');
       }
 
-      // Add new subcategories
-      const newSubcategories = validSubcategories.map(sub => ({
-        category_id: sub.category_id,
-        name: sub.name.trim(),
-        description: sub.description?.trim() || '',
-      }));
-
-      console.log('Final subcategories to insert:', newSubcategories);
-
-      const insertResponse = await supabaseClient.insert('project_subcategories', newSubcategories);
-
-      if (insertResponse.error) {
-        console.error('Error inserting project subcategories:', insertResponse.error);
-        throw new Error(insertResponse.error);
-      }
+      const result = await response.json();
+      console.log('Admin API success:', result);
 
       toast.success('Project subcategories updated successfully');
       setShowSubcategoriesModal(false);

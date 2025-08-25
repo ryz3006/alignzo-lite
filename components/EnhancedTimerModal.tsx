@@ -409,6 +409,58 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
         dynamic_category_selections: formData.dynamic_category_selections,
       });
 
+      // If we have category selections, save them to the new table
+      if (Object.keys(formData.dynamic_category_selections).length > 0) {
+        const categorySelections = [];
+        
+        for (const [categoryName, selectedValue] of Object.entries(formData.dynamic_category_selections)) {
+          if (selectedValue && selectedValue.trim() !== '') {
+            // Find the category by name
+            const category = projectCategories.find(cat => cat.name === categoryName);
+            if (category) {
+              // Find the selected option
+              const selectedOption = category.options?.find(opt => opt === selectedValue);
+              if (selectedOption) {
+                categorySelections.push({
+                  category_id: category.id,
+                  selected_option_value: selectedValue
+                });
+              }
+            }
+          }
+        }
+
+        // Save category selections to the new table
+        if (categorySelections.length > 0) {
+          try {
+            // Get the most recent timer for this user and project
+            const currentUser = await getCurrentUser();
+            if (currentUser?.email) {
+              const response = await fetch(`/api/timers?userEmail=${currentUser.email}&projectId=${selectedProject}&limit=1`);
+              if (response.ok) {
+                const timers = await response.json();
+                if (timers.length > 0) {
+                  const latestTimer = timers[0];
+                  await fetch('/api/timers/category-selections', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      timer_id: latestTimer.id,
+                      category_selections: categorySelections
+                    })
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to save category selections to new table:', error);
+            // Don't fail the timer creation if this fails
+          }
+        }
+      }
+
       // Reset form
       setFormData({
         ticket_id: '',

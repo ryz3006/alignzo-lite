@@ -423,16 +423,6 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       return;
     }
 
-    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
-      if (!formData.ticket_summary.trim()) {
-        toast.error('Please enter ticket summary');
-        return;
-      }
-      // Create the ticket first
-      await createJiraTicket();
-      return; // The form will be submitted after ticket creation
-    }
-
     if (!formData.ticket_id.trim()) {
       toast.error('Please enter a ticket ID');
       return;
@@ -444,11 +434,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     }
 
     if (!formData.start_datetime || !formData.end_datetime) {
-      toast.error('Please select both start and end times');
-      return;
-    }
-
-    if (!validateDateTime()) {
+      toast.error('Please select start and end times');
       return;
     }
 
@@ -464,7 +450,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       const durationSeconds = calculateDuration();
 
       // Save work log to database
-      const { error } = await supabaseClient.insert('work_logs', {
+      const { data: workLogData, error } = await supabaseClient.insert('work_logs', {
         user_email: currentUser.email,
         project_id: selectedProject,
         ticket_id: formData.ticket_id,
@@ -477,6 +463,47 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       });
 
       if (error) throw error;
+
+      // If we have category selections, save them to the new table
+      if (workLogData && Object.keys(formData.dynamic_category_selections).length > 0) {
+        const categorySelections = [];
+        
+        for (const [categoryName, selectedValue] of Object.entries(formData.dynamic_category_selections)) {
+          if (selectedValue && selectedValue.trim() !== '') {
+            // Find the category by name
+            const category = projectCategories.find(cat => cat.name === categoryName);
+            if (category) {
+              // Find the selected option
+              const selectedOption = category.options?.find(opt => opt === selectedValue);
+              if (selectedOption) {
+                categorySelections.push({
+                  category_id: category.id,
+                  selected_option_value: selectedValue
+                });
+              }
+            }
+          }
+        }
+
+        // Save category selections to the new table
+        if (categorySelections.length > 0) {
+          try {
+            await fetch('/api/work-logs/category-selections', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                work_log_id: workLogData[0].id,
+                category_selections: categorySelections
+              })
+            });
+          } catch (error) {
+            console.warn('Failed to save category selections to new table:', error);
+            // Don't fail the work log creation if this fails
+          }
+        }
+      }
 
       toast.success('Work log saved successfully');
 
