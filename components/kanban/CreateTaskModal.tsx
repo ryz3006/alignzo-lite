@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2 } from 'lucide-react';
+import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
 import { CreateTaskForm, ProjectWithCategories, ProjectCategory, ProjectSubcategory, KanbanColumn } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
@@ -485,7 +485,13 @@ export default function CreateTaskModal({
     if (!validateForm()) return;
 
     try {
-      onSubmit(formData);
+      // Fix timestamp issue: convert empty string to null for due_date
+      const formDataToSubmit = {
+        ...formData,
+        due_date: formData.due_date || null
+      };
+      
+      onSubmit(formDataToSubmit);
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Failed to create task. Please try again.');
@@ -741,12 +747,12 @@ export default function CreateTaskModal({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Due Date
                 </label>
-                <input
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
+                                 <input
+                   type="date"
+                   value={formData.due_date || ''}
+                   onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                 />
               </div>
 
               {/* Assigned To */}
@@ -905,6 +911,41 @@ export default function CreateTaskModal({
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Linked JIRA Ticket Display */}
+                {(formData.jira_ticket_key || formData.jira_ticket_id) && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Link className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                        Linked JIRA Ticket
+                      </label>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                          {formData.jira_ticket_key || formData.jira_ticket_id}
+                        </span>
+                        {ticketCreated && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Created
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, jira_ticket_id: '', jira_ticket_key: '' }));
+                          setTicketCreated(false);
+                        }}
+                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

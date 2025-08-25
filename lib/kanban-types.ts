@@ -153,7 +153,7 @@ export interface CreateTaskForm {
   column_id: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimated_hours?: number;
-  due_date?: string;
+  due_date?: string | null;
   jira_ticket_id?: string;
   jira_ticket_key?: string;
   scope: 'personal' | 'project';
