@@ -923,56 +923,14 @@ export async function getKanbanBoardOptimized(
 
     if (categoriesResponse.error) throw new Error(categoriesResponse.error);
 
-    // Load options for each category
-    const categoriesWithOptions = await Promise.all((categoriesResponse.data || []).map(async (category: any) => {
-      try {
-        // Try to get options from category_options table
-        const optionsResponse = await supabaseClient.get('category_options', {
-          select: '*',
-          filters: {
-            category_id: category.id
-          },
-          order: {
-            column: 'sort_order',
-            ascending: true
-          }
-        });
-
-        if (!optionsResponse.error && optionsResponse.data) {
-          // Use options from category_options table
-          category.options = optionsResponse.data.map((opt: any) => opt.option_value);
-        } else {
-          // Fallback: parse options from description if available
-          if (category.description && category.description.includes('Category with options:')) {
-            const optionsMatch = category.description.match(/Category with options: (.+)/);
-            if (optionsMatch) {
-              category.options = optionsMatch[1].split(', ').map((opt: string) => opt.trim());
-            } else {
-              category.options = [];
-            }
-          } else {
-            category.options = [];
-          }
-        }
-        return category;
-      } catch (error) {
-        console.warn('Error loading options for category:', category.id, error);
-        category.options = [];
-        return category;
-      }
-    }));
-
     // Get subcategories for the project
     const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
-      select: `
-        *,
-        project_categories!inner(*)
-      `,
+      select: '*',
       filters: {
-        'project_categories.project_id': projectId
+        category_id: (categoriesResponse.data || []).map((cat: any) => cat.id)
       },
       order: {
-        column: 'created_at',
+        column: 'sort_order',
         ascending: true
       }
     });
@@ -981,45 +939,6 @@ export async function getKanbanBoardOptimized(
       console.warn('Error fetching subcategories:', subcategoriesResponse.error);
       // Don't fail the entire request if subcategories fail
     }
-
-    // Load options for each subcategory
-    const subcategoriesWithOptions = await Promise.all((subcategoriesResponse.data || []).map(async (subcategory: any) => {
-      try {
-        // Try to get options from subcategory_options table
-        const optionsResponse = await supabaseClient.get('subcategory_options', {
-          select: '*',
-          filters: {
-            subcategory_id: subcategory.id
-          },
-          order: {
-            column: 'sort_order',
-            ascending: true
-          }
-        });
-
-        if (!optionsResponse.error && optionsResponse.data) {
-          // Use options from subcategory_options table
-          subcategory.options = optionsResponse.data.map((opt: any) => opt.option_value);
-        } else {
-          // Fallback: parse options from description if available
-          if (subcategory.description && subcategory.description.includes('Subcategory with options:')) {
-            const optionsMatch = subcategory.description.match(/Subcategory with options: (.+)/);
-            if (optionsMatch) {
-              subcategory.options = optionsMatch[1].split(', ').map((opt: string) => opt.trim());
-            } else {
-              subcategory.options = [];
-            }
-          } else {
-            subcategory.options = [];
-          }
-        }
-        return subcategory;
-      } catch (error) {
-        console.warn('Error loading options for subcategory:', subcategory.id, error);
-        subcategory.options = [];
-        return subcategory;
-      }
-    }));
 
     // Group tasks by column
     const columnsWithTasks: KanbanColumnWithTasks[] = (columnsResponse.data || []).map((column: KanbanColumn) => ({
@@ -1030,8 +949,8 @@ export async function getKanbanBoardOptimized(
     return {
       data: {
         columns: columnsWithTasks,
-        categories: categoriesWithOptions,
-        subcategories: subcategoriesWithOptions
+        categories: categoriesResponse.data || [],
+        subcategories: subcategoriesResponse.data || []
       },
       success: true
     };
@@ -1130,6 +1049,38 @@ export async function getUserAccessibleProjects(userEmail: string): Promise<ApiR
       subcategories: [],
       columns: []
     }));
+
+    // Load categories and subcategories for each project
+    for (const project of projectsWithCategories) {
+      try {
+        // Load categories for this project
+        const categoriesResponse = await supabaseClient.get('project_categories', {
+          select: '*',
+          filters: { project_id: project.id, is_active: true },
+          order: { column: 'sort_order', ascending: true }
+        });
+
+        if (!categoriesResponse.error && categoriesResponse.data) {
+          project.categories = categoriesResponse.data;
+          
+          // Load subcategories for all categories
+          const categoryIds = categoriesResponse.data.map((cat: any) => cat.id);
+          if (categoryIds.length > 0) {
+            const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
+              select: '*',
+              filters: { category_id: categoryIds, is_active: true },
+              order: { column: 'sort_order', ascending: true }
+            });
+
+            if (!subcategoriesResponse.error && subcategoriesResponse.data) {
+              project.subcategories = subcategoriesResponse.data;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Error loading categories for project:', project.id, error);
+      }
+    }
 
     return {
       data: projectsWithCategories,
