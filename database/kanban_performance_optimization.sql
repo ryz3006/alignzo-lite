@@ -20,30 +20,97 @@ CREATE TABLE IF NOT EXISTS category_options (
     UNIQUE(category_id, option_value)
 );
 
+-- Add any missing columns if the table exists but is missing columns
+DO $$
+BEGIN
+    -- Add sort_order column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'category_options' AND column_name = 'sort_order'
+    ) THEN
+        ALTER TABLE category_options ADD COLUMN sort_order INTEGER DEFAULT 0;
+    END IF;
+    
+    -- Add is_active column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'category_options' AND column_name = 'is_active'
+    ) THEN
+        ALTER TABLE category_options ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+    END IF;
+    
+    -- Add updated_at column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'category_options' AND column_name = 'updated_at'
+    ) THEN
+        ALTER TABLE category_options ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+END $$;
+
 -- =====================================================
 -- STEP 2: Create additional performance indexes
 -- =====================================================
 
 -- Composite indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_project_column_status ON kanban_tasks(project_id, column_id, status);
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_project_scope_status ON kanban_tasks(project_id, scope, status);
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_assigned_created ON kanban_tasks(assigned_to, created_by);
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_due_date ON kanban_tasks(due_date) WHERE due_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_priority ON kanban_tasks(priority);
-CREATE INDEX IF NOT EXISTS idx_kanban_tasks_jira_ticket ON kanban_tasks(jira_ticket_key) WHERE jira_ticket_key IS NOT NULL;
-
--- Indexes for category_options
-CREATE INDEX IF NOT EXISTS idx_category_options_category_id ON category_options(category_id);
-CREATE INDEX IF NOT EXISTS idx_category_options_active ON category_options(is_active);
-CREATE INDEX IF NOT EXISTS idx_category_options_sort_order ON category_options(sort_order);
-
--- Indexes for project_categories
-CREATE INDEX IF NOT EXISTS idx_project_categories_project_active ON project_categories(project_id, is_active);
-CREATE INDEX IF NOT EXISTS idx_project_categories_sort_order ON project_categories(sort_order);
-
--- Indexes for kanban_columns
-CREATE INDEX IF NOT EXISTS idx_kanban_columns_project_active ON kanban_columns(project_id, is_active);
-CREATE INDEX IF NOT EXISTS idx_kanban_columns_sort_order ON kanban_columns(sort_order);
+DO $$
+BEGIN
+    -- Create indexes only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_project_column_status') THEN
+        CREATE INDEX idx_kanban_tasks_project_column_status ON kanban_tasks(project_id, column_id, status);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_project_scope_status') THEN
+        CREATE INDEX idx_kanban_tasks_project_scope_status ON kanban_tasks(project_id, scope, status);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_assigned_created') THEN
+        CREATE INDEX idx_kanban_tasks_assigned_created ON kanban_tasks(assigned_to, created_by);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_due_date') THEN
+        CREATE INDEX idx_kanban_tasks_due_date ON kanban_tasks(due_date) WHERE due_date IS NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_priority') THEN
+        CREATE INDEX idx_kanban_tasks_priority ON kanban_tasks(priority);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_tasks_jira_ticket') THEN
+        CREATE INDEX idx_kanban_tasks_jira_ticket ON kanban_tasks(jira_ticket_key) WHERE jira_ticket_key IS NOT NULL;
+    END IF;
+    
+    -- Indexes for category_options
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_category_options_category_id') THEN
+        CREATE INDEX idx_category_options_category_id ON category_options(category_id);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_category_options_active') THEN
+        CREATE INDEX idx_category_options_active ON category_options(is_active);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_category_options_sort_order') THEN
+        CREATE INDEX idx_category_options_sort_order ON category_options(sort_order);
+    END IF;
+    
+    -- Indexes for project_categories
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_project_categories_project_active') THEN
+        CREATE INDEX idx_project_categories_project_active ON project_categories(project_id, is_active);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_project_categories_sort_order') THEN
+        CREATE INDEX idx_project_categories_sort_order ON project_categories(sort_order);
+    END IF;
+    
+    -- Indexes for kanban_columns
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_columns_project_active') THEN
+        CREATE INDEX idx_kanban_columns_project_active ON kanban_columns(project_id, is_active);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_kanban_columns_sort_order') THEN
+        CREATE INDEX idx_kanban_columns_sort_order ON kanban_columns(sort_order);
+    END IF;
+END $$;
 
 -- =====================================================
 -- STEP 3: Create optimized functions for data fetching
@@ -199,33 +266,43 @@ RETURNS JSON AS $$
 DECLARE
     result JSON;
 BEGIN
-    SELECT json_agg(
-        json_build_object(
-            'id', pc.id,
-            'name', pc.name,
-            'description', pc.description,
-            'color', pc.color,
-            'sort_order', pc.sort_order,
-            'created_at', pc.created_at,
-            'updated_at', pc.updated_at,
-            'options', COALESCE(
-                json_agg(
+    WITH category_data AS (
+        SELECT 
+            pc.id,
+            pc.name,
+            pc.description,
+            pc.color,
+            pc.sort_order,
+            pc.created_at,
+            pc.updated_at,
+            json_agg(
+                CASE WHEN co.id IS NOT NULL THEN
                     json_build_object(
                         'id', co.id,
                         'option_name', co.option_name,
                         'option_value', co.option_value,
                         'sort_order', co.sort_order
-                    ) ORDER BY co.sort_order
-                ) FILTER (WHERE co.id IS NOT NULL),
-                '[]'::json
-            )
-        ) ORDER BY pc.sort_order
+                    )
+                END
+            ) FILTER (WHERE co.id IS NOT NULL) as options
+        FROM project_categories pc
+        LEFT JOIN category_options co ON pc.id = co.category_id AND co.is_active = true
+        WHERE pc.project_id = project_uuid AND pc.is_active = true
+        GROUP BY pc.id, pc.name, pc.description, pc.color, pc.sort_order, pc.created_at, pc.updated_at
     )
-    FROM project_categories pc
-    LEFT JOIN category_options co ON pc.id = co.category_id AND co.is_active = true
-    WHERE pc.project_id = project_uuid AND pc.is_active = true
-    GROUP BY pc.id, pc.name, pc.description, pc.color, pc.sort_order, pc.created_at, pc.updated_at
-    ORDER BY pc.sort_order
+    SELECT json_agg(
+        json_build_object(
+            'id', cd.id,
+            'name', cd.name,
+            'description', cd.description,
+            'color', cd.color,
+            'sort_order', cd.sort_order,
+            'created_at', cd.created_at,
+            'updated_at', cd.updated_at,
+            'options', COALESCE(cd.options, '[]'::json)
+        ) ORDER BY cd.sort_order
+    )
+    FROM category_data cd
     INTO result;
     
     RETURN COALESCE(result, '[]'::json);
@@ -264,7 +341,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- =====================================================
 
 -- Materialized view for project statistics
-CREATE MATERIALIZED VIEW IF NOT EXISTS project_kanban_stats AS
+DROP MATERIALIZED VIEW IF EXISTS project_kanban_stats;
+CREATE MATERIALIZED VIEW project_kanban_stats AS
 SELECT 
     p.id as project_id,
     p.name as project_name,
@@ -282,7 +360,8 @@ LEFT JOIN project_categories pc ON p.id = pc.project_id AND pc.is_active = true
 GROUP BY p.id, p.name;
 
 -- Create index on materialized view
-CREATE INDEX IF NOT EXISTS idx_project_kanban_stats_project_id ON project_kanban_stats(project_id);
+DROP INDEX IF EXISTS idx_project_kanban_stats_project_id;
+CREATE INDEX idx_project_kanban_stats_project_id ON project_kanban_stats(project_id);
 
 -- =====================================================
 -- STEP 5: Create refresh function for materialized view
@@ -308,31 +387,75 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for auto-refresh
-CREATE TRIGGER trigger_refresh_stats_on_task_change
-    AFTER INSERT OR UPDATE OR DELETE ON kanban_tasks
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION trigger_refresh_kanban_stats();
+-- Create triggers for auto-refresh (only if they don't exist)
+DO $$
+BEGIN
+    -- Check and create trigger for kanban_tasks
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'trigger_refresh_stats_on_task_change'
+    ) THEN
+        CREATE TRIGGER trigger_refresh_stats_on_task_change
+            AFTER INSERT OR UPDATE OR DELETE ON kanban_tasks
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION trigger_refresh_kanban_stats();
+    END IF;
 
-CREATE TRIGGER trigger_refresh_stats_on_column_change
-    AFTER INSERT OR UPDATE OR DELETE ON kanban_columns
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION trigger_refresh_kanban_stats();
+    -- Check and create trigger for kanban_columns
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'trigger_refresh_stats_on_column_change'
+    ) THEN
+        CREATE TRIGGER trigger_refresh_stats_on_column_change
+            AFTER INSERT OR UPDATE OR DELETE ON kanban_columns
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION trigger_refresh_kanban_stats();
+    END IF;
 
-CREATE TRIGGER trigger_refresh_stats_on_category_change
-    AFTER INSERT OR UPDATE OR DELETE ON project_categories
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION trigger_refresh_kanban_stats();
+    -- Check and create trigger for project_categories
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'trigger_refresh_stats_on_category_change'
+    ) THEN
+        CREATE TRIGGER trigger_refresh_stats_on_category_change
+            AFTER INSERT OR UPDATE OR DELETE ON project_categories
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION trigger_refresh_kanban_stats();
+    END IF;
+END $$;
 
 -- =====================================================
 -- STEP 7: Create RLS policies for new functions
 -- =====================================================
 
--- Grant execute permissions
-GRANT EXECUTE ON FUNCTION get_kanban_board_optimized(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_project_categories_with_options(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_user_accessible_projects_optimized(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION refresh_project_kanban_stats() TO authenticated;
+-- Grant execute permissions (ignore if already granted)
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION get_kanban_board_optimized(UUID, UUID) TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION get_project_categories_with_options(UUID) TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION get_user_accessible_projects_optimized(TEXT) TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION refresh_project_kanban_stats() TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
 
 -- =====================================================
 -- STEP 8: Create helper functions for task operations
@@ -449,9 +572,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute permissions
-GRANT EXECUTE ON FUNCTION move_kanban_task_optimized(UUID, UUID, INTEGER, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION create_kanban_task_optimized(JSON, TEXT) TO authenticated;
+-- Grant execute permissions (ignore if already granted)
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION move_kanban_task_optimized(UUID, UUID, INTEGER, TEXT) TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
+DO $$
+BEGIN
+    GRANT EXECUTE ON FUNCTION create_kanban_task_optimized(JSON, TEXT) TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
 
 -- =====================================================
 -- STEP 9: Initial data setup for category_options
@@ -492,5 +626,11 @@ WHERE tablename IN (
 )
 ORDER BY tablename, attname;
 
--- Grant select permissions
-GRANT SELECT ON kanban_performance_metrics TO authenticated;
+-- Grant select permissions (ignore if already granted)
+DO $$
+BEGIN
+    GRANT SELECT ON kanban_performance_metrics TO authenticated;
+EXCEPTION WHEN OTHERS THEN
+    -- Permission might already be granted, ignore error
+    NULL;
+END $$;

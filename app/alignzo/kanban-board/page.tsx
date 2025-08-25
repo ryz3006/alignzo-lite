@@ -276,47 +276,8 @@ export default function KanbanBoardPage() {
       setSelectedColumnForTask(columnId);
     }
     
-    // Show modal immediately with loading state
+    // Show modal immediately - it will handle its own loading state
     setShowCreateTaskModal(true);
-    
-    // Load categories in background if needed (modal will handle its own loading state)
-    if (selectedProject && !categories.length) {
-      try {
-        console.log('Loading categories for modal...', { projectId: selectedProject.id, teamId: selectedTeam });
-        
-        // Try to load categories directly using the debug endpoint first
-        const debugResponse = await fetch(`/api/debug/categories?projectId=${selectedProject.id}`);
-        const debugData = await debugResponse.json();
-        
-        if (debugData.success && debugData.data.projectCategories && debugData.data.projectCategories.length > 0) {
-          console.log('Categories loaded from debug endpoint:', debugData.data.projectCategories);
-          setCategories(debugData.data.projectCategories);
-          
-          // Update selectedProject with the fetched data
-          setSelectedProject({
-            ...selectedProject,
-            categories: debugData.data.projectCategories,
-            columns: selectedProject.columns || []
-          });
-        } else {
-          // Fallback to original method
-          const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
-          if (response.success) {
-            console.log('Categories loaded from kanban API:', response.data.categories);
-            setCategories(response.data.categories);
-            
-            // Update selectedProject with the fetched data
-            setSelectedProject({
-              ...selectedProject,
-              categories: response.data.categories,
-              columns: response.data.columns
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error loading categories for modal:', error);
-      }
-    }
   };
   const openEditTaskModal = (task: KanbanTaskWithDetails) => {
     setEditingTask(task);

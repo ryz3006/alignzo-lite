@@ -68,15 +68,32 @@ export async function GET(request: NextRequest) {
 
       if (rpcError) {
         console.log('Debug: RPC function failed:', rpcError);
+        console.log('Debug: RPC error details:', JSON.stringify(rpcError, null, 2));
       } else {
+        console.log('Debug: RPC raw result:', rpcData);
         rpcResult = rpcData ? JSON.parse(rpcData) : [];
         console.log('Debug: RPC function returned:', rpcResult.length, 'categories');
+        console.log('Debug: RPC parsed result:', JSON.stringify(rpcResult, null, 2));
       }
     } catch (error) {
       console.log('Debug: RPC function error:', error);
+      console.log('Debug: RPC error details:', JSON.stringify(error, null, 2));
     }
 
-    // Test 4: Manual join to get categories with options
+    // Test 4: Check if RPC function exists
+    let functionExists = false;
+    try {
+      const { data: functionData, error: functionError } = await supabase
+        .rpc('get_project_categories_with_options', { project_uuid: '00000000-0000-0000-0000-000000000000' });
+      
+      // If we get here, the function exists (even if it returns empty for invalid UUID)
+      functionExists = true;
+      console.log('Debug: RPC function exists and is callable');
+    } catch (error) {
+      console.log('Debug: RPC function does not exist or is not callable:', error);
+    }
+
+    // Test 5: Manual join to get categories with options
     let manualJoinResult = [];
     try {
       const { data: joinData, error: joinError } = await supabase

@@ -102,7 +102,7 @@ export default function CreateTaskModal({
     try {
       console.log('Loading categories for project:', projectId);
       
-      // Use the optimized API endpoint to get categories with options
+      // Use the simplified API endpoint to get categories with options
       const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
       
       if (response.ok) {
@@ -121,8 +121,8 @@ export default function CreateTaskModal({
             options: (cat.options || []).map((opt: any) => ({
               id: opt.id,
               category_id: cat.id,
-              option_name: opt.name || opt.option_name,
-              option_value: opt.value || opt.option_value,
+              option_name: opt.option_name,
+              option_value: opt.option_value,
               sort_order: opt.sort_order || 0,
               is_active: opt.is_active !== false
             }))
@@ -135,65 +135,9 @@ export default function CreateTaskModal({
           setLocalCategories([]);
         }
       } else {
-        console.warn('API failed, trying test endpoint as fallback');
-        
-        // Try the test endpoint as a fallback
-        const testResponse = await fetch(`/api/test-db?projectId=${projectId}`);
-        if (testResponse.ok) {
-          const testData = await testResponse.json();
-          console.log('Test endpoint data:', testData);
-          
-          if (testData.success && testData.data.categories.length > 0) {
-            // Transform the test data to match expected format
-            const categoriesWithOptions = testData.data.categories.map((cat: any) => ({
-              ...cat,
-              options: testData.data.options.filter((opt: any) => opt.category_id === cat.id)
-            }));
-            
-            console.log('Transformed test data:', categoriesWithOptions);
-            setLocalCategories(categoriesWithOptions);
-            return;
-          }
-        }
-        
-        console.warn('Test endpoint also failed, falling back to direct database query');
-        
-        // Final fallback: Load categories directly from database
-        const categoriesResponse = await supabaseClient.get('project_categories', {
-          select: '*',
-          filters: { project_id: projectId, is_active: true },
-          order: { column: 'sort_order', ascending: true }
-        });
-
-        if (categoriesResponse.error) throw new Error(categoriesResponse.error);
-        
-        const categories = categoriesResponse.data || [];
-        console.log('Loaded categories from final fallback:', categories);
-
-        // Load category options for all categories
-        const categoryIds = categories.map((cat: any) => cat.id);
-        let categoryOptions: CategoryOption[] = [];
-        
-        if (categoryIds.length > 0) {
-          const optionsResponse = await supabaseClient.get('category_options', {
-            select: '*',
-            filters: { category_id: categoryIds, is_active: true },
-            order: { column: 'sort_order', ascending: true }
-          });
-
-          if (optionsResponse.error) throw new Error(optionsResponse.error);
-          categoryOptions = optionsResponse.data || [];
-        }
-
-        console.log('Loaded category options from final fallback:', categoryOptions);
-        
-        // Attach options to categories
-        const categoriesWithOptions = categories.map((category: ProjectCategory) => ({
-          ...category,
-          options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
-        }));
-        
-        setLocalCategories(categoriesWithOptions);
+        console.error('API failed to load categories');
+        toast.error('Failed to load categories. Please try again.');
+        setLocalCategories([]);
       }
     } catch (error) {
       console.error('Error loading categories for project:', error);

@@ -40,30 +40,12 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching categories for project:', projectId);
 
-    // Try to use RPC functions first, fallback to direct queries
+    // Use direct database queries (more reliable than RPC functions)
     let categoriesData = [];
     let subcategoriesData = [];
 
     try {
-      // Get categories with their options using the optimized RPC function
-      const { data: categoriesRPC, error: categoriesError } = await supabase
-        .rpc('get_project_categories_with_options', { project_uuid: projectId });
-
-      if (categoriesError) {
-        console.warn('RPC function failed, falling back to direct query:', categoriesError);
-        throw new Error('RPC function not available');
-      }
-
-      // Parse the JSON result
-      const parsedCategories = categoriesRPC ? JSON.parse(categoriesRPC) : [];
-      categoriesData = parsedCategories || [];
-      console.log('Categories fetched via RPC:', categoriesData.length);
-      console.log('RPC result:', categoriesRPC);
-
-    } catch (rpcError) {
-      console.log('Using fallback method for categories');
-      
-      // Fallback: Get categories directly
+      // Get categories directly
       const { data: categories, error: categoriesError } = await supabase
         .from('project_categories')
         .select('*')
@@ -76,66 +58,40 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
       }
 
-      console.log('Fallback: Found categories:', categories?.length || 0);
+      console.log('Found categories:', categories?.length || 0);
 
-              // Get options for each category
-        for (const category of categories || []) {
-          try {
-            const { data: options, error: optionsError } = await supabase
-              .from('category_options')
-              .select('*')
-              .eq('category_id', category.id)
-              .eq('is_active', true)
-              .order('sort_order');
+      // Get options for each category
+      if (categories && categories.length > 0) {
+        const categoryIds = categories.map(cat => cat.id);
+        
+        const { data: options, error: optionsError } = await supabase
+          .from('category_options')
+          .select('*')
+          .in('category_id', categoryIds)
+          .eq('is_active', true)
+          .order('sort_order');
 
-            if (!optionsError && options) {
-              category.options = options;
-              console.log(`Fallback: Found ${options.length} options for category ${category.name}`);
-            } else {
-              console.log(`Fallback: No options found for category ${category.name}, error:`, optionsError);
-              // Fallback: parse options from description if category_options table doesn't exist
-              if (category.description && category.description.includes('Category with options:')) {
-                const optionsMatch = category.description.match(/Category with options: (.+)/);
-                if (optionsMatch) {
-                  const optionsList = optionsMatch[1].split(', ').map((opt: string) => opt.trim());
-                  category.options = optionsList.map((option: string, index: number) => ({
-                    id: `temp_${index}`,
-                    category_id: category.id,
-                    option_name: option,
-                    option_value: option,
-                    sort_order: index
-                  }));
-                }
-              } else {
-                category.options = [];
-              }
-            }
-          } catch (error) {
-            console.warn('Error fetching options for category:', category.id, error);
-            category.options = [];
-          }
+        if (optionsError) {
+          console.error('Error fetching category options:', optionsError);
+        } else {
+          console.log('Found category options:', options?.length || 0);
+          
+          // Attach options to categories
+          categoriesData = categories.map(category => ({
+            ...category,
+            options: options?.filter(option => option.category_id === category.id) || []
+          }));
         }
-
-      categoriesData = categories || [];
+      } else {
+        categoriesData = categories || [];
+      }
+    } catch (error) {
+      console.error('Error in categories query:', error);
+      return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
     }
 
+    // Get subcategories (if they exist)
     try {
-      // Get subcategories with their options using the RPC function
-      const { data: subcategoriesRPC, error: subcategoriesError } = await supabase
-        .rpc('get_project_subcategory_options', { project_uuid: projectId });
-
-      if (subcategoriesError) {
-        console.warn('RPC function failed, falling back to direct query:', subcategoriesError);
-        throw new Error('RPC function not available');
-      }
-
-      subcategoriesData = subcategoriesRPC || [];
-      console.log('Subcategories fetched via RPC:', subcategoriesData.length);
-
-    } catch (rpcError) {
-      console.log('Using fallback method for subcategories');
-      
-      // Fallback: Get subcategories directly
       const { data: subcategories, error: subcategoriesError } = await supabase
         .from('project_subcategories')
         .select(`
@@ -147,31 +103,33 @@ export async function GET(request: NextRequest) {
 
       if (subcategoriesError) {
         console.error('Error fetching subcategories:', subcategoriesError);
-        // Don't fail the entire request if subcategories fail
         subcategoriesData = [];
       } else {
         // Get options for each subcategory
-        for (const subcategory of subcategories || []) {
-          try {
-            const { data: options, error: optionsError } = await supabase
-              .from('subcategory_options')
-              .select('*')
-              .eq('subcategory_id', subcategory.id)
-              .order('sort_order');
+        if (subcategories && subcategories.length > 0) {
+          const subcategoryIds = subcategories.map(sub => sub.id);
+          
+          const { data: subOptions, error: subOptionsError } = await supabase
+            .from('subcategory_options')
+            .select('*')
+            .in('subcategory_id', subcategoryIds)
+            .order('sort_order');
 
-            if (!optionsError && options) {
-              subcategory.options = options;
-            } else {
-              subcategory.options = [];
-            }
-          } catch (error) {
-            console.warn('Error fetching options for subcategory:', subcategory.id, error);
-            subcategory.options = [];
+          if (!subOptionsError && subOptions) {
+            subcategoriesData = subcategories.map(subcategory => ({
+              ...subcategory,
+              options: subOptions.filter(option => option.subcategory_id === subcategory.id)
+            }));
+          } else {
+            subcategoriesData = subcategories || [];
           }
+        } else {
+          subcategoriesData = subcategories || [];
         }
-
-        subcategoriesData = subcategories || [];
       }
+    } catch (error) {
+      console.error('Error in subcategories query:', error);
+      subcategoriesData = [];
     }
 
     console.log('Returning data:', {
