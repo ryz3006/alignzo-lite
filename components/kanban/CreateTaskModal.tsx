@@ -375,45 +375,7 @@ export default function CreateTaskModal({
     }
   };
 
-  const searchJiraTickets = async () => {
-    if (!jiraSearchQuery.trim()) return;
-    
-    setJiraSearching(true);
-    try {
-      // This would integrate with your existing JIRA API
-      // For now, using mock data
-      const mockResults = [
-        {
-          key: 'PROJ-123',
-          summary: 'Sample JIRA ticket',
-          status: 'To Do',
-          priority: 'Medium'
-        },
-        {
-          key: 'PROJ-124',
-          summary: 'Another sample ticket',
-          status: 'In Progress',
-          priority: 'High'
-        }
-      ];
-      
-      setJiraSearchResults(mockResults);
-    } catch (error) {
-      console.error('Error searching JIRA tickets:', error);
-    } finally {
-      setJiraSearching(false);
-    }
-  };
 
-  const selectJiraTicket = (ticket: any) => {
-    setFormData(prev => ({
-      ...prev,
-      jira_ticket_id: ticket.key,
-      jira_ticket_key: ticket.key
-    }));
-    setShowJiraSearch(false);
-    setJiraSearchQuery('');
-  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
