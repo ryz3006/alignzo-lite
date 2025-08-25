@@ -93,19 +93,19 @@ interface DashboardData {
 // Dynamic shift type mapping function
 const getShiftTypeInfo = (shiftType: string, customEnums: any[] = []) => {
   // First try to find in custom enums
-  const customShift = customEnums.find(enum_ => enum_.shift_identifier === shiftType);
+  const customShift = customEnums.find(enum_ => enum_.shiftIdentifier === shiftType);
   if (customShift) {
     return {
-      label: customShift.shift_name,
-      color: customShift.color || 'text-blue-600',
-      bgColor: customShift.color ? `bg-blue-100 dark:bg-blue-900/20` : 'bg-blue-100 dark:bg-blue-900/20',
+      label: customShift.shiftName,
+      color: customShift.color ? `text-[${customShift.color}]` : 'text-blue-600',
+      bgColor: customShift.color ? `bg-[${customShift.color}]/10 dark:bg-[${customShift.color}]/20` : 'bg-blue-100 dark:bg-blue-900/20',
       icon: Sun, // Default icon for custom shifts
-      startTime: customShift.start_time,
-      endTime: customShift.end_time
+      startTime: customShift.startTime,
+      endTime: customShift.endTime
     };
   }
 
-  // Fallback to default shift types
+  // Fallback to default shift types based on the actual enum values in the database
   const defaultShifts: { [key: string]: { label: string; color: string; bgColor: string; icon: any; startTime?: string; endTime?: string } } = {
     M: { label: 'Morning', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/20', icon: Sun },
     A: { label: 'Afternoon', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/20', icon: Sun },
@@ -113,6 +113,7 @@ const getShiftTypeInfo = (shiftType: string, customEnums: any[] = []) => {
     G: { label: 'General/Day', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/20', icon: Sun },
     H: { label: 'Holiday', color: 'text-red-600', bgColor: 'bg-red-100 dark:bg-red-900/20', icon: CheckCircle },
     L: { label: 'Leave', color: 'text-yellow-600', bgColor: 'bg-yellow-100 dark:bg-yellow-900/20', icon: AlertCircle },
+    E: { label: 'Evening', color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/20', icon: Moon }, // Evening shift
   };
 
   return defaultShifts[shiftType] || defaultShifts['G'];
