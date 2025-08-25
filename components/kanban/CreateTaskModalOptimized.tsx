@@ -220,7 +220,7 @@ export default function CreateTaskModalOptimized({
         project_id: projectData?.id || '',
         category_id: '',
         subcategory_id: '',
-        column_id: columnId || projectData?.columns[0]?.id || '',
+        column_id: columnId || (projectData?.columns && projectData.columns[0]?.id) || '',
         priority: 'medium',
         estimated_hours: undefined,
         due_date: '',
@@ -241,7 +241,7 @@ export default function CreateTaskModalOptimized({
         try {
           await Promise.all([
             // Load categories if not available in projectData
-            projectData?.id && (!projectData.categories || projectData.categories.length === 0) 
+            projectData?.id && (!projectData.categories || (projectData.categories && projectData.categories.length === 0)) 
               ? loadCategoriesForProject(projectData.id) 
               : Promise.resolve(),
             // Load team members
@@ -268,7 +268,7 @@ export default function CreateTaskModalOptimized({
       setFormData(prev => ({
         ...prev,
         project_id: projectData.id,
-        column_id: columnId || projectData.columns[0]?.id || ''
+        column_id: columnId || (projectData.columns && projectData.columns[0]?.id) || ''
       }));
     }
   }, [projectData, columnId]);
@@ -279,9 +279,9 @@ export default function CreateTaskModalOptimized({
       let categorySubcategories: ProjectSubcategory[] = [];
       
       // First try to get subcategories from projectData
-      if (projectData) {
+      if (projectData && projectData.categories) {
         const category = projectData.categories.find(c => c.id === formData.category_id);
-        if (category) {
+        if (category && projectData.subcategories) {
           categorySubcategories = projectData.subcategories.filter(s => s.category_id === formData.category_id);
         }
       }
@@ -524,7 +524,7 @@ export default function CreateTaskModalOptimized({
   };
 
   // Get available categories (from projectData or local state)
-  const availableCategories = projectData?.categories?.length > 0 
+  const availableCategories = (projectData?.categories && projectData.categories.length > 0)
     ? projectData.categories 
     : localCategories;
 
