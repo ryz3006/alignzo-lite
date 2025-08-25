@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       const parsedCategories = categoriesRPC ? JSON.parse(categoriesRPC) : [];
       categoriesData = parsedCategories || [];
       console.log('Categories fetched via RPC:', categoriesData.length);
+      console.log('RPC result:', categoriesRPC);
 
     } catch (rpcError) {
       console.log('Using fallback method for categories');
@@ -67,47 +68,53 @@ export async function GET(request: NextRequest) {
         .from('project_categories')
         .select('*')
         .eq('project_id', projectId)
-        .order('created_at');
+        .eq('is_active', true)
+        .order('sort_order');
 
       if (categoriesError) {
         console.error('Error fetching categories:', categoriesError);
         return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
       }
 
-      // Get options for each category
-      for (const category of categories || []) {
-        try {
-          const { data: options, error: optionsError } = await supabase
-            .from('category_options')
-            .select('*')
-            .eq('category_id', category.id)
-            .order('sort_order');
+      console.log('Fallback: Found categories:', categories?.length || 0);
 
-          if (!optionsError && options) {
-            category.options = options;
-          } else {
-            // Fallback: parse options from description if category_options table doesn't exist
-            if (category.description && category.description.includes('Category with options:')) {
-              const optionsMatch = category.description.match(/Category with options: (.+)/);
-              if (optionsMatch) {
-                const optionsList = optionsMatch[1].split(', ').map((opt: string) => opt.trim());
-                category.options = optionsList.map((option: string, index: number) => ({
-                  id: `temp_${index}`,
-                  category_id: category.id,
-                  option_name: option,
-                  option_value: option,
-                  sort_order: index
-                }));
-              }
+              // Get options for each category
+        for (const category of categories || []) {
+          try {
+            const { data: options, error: optionsError } = await supabase
+              .from('category_options')
+              .select('*')
+              .eq('category_id', category.id)
+              .eq('is_active', true)
+              .order('sort_order');
+
+            if (!optionsError && options) {
+              category.options = options;
+              console.log(`Fallback: Found ${options.length} options for category ${category.name}`);
             } else {
-              category.options = [];
+              console.log(`Fallback: No options found for category ${category.name}, error:`, optionsError);
+              // Fallback: parse options from description if category_options table doesn't exist
+              if (category.description && category.description.includes('Category with options:')) {
+                const optionsMatch = category.description.match(/Category with options: (.+)/);
+                if (optionsMatch) {
+                  const optionsList = optionsMatch[1].split(', ').map((opt: string) => opt.trim());
+                  category.options = optionsList.map((option: string, index: number) => ({
+                    id: `temp_${index}`,
+                    category_id: category.id,
+                    option_name: option,
+                    option_value: option,
+                    sort_order: index
+                  }));
+                }
+              } else {
+                category.options = [];
+              }
             }
+          } catch (error) {
+            console.warn('Error fetching options for category:', category.id, error);
+            category.options = [];
           }
-        } catch (error) {
-          console.warn('Error fetching options for category:', category.id, error);
-          category.options = [];
         }
-      }
 
       categoriesData = categories || [];
     }

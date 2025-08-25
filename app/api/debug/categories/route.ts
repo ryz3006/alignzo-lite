@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Debug: Found categories:', categories?.length || 0);
+    console.log('Debug: Categories data:', categories);
 
     // Test 2: Check if category_options table exists and has data
     let categoryOptions = [];
@@ -50,8 +51,10 @@ export async function GET(request: NextRequest) {
       if (!optionsError && options) {
         categoryOptions = options;
         console.log('Debug: Found category options:', categoryOptions.length);
+        console.log('Debug: Category options data:', categoryOptions);
       } else {
         console.log('Debug: No category options found or table doesn\'t exist');
+        console.log('Debug: Options error:', optionsError);
       }
     } catch (error) {
       console.log('Debug: category_options table might not exist:', error);
