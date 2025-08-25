@@ -715,29 +715,46 @@ export async function getKanbanBoard(projectId: string, teamId?: string): Promis
     if (columnsResponse.error) throw new Error(columnsResponse.error);
 
     // If no columns exist for this team-project combination and teamId is provided,
-    // create default columns
+    // create default columns manually instead of using RPC
     if (teamId && (!columnsResponse.data || columnsResponse.data.length === 0)) {
       try {
-        // Call the database function to create default columns
-        const createColumnsResponse = await supabaseClient.rpc('create_default_team_kanban_columns', {
-          project_id_param: projectId,
-          team_id_param: teamId
-        });
+        console.log('Creating default columns for project:', projectId, 'team:', teamId);
+        
+        // Create default columns manually
+        const defaultColumns = [
+          { name: 'To Do', description: 'Tasks that need to be started', color: '#6B7280', sort_order: 1 },
+          { name: 'In Progress', description: 'Tasks currently being worked on', color: '#3B82F6', sort_order: 2 },
+          { name: 'Review', description: 'Tasks ready for review', color: '#F59E0B', sort_order: 3 },
+          { name: 'Done', description: 'Completed tasks', color: '#10B981', sort_order: 4 }
+        ];
 
-        if (!createColumnsResponse.error) {
-          // Fetch the newly created columns
-          const newColumnsResponse = await supabaseClient.get('kanban_columns', {
-            select: '*',
-            filters: columnFilters,
-            order: {
-              column: 'sort_order',
-              ascending: true
-            }
+        // Insert each default column
+        for (const columnData of defaultColumns) {
+          const insertResponse = await supabaseClient.insert('kanban_columns', {
+            project_id: projectId,
+            team_id: teamId,
+            ...columnData,
+            is_active: true
           });
 
-          if (!newColumnsResponse.error) {
-            columnsResponse.data = newColumnsResponse.data;
+          if (insertResponse.error) {
+            console.error('Error inserting default column:', insertResponse.error);
           }
+        }
+
+        // Fetch the newly created columns
+        const newColumnsResponse = await supabaseClient.get('kanban_columns', {
+          select: '*',
+          filters: columnFilters,
+          order: {
+            column: 'sort_order',
+            ascending: true
+          }
+        });
+
+        if (!newColumnsResponse.error) {
+          columnsResponse.data = newColumnsResponse.data;
+          console.log('Default columns created successfully:', newColumnsResponse.data);
         }
       } catch (createError) {
         console.error('Error creating default columns:', createError);
