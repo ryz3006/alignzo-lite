@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get('taskId');
 
+    console.log('Timeline API called with taskId:', taskId);
+
     if (!taskId) {
       return NextResponse.json(
         { success: false, error: 'Task ID is required' },
@@ -15,6 +17,8 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await getTaskTimeline(taskId);
+    
+    console.log('Timeline API response:', response);
     
     if (response.success) {
       return NextResponse.json({

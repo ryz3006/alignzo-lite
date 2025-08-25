@@ -38,25 +38,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.email) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
-    const { taskId, comment } = body;
+    const { taskId, comment, userEmail } = body;
 
-    if (!taskId || !comment) {
+    if (!taskId || !comment || !userEmail) {
       return NextResponse.json(
-        { success: false, error: 'Task ID and comment are required' },
+        { success: false, error: 'Task ID, comment, and user email are required' },
         { status: 400 }
       );
     }
 
-    const response = await createTaskComment(taskId, currentUser.email, comment);
+    const response = await createTaskComment(taskId, userEmail, comment);
     
     if (response.success) {
       return NextResponse.json({

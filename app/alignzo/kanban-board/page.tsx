@@ -721,6 +721,7 @@ export default function KanbanBoardPage() {
             categories: categories,
             columns: kanbanBoard
           } : null}
+          userEmail={user?.email}
         />
       )}
 

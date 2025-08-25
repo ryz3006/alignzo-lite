@@ -13,6 +13,7 @@ interface EditTaskModalProps {
   onSubmit: (taskId: string, updates: UpdateTaskForm) => void;
   task: KanbanTaskWithDetails;
   projectData: ProjectWithCategories | null;
+  userEmail?: string | null;
 }
 
 interface JiraProjectMapping {
@@ -39,7 +40,8 @@ export default function EditTaskModal({
   onClose,
   onSubmit,
   task,
-  projectData
+  projectData,
+  userEmail
 }: EditTaskModalProps) {
   const [formData, setFormData] = useState<UpdateTaskForm>({
     title: task.title,
@@ -86,9 +88,10 @@ export default function EditTaskModal({
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
 
-  // Initialize form data when task changes
+  // Initialize form data and load initial data when modal opens
   useEffect(() => {
-    if (task && projectData) {
+    if (isOpen && task && projectData) {
+      // Set form data first
       setFormData({
         title: task.title,
         description: task.description || '',
@@ -104,15 +107,11 @@ export default function EditTaskModal({
         assigned_to: task.assigned_to || '',
         status: task.status
       });
-    }
-  }, [task, projectData]);
-
-  // Load initial data
-  useEffect(() => {
-    if (isOpen && projectData) {
+      
+      // Then load additional data
       loadInitialData();
     }
-  }, [isOpen, projectData]);
+  }, [isOpen, task, projectData]);
 
   const loadInitialData = async () => {
     if (!projectData) return;
@@ -313,7 +312,7 @@ export default function EditTaskModal({
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim() || !task?.id) return;
+    if (!newComment.trim() || !task?.id || !userEmail) return;
 
     setSubmittingComment(true);
     try {
@@ -324,7 +323,8 @@ export default function EditTaskModal({
         },
         body: JSON.stringify({
           taskId: task.id,
-          comment: newComment.trim()
+          comment: newComment.trim(),
+          userEmail: userEmail
         }),
       });
 
