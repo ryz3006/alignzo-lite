@@ -289,7 +289,7 @@ export interface TicketMasterMapping {
 }
 
 // Shift Schedule Types
-export type ShiftType = 'M' | 'A' | 'N' | 'G' | 'H' | 'L';
+export type ShiftType = 'M' | 'A' | 'N' | 'G' | 'H' | 'L' | 'E';
 
 export interface ShiftSchedule {
   id: string;

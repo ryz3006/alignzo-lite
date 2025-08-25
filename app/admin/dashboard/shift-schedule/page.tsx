@@ -15,17 +15,10 @@ interface TeamMember {
 interface ShiftScheduleData {
   user_email: string;
   full_name: string;
-  shifts: { [date: string]: ShiftType };
+  shifts: { [date: string]: string }; // Changed from ShiftType to string for full flexibility
 }
 
-const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor: string } } = {
-  M: { label: 'Morning', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  A: { label: 'Afternoon', color: 'text-purple-700', bgColor: 'bg-purple-100' },
-  N: { label: 'Night', color: 'text-indigo-700', bgColor: 'bg-indigo-100' },
-  G: { label: 'General/Day', color: 'text-green-700', bgColor: 'bg-green-100' },
-  H: { label: 'Holiday', color: 'text-red-700', bgColor: 'bg-red-100' },
-  L: { label: 'Leave', color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
-};
+// Remove hardcoded SHIFT_TYPES - everything should come from database
 
 export default function ShiftSchedulePage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -191,7 +184,7 @@ export default function ShiftSchedulePage() {
 
       // Create shift data for each team member
       const shiftDataArray: ShiftScheduleData[] = teamMembers.map(member => {
-        const shifts: { [date: string]: ShiftType } = {};
+        const shifts: { [date: string]: string } = {};
         dates.forEach(date => {
           const existingShift = response.data?.find((s: any) => 
             s.user_email === member.user_email && s.shift_date === date
@@ -215,7 +208,7 @@ export default function ShiftSchedulePage() {
     }
   };
 
-  const updateShift = (userEmail: string, date: string, shiftType: ShiftType) => {
+  const updateShift = (userEmail: string, date: string, shiftType: string) => {
     setShiftData(prev => 
       prev.map(user => 
         user.user_email === userEmail 
@@ -407,8 +400,9 @@ export default function ShiftSchedulePage() {
                 updatesCount.invalidShifts++;
               }
             } else {
-              // Use default shift types
-              if (!Object.keys(SHIFT_TYPES).includes(shiftValue as ShiftType)) {
+              // Use dynamic shift types from database
+              const currentShiftTypes = getShiftTypes();
+              if (!Object.keys(currentShiftTypes).includes(shiftValue)) {
                 finalShiftValue = 'G';
                 updatesCount.invalidShifts++;
               }
@@ -418,7 +412,7 @@ export default function ShiftSchedulePage() {
             setShiftData(prev => 
               prev.map(user => 
                 user.user_email === email 
-                  ? { ...user, shifts: { ...user.shifts, [date]: finalShiftValue as ShiftType } }
+                  ? { ...user, shifts: { ...user.shifts, [date]: finalShiftValue as string } }
                   : user
               )
             );
@@ -429,7 +423,7 @@ export default function ShiftSchedulePage() {
               teamId: selectedTeam,
               userEmail: email,
               shiftDate: date,
-              shiftType: finalShiftValue as ShiftType
+              shiftType: finalShiftValue as string
             });
 
             updatesCount.updated++;
@@ -493,16 +487,18 @@ export default function ShiftSchedulePage() {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  // Dynamic shift types based on custom enums or defaults
+  // Dynamic shift types based on custom enums from database
   const getShiftTypes = () => {
     if (customShiftEnums.length > 0) {
-      // Use custom shift enums
+      // Use custom shift enums from database
       const shiftTypes: { [key: string]: { label: string; color: string; bgColor: string; customColor?: string; customBgColor?: string; customTextColor?: string } } = {};
       customShiftEnums.forEach(enum_ => {
-        const hexColor = enum_.color || '#3B82F6';
+        const hexColor = getThemeAdjustedColor(enum_.color || '#3B82F6');
         const rgbColor = hexToRgb(hexColor);
         const bgColor = rgbColor ? `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, 0.1)` : 'rgba(59, 130, 246, 0.1)';
-        const textColor = rgbColor ? `rgb(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b})` : 'rgb(59, 130, 246)';
+        
+        // Calculate the best text color for contrast
+        const textColor = getContrastTextColor(hexColor);
         
         shiftTypes[enum_.shift_identifier] = {
           label: enum_.shift_name,
@@ -515,8 +511,24 @@ export default function ShiftSchedulePage() {
       });
       return shiftTypes;
     } else {
-      // Use default shift types
-      return SHIFT_TYPES;
+      // If no custom shift enums exist, create a minimal default set
+      // This should only happen when no shift types have been configured yet
+      const defaultShiftTypes: { [key: string]: { label: string; color: string; bgColor: string; customColor?: string; customBgColor?: string; customTextColor?: string } } = {};
+      
+      // Create a basic "General" shift type as fallback
+      const defaultHexColor = '#10B981'; // Green color
+      const textColor = getContrastTextColor(defaultHexColor);
+      
+      defaultShiftTypes['G'] = {
+        label: 'General',
+        color: 'text-green-700',
+        bgColor: 'bg-green-100',
+        customColor: defaultHexColor,
+        customBgColor: defaultHexColor,
+        customTextColor: textColor
+      };
+      
+      return defaultShiftTypes;
     }
   };
 
@@ -528,6 +540,43 @@ export default function ShiftSchedulePage() {
       g: parseInt(result[2], 16),
       b: parseInt(result[3], 16)
     } : null;
+  };
+
+  // Function to calculate the best text color based on background color brightness
+  const getContrastTextColor = (backgroundColor: string): string => {
+    // Validate input
+    if (!backgroundColor || typeof backgroundColor !== 'string') {
+      return '#FFFFFF'; // Safe fallback
+    }
+    
+    // Handle hex colors
+    if (backgroundColor.startsWith('#')) {
+      const hex = backgroundColor.replace('#', '');
+      // Ensure valid hex color
+      if (hex.length === 6 && /^[0-9A-Fa-f]{6}$/.test(hex)) {
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        
+        // Calculate relative luminance using the sRGB formula
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        // Return black for light backgrounds, white for dark backgrounds
+        // Using a threshold of 0.6 for better contrast
+        return luminance > 0.6 ? '#000000' : '#FFFFFF';
+      }
+    }
+    
+    // Handle CSS color names and other formats
+    // For safety, return a color that works well with most backgrounds
+    return '#FFFFFF';
+  };
+
+  // Function to adjust background color for better theme compatibility
+  const getThemeAdjustedColor = (baseColor: string): string => {
+    // For now, return the base color as is
+    // This can be extended later to adjust colors based on current theme
+    return baseColor;
   };
 
   const currentShiftTypes = getShiftTypes();
@@ -736,25 +785,26 @@ export default function ShiftSchedulePage() {
                                              {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => {
                          const date = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
                          const currentShift = user.shifts[date] || 'G';
-                         const shiftConfig = currentShiftTypes[currentShift] || SHIFT_TYPES[currentShift] || SHIFT_TYPES['G'];
+                         const shiftConfig = currentShiftTypes[currentShift] || currentShiftTypes['G'];
                          
                          return (
-                                                     <td
+                          <td
                             key={day}
                             className={`px-4 py-4 text-center ${
                               isWeekend(day) ? 'bg-red-50 border-red-100' : 'bg-white'
                             } border border-gray-200`}
                           >
-                                                          <select
-                                value={currentShift}
-                                onChange={(e) => updateShift(user.user_email, date, e.target.value as ShiftType)}
-                                className={`w-full min-w-[60px] px-4 py-3 text-base font-bold rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none cursor-pointer transition-all appearance-none bg-no-repeat bg-right`}
-                                style={{ 
-                                  backgroundImage: 'none',
-                                  backgroundColor: (shiftConfig as any).customBgColor || shiftConfig.bgColor,
-                                  color: (shiftConfig as any).customTextColor || undefined
-                                }}
-                              >
+                            <select
+                              value={currentShift}
+                              onChange={(e) => updateShift(user.user_email, date, e.target.value as string)}
+                              className={`w-full min-w-[60px] px-4 py-3 text-base font-bold rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none cursor-pointer transition-all duration-200 appearance-none bg-no-repeat bg-right hover:scale-105`}
+                              style={{ 
+                                backgroundImage: 'none',
+                                backgroundColor: (shiftConfig as any).customBgColor || shiftConfig.bgColor,
+                                color: (shiftConfig as any).customTextColor || undefined,
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                              }}
+                            >
                               {Object.entries(currentShiftTypes).map(([key, config]) => (
                                 <option key={key} value={key} className={`${config.bgColor} ${config.color} font-bold text-base`}>
                                   {key}
@@ -779,21 +829,24 @@ export default function ShiftSchedulePage() {
           <h3 className="text-sm font-medium text-gray-900 mb-3">
             {customShiftEnums.length > 0 ? 'Custom Shift Types' : 'Default Shift Types'}
           </h3>
-                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-             {Object.entries(currentShiftTypes).map(([key, config]) => (
-               <div key={key} className="flex items-center space-x-2">
-                                   <div 
-                    className="w-4 h-4 rounded border border-gray-300"
-                    style={{ 
-                      backgroundColor: (config as any).customBgColor || config.bgColor 
-                    }}
-                  ></div>
-                 <span className="text-sm text-gray-700">
-                   <span className="font-medium">{key}:</span> {config.label}
-                 </span>
-               </div>
-             ))}
-           </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {Object.entries(currentShiftTypes).map(([key, config]) => (
+              <div key={key} className="flex items-center space-x-2">
+                <div 
+                  className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center text-xs font-bold"
+                  style={{ 
+                    backgroundColor: (config as any).customBgColor || config.bgColor,
+                    color: (config as any).customTextColor || '#000000'
+                  }}
+                >
+                  {key}
+                </div>
+                <span className="text-sm text-gray-700">
+                  <span className="font-medium">{key}:</span> {config.label}
+                </span>
+              </div>
+            ))}
+          </div>
           {customShiftEnums.length === 0 && (
             <p className="text-xs text-gray-500 mt-2">
               Click "Manage Shifts" to create custom shift types for this project-team combination.

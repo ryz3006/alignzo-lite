@@ -4,18 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
 import { ShiftSchedule, ShiftType, Project, Team } from '@/lib/supabase';
-import { Calendar, Clock, Users, MapPin, Filter, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Users, MapPin, Filter, RefreshCw, ChevronLeft, ChevronRight, Loader2, Search, X } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
-
-interface UserShift {
-  todayShift: string;
-  tomorrowShift: string;
-  todayShiftName: string;
-  tomorrowShiftName: string;
-  todayShiftColor: string;
-  tomorrowShiftColor: string;
-}
 
 interface ShiftMetricsData {
   userEmail: string;
@@ -28,6 +19,7 @@ interface ShiftMetricsData {
       shiftName: string;
       color: string;
       bgColor: string;
+      textColor: string;
     };
   };
 }
@@ -41,49 +33,12 @@ interface CustomShiftEnum {
   color: string;
 }
 
-const SHIFT_TYPES: { [key in ShiftType]: { label: string; color: string; bgColor: string; darkBgColor: string } } = {
-  M: { 
-    label: 'Morning', 
-    color: '#3B82F6', 
-    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-    darkBgColor: 'dark:bg-blue-900/30'
-  },
-  A: { 
-    label: 'Afternoon', 
-    color: '#8B5CF6', 
-    bgColor: 'bg-purple-100 dark:bg-purple-900/30',
-    darkBgColor: 'dark:bg-purple-900/30'
-  },
-  N: { 
-    label: 'Night', 
-    color: '#6366F1', 
-    bgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
-    darkBgColor: 'dark:bg-indigo-900/30'
-  },
-  G: { 
-    label: 'General/Day', 
-    color: '#10B981', 
-    bgColor: 'bg-green-100 dark:bg-green-900/30',
-    darkBgColor: 'dark:bg-green-900/30'
-  },
-  H: { 
-    label: 'Holiday', 
-    color: '#EF4444', 
-    bgColor: 'bg-red-100 dark:bg-red-900/30',
-    darkBgColor: 'dark:bg-red-900/30'
-  },
-  L: { 
-    label: 'Leave', 
-    color: '#F59E0B', 
-    bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
-    darkBgColor: 'dark:bg-yellow-900/30'
-  },
-};
+// Remove hardcoded SHIFT_TYPES - everything should come from database
 
 export default function ShiftSchedulePage() {
   const [user, setUser] = useState<any>(null);
-  const [userShift, setUserShift] = useState<UserShift | null>(null);
   const [shiftMetrics, setShiftMetrics] = useState<ShiftMetricsData[]>([]);
+  const [filteredMetrics, setFilteredMetrics] = useState<ShiftMetricsData[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
@@ -91,10 +46,24 @@ export default function ShiftSchedulePage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [customShiftEnums, setCustomShiftEnums] = useState<CustomShiftEnum[]>([]);
+  const [searchEmail, setSearchEmail] = useState<string>('');
 
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Filter metrics based on search email
+  useEffect(() => {
+    if (searchEmail.trim() === '') {
+      setFilteredMetrics(shiftMetrics);
+    } else {
+      const filtered = shiftMetrics.filter(metric => 
+        metric.userEmail.toLowerCase().includes(searchEmail.toLowerCase()) ||
+        metric.userName.toLowerCase().includes(searchEmail.toLowerCase())
+      );
+      setFilteredMetrics(filtered);
+    }
+  }, [searchEmail, shiftMetrics]);
 
   const loadInitialData = async () => {
     try {
@@ -102,9 +71,6 @@ export default function ShiftSchedulePage() {
       setUser(currentUser);
 
       if (!currentUser?.email) return;
-
-      // Load user's shift information
-      await loadUserShiftInformation(currentUser.email);
       
       // Load available teams
       await loadAvailableTeams();
@@ -112,94 +78,6 @@ export default function ShiftSchedulePage() {
       console.error('Error loading initial data:', error);
       toast.error('Failed to load initial data');
     }
-  };
-
-  const loadUserShiftInformation = async (userEmail: string) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-    // Get user's shifts for today and tomorrow
-    const shiftsResponse = await supabaseClient.getShiftSchedules({
-      filters: { 
-        user_email: userEmail,
-        shift_date_in: [todayStr, tomorrowStr]
-      }
-    });
-
-    if (shiftsResponse.error) {
-      console.error('Error loading shifts:', shiftsResponse.error);
-      throw new Error(shiftsResponse.error);
-    }
-
-    const shifts = shiftsResponse.data;
-
-    const todayShift = shifts?.find((s: any) => s.shift_date === todayStr)?.shift_type || 'G';
-    const tomorrowShift = shifts?.find((s: any) => s.shift_date === tomorrowStr)?.shift_type || 'G';
-
-    // Get custom shift enums for the user's team/project
-    let customEnums: any[] = [];
-    try {
-      const userResponse = await supabaseClient.get('users', {
-        select: 'id',
-        filters: { email: userEmail }
-      });
-
-      if (!userResponse.error && userResponse.data && userResponse.data.length > 0) {
-        const userId = userResponse.data[0].id;
-        
-        // Get user's team assignments
-        const teamAssignmentsResponse = await supabaseClient.get('team_members', {
-          select: 'team_id',
-          filters: { user_id: userId }
-        });
-
-        if (!teamAssignmentsResponse.error && teamAssignmentsResponse.data && teamAssignmentsResponse.data.length > 0) {
-          const teamId = teamAssignmentsResponse.data[0].team_id;
-          
-          // Get custom shift enums for this team
-          const enumsResponse = await supabaseClient.get('custom_shift_enums', {
-            select: '*',
-            filters: { team_id: teamId }
-          });
-
-          if (!enumsResponse.error && enumsResponse.data) {
-            customEnums = enumsResponse.data;
-          }
-        }
-      }
-    } catch (enumError) {
-      console.error('Error loading custom enums:', enumError);
-    }
-
-    const getShiftDisplay = (shiftType: string) => {
-      const customEnum = customEnums?.find((e: any) => e.shift_identifier === shiftType);
-      if (customEnum) {
-        return {
-          name: customEnum.shift_name,
-          color: customEnum.color || '#3B82F6'
-        };
-      }
-      return {
-        name: SHIFT_TYPES[shiftType as ShiftType]?.label || 'General',
-        color: '#3B82F6'
-      };
-    };
-
-    const todayShiftInfo = getShiftDisplay(todayShift);
-    const tomorrowShiftInfo = getShiftDisplay(tomorrowShift);
-
-    setUserShift({
-      todayShift,
-      tomorrowShift,
-      todayShiftName: todayShiftInfo.name,
-      tomorrowShiftName: tomorrowShiftInfo.name,
-      todayShiftColor: todayShiftInfo.color,
-      tomorrowShiftColor: tomorrowShiftInfo.color,
-    });
   };
 
   const loadAvailableTeams = async () => {
@@ -269,7 +147,7 @@ export default function ShiftSchedulePage() {
       setLoading(true);
       setDataLoaded(false);
 
-      // Get month range
+      // Get month range - we'll use getDaysInMonth logic for consistency
       const monthStart = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
       const monthEnd = new Date(selectedYear, selectedMonth, 0).getDate();
       const monthEndDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${monthEnd}`;
@@ -377,8 +255,13 @@ export default function ShiftSchedulePage() {
         // Create shifts object for each day of the month
         const userShiftsByDate: { [date: string]: any } = {};
         
-        for (let day = 1; day <= monthEnd; day++) {
-          const dateStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        // Use the same date generation logic as getDaysInMonth for consistency
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        for (let day = 1; day <= daysInMonth; day++) {
+          // Create date object for the current day (month is 0-indexed, so subtract 1)
+          const date = new Date(selectedYear, selectedMonth - 1, day);
+          const dateStr = date.toISOString().split('T')[0];
+          
           const shift = userShifts.find((s: any) => s.shift_date === dateStr);
           
           if (shift) {
@@ -387,7 +270,8 @@ export default function ShiftSchedulePage() {
               shiftType: shift.shift_type,
               shiftName: shiftInfo.name,
               color: shiftInfo.color,
-              bgColor: shiftInfo.bgColor
+              bgColor: shiftInfo.bgColor,
+              textColor: shiftInfo.textColor
             };
           }
         }
@@ -417,28 +301,63 @@ export default function ShiftSchedulePage() {
     // First try to find in custom enums
     const customShift = customEnums.find(enum_ => enum_.shift_identifier === shiftType);
     if (customShift) {
+      const bgColor = getThemeAdjustedColor(customShift.color || '#3B82F6');
+      const textColor = getContrastTextColor(bgColor);
       return {
         name: customShift.shift_name,
-        color: customShift.color || '#3B82F6',
-        bgColor: 'bg-blue-100 dark:bg-blue-900/20'
+        color: bgColor,
+        bgColor: 'bg-blue-100 dark:bg-blue-900/20',
+        textColor: textColor
       };
     }
 
-    // Fallback to default shift types
-    const defaultShift = SHIFT_TYPES[shiftType as ShiftType];
-    if (defaultShift) {
-      return {
-        name: defaultShift.label,
-        color: defaultShift.color,
-        bgColor: defaultShift.bgColor
-      };
-    }
-
+    // If no custom enum found, create a generic fallback
+    // This ensures the system works even if custom enums are not configured
+    const fallbackColor = getThemeAdjustedColor('#10B981');
+    const textColor = getContrastTextColor(fallbackColor);
     return {
-      name: 'General',
-      color: '#10B981',
-      bgColor: 'bg-green-100 dark:bg-green-900/20'
+      name: `Shift ${shiftType}`,
+      color: fallbackColor,
+      bgColor: 'bg-green-100 dark:bg-green-900/20',
+      textColor: textColor
     };
+  };
+
+  // Function to calculate the best text color based on background color brightness
+  const getContrastTextColor = (backgroundColor: string): string => {
+    // Validate input
+    if (!backgroundColor || typeof backgroundColor !== 'string') {
+      return '#FFFFFF'; // Safe fallback
+    }
+    
+    // Handle hex colors
+    if (backgroundColor.startsWith('#')) {
+      const hex = backgroundColor.replace('#', '');
+      // Ensure valid hex color
+      if (hex.length === 6 && /^[0-9A-Fa-f]{6}$/.test(hex)) {
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        
+        // Calculate relative luminance using the sRGB formula
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        // Return black for light backgrounds, white for dark backgrounds
+        // Using a threshold of 0.6 for better contrast
+        return luminance > 0.6 ? '#000000' : '#FFFFFF';
+      }
+    }
+    
+    // Handle CSS color names and other formats
+    // For safety, return a color that works well with most backgrounds
+    return '#FFFFFF';
+  };
+
+  // Function to adjust background color for better theme compatibility
+  const getThemeAdjustedColor = (baseColor: string): string => {
+    // For now, return the base color as is
+    // This can be extended later to adjust colors based on current theme
+    return baseColor;
   };
 
   const getDaysInMonth = () => {
@@ -446,9 +365,11 @@ export default function ShiftSchedulePage() {
     const days = [];
     
     for (let day = 1; day <= daysInMonth; day++) {
+      // Create date object for the current day (month is 0-indexed, so subtract 1)
       const date = new Date(selectedYear, selectedMonth - 1, day);
       const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-      days.push({ day, dayName, date: date.toISOString().split('T')[0] });
+      const dateStr = date.toISOString().split('T')[0];
+      days.push({ day, dayName, date: dateStr });
     }
     
     return days;
@@ -456,6 +377,10 @@ export default function ShiftSchedulePage() {
 
   const handleApplyFilters = () => {
     loadShiftMetrics();
+  };
+
+  const clearSearch = () => {
+    setSearchEmail('');
   };
 
   if (!user) {
@@ -539,6 +464,29 @@ export default function ShiftSchedulePage() {
               ))}
             </select>
           </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+              Search User
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchEmail}
+                onChange={(e) => setSearchEmail(e.target.value)}
+                placeholder="Search by email or name..."
+                className="w-full px-4 py-2 pl-10 pr-10 border border-neutral-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              {searchEmail && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
           <button
             onClick={handleApplyFilters}
             disabled={loading}
@@ -555,55 +503,7 @@ export default function ShiftSchedulePage() {
       </div>
 
       {/* User's Current Shift Information */}
-      {userShift && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-success-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Today's Shift</h3>
-                </div>
-                <p className="text-3xl font-bold mb-1" style={{ color: userShift.todayShiftColor }}>
-                  {userShift.todayShiftName}
-                </p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {userShift.todayShift} • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-              <div 
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
-                style={{ backgroundColor: userShift.todayShiftColor }}
-              >
-                {userShift.todayShift}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Tomorrow's Shift</h3>
-                </div>
-                <p className="text-3xl font-bold mb-1" style={{ color: userShift.tomorrowShiftColor }}>
-                  {userShift.tomorrowShiftName}
-                </p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  {userShift.tomorrowShift} • {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-              <div 
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-medium"
-                style={{ backgroundColor: userShift.tomorrowShiftColor }}
-              >
-                {userShift.tomorrowShift}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Removed Today's and Tomorrow's shift tiles */}
 
       {/* Shift Metrics Table */}
       <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6">
@@ -616,7 +516,7 @@ export default function ShiftSchedulePage() {
           </div>
           <div className="flex items-center space-x-2 text-sm text-neutral-500 dark:text-neutral-400">
             <Users className="h-4 w-4" />
-            <span>{shiftMetrics.length} users</span>
+            <span>{filteredMetrics.length} users</span>
           </div>
         </div>
         
@@ -633,7 +533,7 @@ export default function ShiftSchedulePage() {
               <p className="text-neutral-600 dark:text-neutral-400 font-medium">Loading shift metrics...</p>
             </div>
           </div>
-        ) : shiftMetrics.length > 0 ? (
+        ) : filteredMetrics.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 z-20">
@@ -652,7 +552,7 @@ export default function ShiftSchedulePage() {
                 </tr>
               </thead>
               <tbody>
-                {shiftMetrics.map((userMetric, index) => (
+                {filteredMetrics.map((userMetric, index) => (
                   <tr key={userMetric.userEmail} className="border-b border-neutral-100 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700/30 transition-colors">
                     <td className="p-3 font-medium text-neutral-900 dark:text-white bg-white dark:bg-neutral-800 sticky left-0 z-10 min-w-[200px]">
                       <div className="flex flex-col">
@@ -666,8 +566,12 @@ export default function ShiftSchedulePage() {
                         <td key={date} className="p-2 text-center">
                           {shift ? (
                             <div 
-                              className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium text-white min-w-[60px]"
-                              style={{ backgroundColor: shift.color }}
+                              className="inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium min-w-[60px] transition-all duration-200 hover:scale-105 cursor-pointer"
+                              style={{ 
+                                backgroundColor: shift.color,
+                                color: shift.textColor || '#FFFFFF', // Fallback to white if textColor is undefined
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                              }}
                               title={`${shift.shiftName} (${shift.shiftType})`}
                             >
                               {shift.shiftType}
