@@ -14,6 +14,7 @@ interface CreateTaskModalProps {
   projectData: ProjectWithCategories | null;
   userEmail: string | null;
   selectedTeam: string;
+  columnId?: string;
 }
 
 interface JiraProjectMapping {
@@ -49,7 +50,8 @@ export default function CreateTaskModal({
   onSubmit,
   projectData,
   userEmail,
-  selectedTeam
+  selectedTeam,
+  columnId
 }: CreateTaskModalProps) {
   const [formData, setFormData] = useState<CreateTaskForm>({
     title: '',
@@ -98,11 +100,11 @@ export default function CreateTaskModal({
       setFormData(prev => ({
         ...prev,
         project_id: projectData.id,
-        column_id: projectData.columns[0]?.id || ''
+        column_id: columnId || projectData.columns[0]?.id || ''
       }));
       loadJiraProjectMappings();
     }
-  }, [projectData]);
+  }, [projectData, columnId]);
 
   useEffect(() => {
     if (formData.category_id && projectData) {
@@ -344,9 +346,7 @@ export default function CreateTaskModal({
       newErrors.category_id = 'Category is required';
     }
 
-    if (!formData.column_id) {
-      newErrors.column_id = 'Column is required';
-    }
+
 
     if (formData.estimated_hours && formData.estimated_hours <= 0) {
       newErrors.estimated_hours = 'Estimated hours must be greater than 0';
@@ -558,32 +558,7 @@ export default function CreateTaskModal({
               Task Details
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Column *
-                </label>
-                <select
-                  value={formData.column_id}
-                  onChange={(e) => handleInputChange('column_id', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.column_id 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                >
-                  <option value="">Select Column</option>
-                  {projectData?.columns.map(column => (
-                    <option key={column.id} value={column.id}>
-                      {column.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.column_id && (
-                  <p className="mt-1 text-sm text-red-600">{errors.column_id}</p>
-                )}
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Priority

@@ -72,6 +72,7 @@ export default function KanbanBoardPage() {
   // Selected task for editing/viewing
   const [selectedTask, setSelectedTask] = useState<KanbanTaskWithDetails | null>(null);
   const [editingTask, setEditingTask] = useState<KanbanTaskWithDetails | null>(null);
+  const [selectedColumnForTask, setSelectedColumnForTask] = useState<string>('');
   
   // Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -272,7 +273,12 @@ export default function KanbanBoardPage() {
     }
   };
 
-  const openCreateTaskModal = () => setShowCreateTaskModal(true);
+  const openCreateTaskModal = (columnId?: string) => {
+    if (columnId) {
+      setSelectedColumnForTask(columnId);
+    }
+    setShowCreateTaskModal(true);
+  };
   const openEditTaskModal = (task: KanbanTaskWithDetails) => {
     setEditingTask(task);
     setShowEditTaskModal(true);
@@ -329,24 +335,12 @@ export default function KanbanBoardPage() {
       {/* Header */}
       <div className="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between mb-6">
-            <div>
+                      <div className="mb-6">
               <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
               <p className="text-neutral-600 dark:text-neutral-400 mt-2">
                 Visual workflow management for your team
               </p>
             </div>
-            
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={openCreateTaskModal}
-                className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Task
-              </button>
-            </div>
-          </div>
 
           {/* Project and Team Selector */}
           <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-4">
@@ -476,7 +470,7 @@ export default function KanbanBoardPage() {
                             </span>
                           </div>
                           <button
-                            onClick={openCreateTaskModal}
+                            onClick={() => openCreateTaskModal(column.id)}
                             className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
                           >
                             <Plus className="h-4 w-4" />
@@ -704,16 +698,20 @@ export default function KanbanBoardPage() {
       {showCreateTaskModal && (
         <CreateTaskModal
           isOpen={showCreateTaskModal}
-          onClose={() => setShowCreateTaskModal(false)}
+          onClose={() => {
+            setShowCreateTaskModal(false);
+            setSelectedColumnForTask('');
+          }}
           onSubmit={handleCreateTask}
           projectData={selectedProject ? {
             ...selectedProject,
-            categories: [],
-            subcategories: [],
-            columns: []
+            categories: categories,
+            subcategories: subcategories,
+            columns: kanbanBoard
           } : null}
           userEmail={user?.email}
           selectedTeam={selectedTeam}
+          columnId={selectedColumnForTask}
         />
       )}
 
