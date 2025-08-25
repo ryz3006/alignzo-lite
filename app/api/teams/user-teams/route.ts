@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseClient } from '@/lib/supabase-client';
-import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
 
@@ -16,10 +10,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Email parameter is required' }, { status: 400 });
     }
 
+    // Validate that the user exists in the database and get user ID
+    const userResponse = await supabaseClient.get('users', {
+      select: 'id,email',
+      filters: { email: email }
+    });
+
+    if (userResponse.error || !userResponse.data || userResponse.data.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const userId = userResponse.data[0].id;
+
     // Get user's team memberships
     const teamResponse = await supabaseClient.get('team_members', {
       select: 'team_id,teams(*)',
-      filters: { 'users.email': email }
+      filters: { user_id: userId }
     });
 
     if (teamResponse.error) {
