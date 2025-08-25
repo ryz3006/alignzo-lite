@@ -204,6 +204,58 @@ class SupabaseClient {
     });
   }
 
+  async rpc<T = any>(functionName: string, params?: Record<string, any>): Promise<SupabaseResponse<T>> {
+    try {
+      // In server environment, use direct Supabase client
+      if (typeof window === 'undefined') {
+        const { createClient } = require('@supabase/supabase-js');
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error('Supabase environment variables not configured');
+        }
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        const result = await supabase.rpc(functionName, params || {});
+        
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        
+        return {
+          data: result.data || []
+        };
+      }
+
+      // In browser environment, use the proxy
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'rpc',
+          functionName,
+          params: params || {}
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Supabase RPC error:', error);
+      return {
+        data: [] as T,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
   // Convenience methods for common operations
   async getUsers(options?: { order?: { column: string; ascending?: boolean } }) {
     return this.get('users', { select: '*', ...options });

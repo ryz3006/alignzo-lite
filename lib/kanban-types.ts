@@ -29,6 +29,7 @@ export interface ProjectSubcategory {
 export interface KanbanColumn {
   id: string;
   project_id: string;
+  team_id?: string;
   name: string;
   description?: string;
   color: string;
@@ -157,6 +158,7 @@ export interface CreateTaskForm {
   jira_ticket_key?: string;
   scope: 'personal' | 'project';
   assigned_to?: string;
+  team_id?: string;
 }
 
 export interface UpdateTaskForm {
@@ -194,6 +196,7 @@ export interface CreateColumnForm {
   description?: string;
   color: string;
   sort_order?: number;
+  team_id?: string;
 }
 
 // Filter and search interfaces

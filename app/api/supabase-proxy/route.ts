@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { table, action, data, filters, select, order, limit, offset, userEmail } = await request.json();
+    const { table, action, data, filters, select, order, limit, offset, userEmail, functionName, params } = await request.json();
 
     let result;
 
@@ -162,6 +162,10 @@ export async function POST(request: NextRequest) {
         result = await supabase.from(table).upsert(data, { 
           onConflict: 'project_id,team_id,user_email,shift_date' 
         });
+        break;
+
+      case 'rpc':
+        result = await supabase.rpc(functionName, params || {});
         break;
 
       default:

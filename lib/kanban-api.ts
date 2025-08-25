@@ -267,15 +267,9 @@ export async function getKanbanColumns(projectId: string): Promise<ApiResponse<K
   }
 }
 
-export async function createKanbanColumn(
-  projectId: string, 
-  columnData: CreateColumnForm
-): Promise<ApiResponse<KanbanColumn>> {
+export async function createKanbanColumn(columnData: CreateColumnForm & { project_id: string; team_id?: string }): Promise<ApiResponse<KanbanColumn>> {
   try {
-    const response = await supabaseClient.insert('kanban_columns', {
-      project_id: projectId,
-      ...columnData
-    });
+    const response = await supabaseClient.insert('kanban_columns', columnData);
 
     if (response.error) throw new Error(response.error);
 
@@ -697,15 +691,21 @@ export async function searchJiraTickets(
 // KANBAN BOARD API
 // =====================================================
 
-export async function getKanbanBoard(projectId: string): Promise<ApiResponse<KanbanColumnWithTasks[]>> {
+export async function getKanbanBoard(projectId: string, teamId?: string): Promise<ApiResponse<KanbanColumnWithTasks[]>> {
   try {
-    // Get columns for the project
+    // Get columns for the project and team
+    const columnFilters: any = {
+      project_id: projectId,
+      is_active: true
+    };
+
+    if (teamId) {
+      columnFilters.team_id = teamId;
+    }
+
     const columnsResponse = await supabaseClient.get('kanban_columns', {
       select: '*',
-      filters: {
-        project_id: projectId,
-        is_active: true
-      },
+      filters: columnFilters,
       order: {
         column: 'sort_order',
         ascending: true
@@ -714,13 +714,51 @@ export async function getKanbanBoard(projectId: string): Promise<ApiResponse<Kan
 
     if (columnsResponse.error) throw new Error(columnsResponse.error);
 
-    // Get tasks for the project
+    // If no columns exist for this team-project combination and teamId is provided,
+    // create default columns
+    if (teamId && (!columnsResponse.data || columnsResponse.data.length === 0)) {
+      try {
+        // Call the database function to create default columns
+        const createColumnsResponse = await supabaseClient.rpc('create_default_team_kanban_columns', {
+          project_id_param: projectId,
+          team_id_param: teamId
+        });
+
+        if (!createColumnsResponse.error) {
+          // Fetch the newly created columns
+          const newColumnsResponse = await supabaseClient.get('kanban_columns', {
+            select: '*',
+            filters: columnFilters,
+            order: {
+              column: 'sort_order',
+              ascending: true
+            }
+          });
+
+          if (!newColumnsResponse.error) {
+            columnsResponse.data = newColumnsResponse.data;
+          }
+        }
+      } catch (createError) {
+        console.error('Error creating default columns:', createError);
+        // Continue with empty columns if creation fails
+      }
+    }
+
+    // Get tasks for the project with team filtering
+    const taskFilters: any = {
+      project_id: projectId,
+      status: 'active'
+    };
+
+    // If team is specified, only show project/team scope tasks
+    if (teamId) {
+      taskFilters.scope = 'project';
+    }
+
     const tasksResponse = await supabaseClient.get('kanban_tasks', {
       select: '*',
-      filters: {
-        project_id: projectId,
-        status: 'active'
-      },
+      filters: taskFilters,
       order: {
         column: 'sort_order',
         ascending: true

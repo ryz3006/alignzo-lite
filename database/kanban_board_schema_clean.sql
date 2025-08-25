@@ -9,8 +9,22 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =====================================================
--- DROP EXISTING TABLES (IF THEY EXIST)
+-- DROP EXISTING TABLES AND TRIGGERS (IF THEY EXIST)
 -- =====================================================
+
+-- Drop triggers first
+DROP TRIGGER IF EXISTS create_default_kanban_columns_trigger ON projects;
+DROP TRIGGER IF EXISTS update_project_categories_updated_at ON project_categories;
+DROP TRIGGER IF EXISTS update_project_subcategories_updated_at ON project_subcategories;
+DROP TRIGGER IF EXISTS update_kanban_columns_updated_at ON kanban_columns;
+DROP TRIGGER IF EXISTS update_kanban_tasks_updated_at ON kanban_tasks;
+DROP TRIGGER IF EXISTS update_task_comments_updated_at ON task_comments;
+
+-- Drop functions
+DROP FUNCTION IF EXISTS create_default_kanban_columns();
+DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP FUNCTION IF EXISTS get_user_accessible_projects(VARCHAR);
+DROP FUNCTION IF EXISTS get_task_timeline_with_users(UUID);
 
 -- Drop tables in reverse dependency order
 DROP TABLE IF EXISTS task_comments CASCADE;
@@ -57,6 +71,7 @@ CREATE TABLE IF NOT EXISTS project_subcategories (
 CREATE TABLE IF NOT EXISTS kanban_columns (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    team_id UUID REFERENCES teams(id) ON DELETE CASCADE, -- Team-specific columns
     name VARCHAR(255) NOT NULL, -- e.g., 'To Do', 'In Progress', 'Review', 'Done'
     description TEXT,
     color VARCHAR(7) DEFAULT '#10B981', -- Hex color code
@@ -64,7 +79,7 @@ CREATE TABLE IF NOT EXISTS kanban_columns (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(project_id, name)
+    UNIQUE(project_id, team_id, name)
 );
 
 -- Kanban tasks table
@@ -473,13 +488,9 @@ CREATE TRIGGER update_task_comments_updated_at BEFORE UPDATE ON task_comments
 CREATE OR REPLACE FUNCTION create_default_kanban_columns()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Insert default columns for the new project
-    INSERT INTO kanban_columns (project_id, name, description, color, sort_order)
-    VALUES 
-        (NEW.id, 'To Do', 'Tasks that need to be started', '#6B7280', 1),
-        (NEW.id, 'In Progress', 'Tasks currently being worked on', '#3B82F6', 2),
-        (NEW.id, 'Review', 'Tasks ready for review', '#F59E0B', 3),
-        (NEW.id, 'Done', 'Completed tasks', '#10B981', 4);
+    -- Note: Default columns will be created without team_id
+    -- Team-specific columns should be created manually when teams are assigned to projects
+    -- This ensures proper team isolation
     
     RETURN NEW;
 END;
@@ -527,6 +538,21 @@ BEGIN
     FROM task_timeline tt
     WHERE tt.task_id = task_id_param
     ORDER BY tt.created_at DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to create default kanban columns for a team-project combination
+CREATE OR REPLACE FUNCTION create_default_team_kanban_columns(project_id_param UUID, team_id_param UUID)
+RETURNS VOID AS $$
+BEGIN
+    -- Insert default columns for the team-project combination
+    INSERT INTO kanban_columns (project_id, team_id, name, description, color, sort_order)
+    VALUES 
+        (project_id_param, team_id_param, 'To Do', 'Tasks that need to be started', '#6B7280', 1),
+        (project_id_param, team_id_param, 'In Progress', 'Tasks currently being worked on', '#3B82F6', 2),
+        (project_id_param, team_id_param, 'Review', 'Tasks ready for review', '#F59E0B', 3),
+        (project_id_param, team_id_param, 'Done', 'Completed tasks', '#10B981', 4)
+    ON CONFLICT (project_id, team_id, name) DO NOTHING;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -581,6 +607,7 @@ BEGIN
     RAISE NOTICE 'Kanban Board schema has been successfully created!';
     RAISE NOTICE 'Tables created: project_categories, project_subcategories, kanban_columns, kanban_tasks, task_assignments, task_timeline, task_comments';
     RAISE NOTICE 'RLS policies have been applied for security';
-    RAISE NOTICE 'Triggers have been set up for automatic timestamp updates and default column creation';
+    RAISE NOTICE 'Triggers have been set up for automatic timestamp updates';
     RAISE NOTICE 'Helper functions have been created for common operations';
+    RAISE NOTICE 'Team-specific columns will be created manually or via API calls';
 END $$;

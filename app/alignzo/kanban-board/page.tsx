@@ -1,16 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { 
   Plus, 
-  Filter, 
   Search, 
   Settings, 
   User, 
   Calendar, 
-  Tag, 
-  MessageSquare,
   Clock,
   AlertCircle,
   CheckCircle,
@@ -19,20 +16,21 @@ import {
   Trash2,
   Link,
   Eye,
-  MoreVertical
+  Users,
+  FolderOpen,
+  Grid3X3,
+  List,
+  RefreshCw
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { 
   getKanbanBoard, 
-  getProjectWithCategories, 
   getUserAccessibleProjects,
   createKanbanTask,
   updateKanbanTask,
   deleteKanbanTask,
   moveTask,
-  createTaskComment,
-  getTaskTimeline,
-  searchJiraTickets
+  createKanbanColumn
 } from '@/lib/kanban-api';
 import {
   KanbanColumnWithTasks,
@@ -40,45 +38,36 @@ import {
   CreateTaskForm,
   UpdateTaskForm,
   Project,
-  ProjectWithCategories,
-  TaskTimeline,
-  TaskComment,
-  JiraTicket
+  CreateColumnForm
 } from '@/lib/kanban-types';
 import CreateTaskModal from '@/components/kanban/CreateTaskModal';
 import EditTaskModal from '@/components/kanban/EditTaskModal';
 import TaskDetailModal from '@/components/kanban/TaskDetailModal';
-import CategoryManagementModal from '@/components/kanban/CategoryManagementModal';
-import JiraTicketModal from '@/components/kanban/JiraTicketModal';
+import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 
 export default function KanbanBoardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
   const [kanbanBoard, setKanbanBoard] = useState<KanbanColumnWithTasks[]>([]);
-  const [projectData, setProjectData] = useState<ProjectWithCategories | null>(null);
+  const [boardLoaded, setBoardLoaded] = useState(false);
   
   // Modal states
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showJiraModal, setShowJiraModal] = useState(false);
+  const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
   
   // Selected task for editing/viewing
   const [selectedTask, setSelectedTask] = useState<KanbanTaskWithDetails | null>(null);
   const [editingTask, setEditingTask] = useState<KanbanTaskWithDetails | null>(null);
   
-  // Filters and search
+  // Search
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({
-    category_id: '',
-    subcategory_id: '',
-    assigned_to: '',
-    priority: '',
-    scope: 'all' as 'all' | 'personal' | 'project'
-  });
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
 
   useEffect(() => {
     initializePage();
@@ -98,6 +87,9 @@ export default function KanbanBoardPage() {
         setSelectedProject(projectsResponse.data[0]);
       }
       
+      // Load user's teams
+      await loadUserTeams(currentUser.email!);
+      
       setLoading(false);
     } catch (error) {
       console.error('Error initializing page:', error);
@@ -105,36 +97,44 @@ export default function KanbanBoardPage() {
     }
   };
 
-  useEffect(() => {
-    if (selectedProject) {
-      loadKanbanBoard();
-      loadProjectData();
-    }
-  }, [selectedProject]);
-
-  const loadKanbanBoard = async () => {
-    if (!selectedProject) return;
-    
+  const loadUserTeams = async (userEmail: string) => {
     try {
-      const response = await getKanbanBoard(selectedProject.id);
-      if (response.success) {
-        setKanbanBoard(response.data);
+      const response = await fetch(`/api/teams/user-teams?email=${userEmail}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTeams(data.teams || []);
       }
     } catch (error) {
-      console.error('Error loading kanban board:', error);
+      console.error('Error loading user teams:', error);
     }
   };
 
-  const loadProjectData = async () => {
-    if (!selectedProject) return;
+  useEffect(() => {
+    if (selectedProject && selectedTeam) {
+      loadKanbanBoard();
+    }
+  }, [selectedProject, selectedTeam]);
+
+  const loadKanbanBoard = async () => {
+    if (!selectedProject || !selectedTeam) return;
     
     try {
-      const response = await getProjectWithCategories(selectedProject.id);
+      setLoading(true);
+      const response = await getKanbanBoard(selectedProject.id, selectedTeam);
       if (response.success) {
-        setProjectData(response.data);
+        setKanbanBoard(response.data);
+        setBoardLoaded(true);
       }
     } catch (error) {
-      console.error('Error loading project data:', error);
+      console.error('Error loading kanban board:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplyBoard = () => {
+    if (selectedProject && selectedTeam) {
+      loadKanbanBoard();
     }
   };
 
@@ -149,12 +149,10 @@ export default function KanbanBoardPage() {
     try {
       const response = await moveTask(taskId, newColumnId, newSortOrder);
       if (response.success) {
-        // Update local state
         setKanbanBoard(prevBoard => {
           const newBoard = [...prevBoard];
-          
-          // Find the task and remove it from its current column
           let taskToMove: KanbanTaskWithDetails | null = null;
+          
           newBoard.forEach(column => {
             const taskIndex = column.tasks.findIndex(task => task.id === taskId);
             if (taskIndex !== -1) {
@@ -162,7 +160,6 @@ export default function KanbanBoardPage() {
             }
           });
 
-          // Add the task to its new column
           if (taskToMove) {
             const targetColumn = newBoard.find(col => col.id === newColumnId);
             if (targetColumn) {
@@ -179,13 +176,17 @@ export default function KanbanBoardPage() {
   };
 
   const handleCreateTask = async (taskData: CreateTaskForm) => {
-    if (!user || !selectedProject) return;
+    if (!user || !selectedProject || !selectedTeam) return;
 
     try {
-      const response = await createKanbanTask(taskData);
+      const response = await createKanbanTask({
+        ...taskData,
+        project_id: selectedProject.id,
+        team_id: selectedTeam
+      });
       if (response.success) {
         setShowCreateTaskModal(false);
-        loadKanbanBoard(); // Refresh the board
+        loadKanbanBoard();
       }
     } catch (error) {
       console.error('Error creating task:', error);
@@ -200,7 +201,7 @@ export default function KanbanBoardPage() {
       if (response.success) {
         setShowEditTaskModal(false);
         setEditingTask(null);
-        loadKanbanBoard(); // Refresh the board
+        loadKanbanBoard();
       }
     } catch (error) {
       console.error('Error updating task:', error);
@@ -213,64 +214,49 @@ export default function KanbanBoardPage() {
     try {
       const response = await deleteKanbanTask(taskId);
       if (response.success) {
-        loadKanbanBoard(); // Refresh the board
+        loadKanbanBoard();
       }
     } catch (error) {
       console.error('Error deleting task:', error);
     }
   };
 
-  const handleAddComment = async (taskId: string, comment: string) => {
-    if (!user) return;
+  const handleCreateColumn = async (columnData: CreateColumnForm) => {
+    if (!selectedProject || !selectedTeam) return;
 
     try {
-      const response = await createTaskComment(taskId, user.email!, comment);
+      const response = await createKanbanColumn({
+        ...columnData,
+        project_id: selectedProject.id,
+        team_id: selectedTeam
+      });
       if (response.success) {
-        // Refresh task details if modal is open
-        if (selectedTask) {
-          const timelineResponse = await getTaskTimeline(taskId);
-          if (timelineResponse.success) {
-            setSelectedTask(prev => prev ? {
-              ...prev,
-              timeline: timelineResponse.data
-            } : null);
-          }
-        }
+        setShowCreateColumnModal(false);
+        loadKanbanBoard();
       }
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('Error creating column:', error);
     }
   };
 
-  const openCreateTaskModal = () => {
-    setShowCreateTaskModal(true);
-  };
-
+  const openCreateTaskModal = () => setShowCreateTaskModal(true);
   const openEditTaskModal = (task: KanbanTaskWithDetails) => {
     setEditingTask(task);
     setShowEditTaskModal(true);
   };
-
   const openTaskDetailModal = (task: KanbanTaskWithDetails) => {
     setSelectedTask(task);
     setShowTaskDetailModal(true);
   };
-
-  const openCategoryModal = () => {
-    setShowCategoryModal(true);
-  };
-
-  const openJiraModal = () => {
-    setShowJiraModal(true);
-  };
+  const openCreateColumnModal = () => setShowCreateColumnModal(true);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'urgent': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
     }
   };
 
@@ -284,7 +270,17 @@ export default function KanbanBoardPage() {
     }
   };
 
-  if (loading) {
+  const filteredTasks = (tasks: KanbanTaskWithDetails[]) => {
+    return tasks.filter(task => {
+      if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !task.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  };
+
+  if (loading && !boardLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-neutral-50 dark:bg-neutral-900">
         <div className="text-center">
@@ -296,262 +292,379 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 p-6">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
-            <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-              Manage and track your tasks with a visual workflow
-            </p>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={openCategoryModal}
-              className="flex items-center px-4 py-2 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Categories
-            </button>
+      <div className="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
+              <p className="text-neutral-600 dark:text-neutral-400 mt-2">
+                Visual workflow management for your team
+              </p>
+            </div>
             
-            <button
-              onClick={openJiraModal}
-              className="flex items-center px-4 py-2 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <Link className="h-4 w-4 mr-2" />
-              JIRA Tickets
-            </button>
-            
-            <button
-              onClick={openCreateTaskModal}
-              className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Task
-            </button>
-          </div>
-        </div>
-
-        {/* Project Selector and Filters */}
-        <div className="flex items-center justify-between bg-white dark:bg-neutral-800 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center space-x-4">
-            <select
-              value={selectedProject?.id || ''}
-              onChange={(e) => {
-                const project = projects.find(p => p.id === e.target.value);
-                setSelectedProject(project || null);
-              }}
-              className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-            >
-              {projects.map(project => (
-                <option key={project.id} value={project.id}>
-                  {project.name} - {project.product} ({project.country})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={openCreateTaskModal}
+                className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Task
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="Search tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white w-64"
-              />
+          {/* Project and Team Selector */}
+          <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <FolderOpen className="h-4 w-4 text-neutral-500" />
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Project:</label>
+                <select
+                  value={selectedProject?.id || ''}
+                  onChange={(e) => {
+                    const project = projects.find(p => p.id === e.target.value);
+                    setSelectedProject(project || null);
+                    setBoardLoaded(false);
+                  }}
+                  className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
+                >
+                  <option value="">Select Project</option>
+                  {projects.map(project => (
+                    <option key={project.id} value={project.id}>
+                      {project.name} - {project.product} ({project.country})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Users className="h-4 w-4 text-neutral-500" />
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Team:</label>
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => {
+                    setSelectedTeam(e.target.value);
+                    setBoardLoaded(false);
+                  }}
+                  className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
+                >
+                  <option value="">Select Team</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleApplyBoard}
+                disabled={!selectedProject || !selectedTeam}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed transition-colors"
+              >
+                Apply
+              </button>
+
+              <button
+                onClick={loadKanbanBoard}
+                className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search and View Mode */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white w-64 text-sm"
+                />
+              </div>
             </div>
 
-            <button className="flex items-center px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors">
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'kanban' 
+                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
+                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                }`}
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'list' 
+                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
+                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                }`}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Kanban Board */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-          {kanbanBoard.map((column) => (
-            <div key={column.id} className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm">
-              {/* Column Header */}
-              <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: column.color }}
-                    ></div>
-                    <h3 className="font-semibold text-neutral-900 dark:text-white">
-                      {column.name}
-                    </h3>
-                    <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-2 py-1 rounded-full">
-                      {column.tasks.length}
-                    </span>
-                  </div>
-                </div>
-                {column.description && (
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                    {column.description}
-                  </p>
-                )}
-              </div>
+      {boardLoaded && (
+        <div className="p-6">
+          {viewMode === 'kanban' ? (
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="flex space-x-6 overflow-x-auto pb-4">
+                {kanbanBoard.map((column) => (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+                      {/* Column Header */}
+                      <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: column.color }}
+                            ></div>
+                            <h3 className="font-semibold text-neutral-900 dark:text-white">
+                              {column.name}
+                            </h3>
+                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-2 py-1 rounded-full">
+                              {filteredTasks(column.tasks).length}
+                            </span>
+                          </div>
+                          <button
+                            onClick={openCreateTaskModal}
+                            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {column.description && (
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                            {column.description}
+                          </p>
+                        )}
+                      </div>
 
-              {/* Column Tasks */}
-              <Droppable droppableId={column.id}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`p-2 min-h-[200px] ${
-                      snapshot.isDraggingOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
-                  >
-                    {column.tasks.map((task, index) => (
-                      <Draggable key={task.id} draggableId={task.id} index={index}>
+                      {/* Column Tasks */}
+                      <Droppable droppableId={column.id}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 mb-3 cursor-pointer hover:shadow-md transition-shadow ${
-                              snapshot.isDragging ? 'shadow-lg rotate-2' : ''
+                            {...provided.droppableProps}
+                            className={`p-2 min-h-[200px] ${
+                              snapshot.isDraggingOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                             }`}
-                            onClick={() => openTaskDetailModal(task)}
                           >
-                            {/* Task Header */}
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-2">
-                                {task.title}
-                              </h4>
-                              <div className="flex items-center space-x-1">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                                  {getPriorityIcon(task.priority)}
-                                  <span className="ml-1 capitalize">{task.priority}</span>
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Task Description */}
-                            {task.description && (
-                              <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3 line-clamp-2">
-                                {task.description}
-                              </p>
-                            )}
-
-                            {/* Task Meta */}
-                            <div className="space-y-2">
-                              {/* Categories */}
-                              <div className="flex items-center space-x-2">
-                                {task.category && (
-                                  <span 
-                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                                    style={{ 
-                                      backgroundColor: `${task.category.color}20`,
-                                      color: task.category.color,
-                                      border: `1px solid ${task.category.color}40`
-                                    }}
+                            {filteredTasks(column.tasks).map((task, index) => (
+                              <Draggable key={task.id} draggableId={task.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 mb-3 cursor-pointer hover:shadow-md transition-all ${
+                                      snapshot.isDragging ? 'shadow-lg rotate-2' : ''
+                                    }`}
+                                    onClick={() => openTaskDetailModal(task)}
                                   >
-                                    {task.category.name}
-                                  </span>
+                                    {/* Task Header */}
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h4 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-2">
+                                        {task.title}
+                                      </h4>
+                                      <div className="flex items-center space-x-1">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                                          {getPriorityIcon(task.priority)}
+                                          <span className="ml-1 capitalize">{task.priority}</span>
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Task Description */}
+                                    {task.description && (
+                                      <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-3 line-clamp-2">
+                                        {task.description}
+                                      </p>
+                                    )}
+
+                                    {/* Task Meta */}
+                                    <div className="space-y-2">
+                                      {/* Task Details */}
+                                      <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                                        <div className="flex items-center space-x-3">
+                                          {task.assigned_to && (
+                                            <div className="flex items-center space-x-1">
+                                              <User className="h-3 w-3" />
+                                              <span>{task.assigned_to_user?.full_name || task.assigned_to}</span>
+                                            </div>
+                                          )}
+                                          {task.due_date && (
+                                            <div className="flex items-center space-x-1">
+                                              <Calendar className="h-3 w-3" />
+                                              <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                                            </div>
+                                          )}
+                                          {task.estimated_hours && (
+                                            <div className="flex items-center space-x-1">
+                                              <Clock className="h-3 w-3" />
+                                              <span>{task.estimated_hours}h</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* JIRA Link */}
+                                      {task.jira_ticket_key && (
+                                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
+                                          <Link className="h-3 w-3" />
+                                          <span>{task.jira_ticket_key}</span>
+                                        </div>
+                                      )}
+
+                                      {/* Scope Badge */}
+                                      <div className="flex items-center justify-between">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                          task.scope === 'personal' 
+                                            ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' 
+                                            : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
+                                        }`}>
+                                          {task.scope === 'personal' ? 'Personal' : 'Project'}
+                                        </span>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center space-x-1">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openEditTaskModal(task);
+                                            }}
+                                            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                                          >
+                                            <Edit3 className="h-3 w-3" />
+                                          </button>
+                                          {(task.created_by === user?.email || user?.access_dashboard) && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteTask(task.id);
+                                              }}
+                                              className="p-1 text-neutral-400 hover:text-red-600 transition-colors"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
-                                {task.subcategory && (
-                                  <span 
-                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                                    style={{ 
-                                      backgroundColor: `${task.subcategory.color}20`,
-                                      color: task.subcategory.color,
-                                      border: `1px solid ${task.subcategory.color}40`
-                                    }}
-                                  >
-                                    {task.subcategory.name}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Task Details */}
-                              <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                                <div className="flex items-center space-x-3">
-                                  {task.assigned_to && (
-                                    <div className="flex items-center space-x-1">
-                                      <User className="h-3 w-3" />
-                                      <span>{task.assigned_to_user?.full_name || task.assigned_to}</span>
-                                    </div>
-                                  )}
-                                  {task.due_date && (
-                                    <div className="flex items-center space-x-1">
-                                      <Calendar className="h-3 w-3" />
-                                      <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                                    </div>
-                                  )}
-                                  {task.estimated_hours && (
-                                    <div className="flex items-center space-x-1">
-                                      <Clock className="h-3 w-3" />
-                                      <span>{task.estimated_hours}h</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* JIRA Link */}
-                              {task.jira_ticket_key && (
-                                <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
-                                  <Link className="h-3 w-3" />
-                                  <span>{task.jira_ticket_key}</span>
-                                </div>
-                              )}
-
-                              {/* Scope Badge */}
-                              <div className="flex items-center justify-between">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  task.scope === 'personal' 
-                                    ? 'bg-purple-100 text-purple-800 border-purple-200' 
-                                    : 'bg-blue-100 text-blue-800 border-blue-200'
-                                }`}>
-                                  {task.scope === 'personal' ? 'Personal' : 'Project'}
-                                </span>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center space-x-1">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditTaskModal(task);
-                                    }}
-                                    className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-                                  >
-                                    <Edit3 className="h-3 w-3" />
-                                  </button>
-                                  {(task.created_by === user?.email || user?.access_dashboard) && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteTask(task.id);
-                                      }}
-                                      className="p-1 text-neutral-400 hover:text-red-600 transition-colors"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
                           </div>
                         )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
+                      </Droppable>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Add New Column Button */}
+                <div className="flex-shrink-0 w-80">
+                  <button
+                    onClick={openCreateColumnModal}
+                    className="w-full h-32 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 transition-colors"
+                  >
+                    <Plus className="h-6 w-6 mr-2" />
+                    Add New Column
+                  </button>
+                </div>
+              </div>
+            </DragDropContext>
+          ) : (
+            // List View
+            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700">
+              <div className="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <h3 className="font-semibold text-neutral-900 dark:text-white">All Tasks</h3>
+              </div>
+              <div className="p-4">
+                {kanbanBoard.flatMap(column => filteredTasks(column.tasks)).length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-neutral-500 dark:text-neutral-400">No tasks found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {kanbanBoard.flatMap(column => 
+                      filteredTasks(column.tasks).map(task => (
+                        <div key={task.id} className="flex items-center justify-between p-3 border border-neutral-200 dark:border-neutral-600 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: column.color }}
+                              ></div>
+                              <span className="text-sm text-neutral-600 dark:text-neutral-400">{column.name}</span>
+                            </div>
+                            <h4 className="font-medium text-neutral-900 dark:text-white">{task.title}</h4>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                              {task.priority}
+                            </span>
+                            {task.assigned_to && (
+                              <span className="text-sm text-neutral-600 dark:text-neutral-400">
+                                {task.assigned_to_user?.full_name || task.assigned_to}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => openTaskDetailModal(task)}
+                              className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openEditTaskModal(task)}
+                              className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
-              </Droppable>
+              </div>
             </div>
-          ))}
+          )}
         </div>
-      </DragDropContext>
+      )}
+
+      {/* Empty State */}
+      {!boardLoaded && !loading && (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Grid3X3 className="h-8 w-8 text-neutral-400" />
+            </div>
+            <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+              Select Project and Team
+            </h3>
+            <p className="text-neutral-600 dark:text-neutral-400">
+              Choose a project and team to load the Kanban board
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showCreateTaskModal && (
@@ -559,7 +672,7 @@ export default function KanbanBoardPage() {
           isOpen={showCreateTaskModal}
           onClose={() => setShowCreateTaskModal(false)}
           onSubmit={handleCreateTask}
-          projectData={projectData}
+          projectData={null}
           userEmail={user?.email}
         />
       )}
@@ -573,7 +686,7 @@ export default function KanbanBoardPage() {
           }}
           onSubmit={handleUpdateTask}
           task={editingTask}
-          projectData={projectData}
+          projectData={null}
         />
       )}
 
@@ -585,28 +698,17 @@ export default function KanbanBoardPage() {
             setSelectedTask(null);
           }}
           task={selectedTask}
-          onAddComment={handleAddComment}
+          onAddComment={() => {}}
           userEmail={user?.email}
         />
       )}
 
-      {showCategoryModal && projectData && (
-        <CategoryManagementModal
-          isOpen={showCategoryModal}
-          onClose={() => setShowCategoryModal(false)}
-          projectData={projectData}
-          onUpdate={loadProjectData}
-        />
-      )}
-
-      {showJiraModal && (
-        <JiraTicketModal
-          isOpen={showJiraModal}
-          onClose={() => setShowJiraModal(false)}
-          onSelectTicket={(ticket) => {
-            console.log('Selected JIRA ticket:', ticket);
-            setShowJiraModal(false);
-          }}
+      {showCreateColumnModal && (
+        <CreateColumnModal
+          isOpen={showCreateColumnModal}
+          onClose={() => setShowCreateColumnModal(false)}
+          onSubmit={handleCreateColumn}
+          projectId={selectedProject?.id}
         />
       )}
     </div>
