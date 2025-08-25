@@ -280,6 +280,12 @@ export default function ProjectsPage() {
       return;
     }
 
+    if (!selectedProject.id) {
+      toast.error('Selected project has no valid ID');
+      console.error('Selected project:', selectedProject);
+      return;
+    }
+
     // Validate categories before sending
     const validCategories = categories.filter(cat => 
       cat.name && cat.name.trim() !== '' && 
@@ -294,6 +300,7 @@ export default function ProjectsPage() {
 
     try {
       console.log('Updating categories for project:', selectedProject.id);
+      console.log('Selected project object:', selectedProject);
       console.log('Categories to insert:', validCategories);
 
       // Remove all current categories and their options
@@ -310,6 +317,8 @@ export default function ProjectsPage() {
 
       // Add new categories with the new table-based structure
       for (const cat of validCategories) {
+        console.log('Creating category:', cat.name, 'for project:', selectedProject.id);
+        
         // Create the category
         const categoryResponse = await supabaseClient.insert('project_categories', {
           project_id: selectedProject.id,
@@ -322,18 +331,31 @@ export default function ProjectsPage() {
 
         if (categoryResponse.error) {
           console.error('Error creating category:', categoryResponse.error);
+          console.error('Category data sent:', {
+            project_id: selectedProject.id,
+            name: cat.name.trim(),
+            description: cat.description || '',
+            color: '#3B82F6',
+            sort_order: 0,
+            is_active: true
+          });
           throw new Error(categoryResponse.error);
         }
 
         const categoryId = categoryResponse.data?.[0]?.id;
         if (!categoryId) {
+          console.error('Category response:', categoryResponse);
           throw new Error('Failed to get category ID');
         }
+
+        console.log('Created category with ID:', categoryId);
 
         // Create category options
         for (let i = 0; i < cat.options.length; i++) {
           const option = cat.options[i].trim();
           if (option) {
+            console.log('Creating option:', option, 'for category:', categoryId);
+            
             const optionResponse = await fetch('/api/categories/options', {
               method: 'POST',
               headers: {
@@ -349,6 +371,7 @@ export default function ProjectsPage() {
 
             if (!optionResponse.ok) {
               const errorData = await optionResponse.json();
+              console.error('Option creation failed:', errorData);
               throw new Error(errorData.error || 'Failed to create category option');
             }
           }

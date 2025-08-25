@@ -151,11 +151,33 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'update':
-        result = await supabase.from(table).update(data).eq('id', filters?.id);
+        let updateQuery = supabase.from(table).update(data);
+        
+        // Apply filters for update operation
+        if (filters) {
+          Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              updateQuery = updateQuery.eq(key, value);
+            }
+          });
+        }
+        
+        result = await updateQuery;
         break;
 
       case 'delete':
-        result = await supabase.from(table).delete().eq('id', filters?.id);
+        let deleteQuery = supabase.from(table).delete();
+        
+        // Apply filters for delete operation
+        if (filters) {
+          Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              deleteQuery = deleteQuery.eq(key, value);
+            }
+          });
+        }
+        
+        result = await deleteQuery;
         break;
 
       case 'upsert':
