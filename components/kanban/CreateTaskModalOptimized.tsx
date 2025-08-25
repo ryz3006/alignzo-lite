@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
-import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn } from '@/lib/kanban-types';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, Loader2, CheckCircle } from 'lucide-react';
+import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -15,33 +15,6 @@ interface CreateTaskModalProps {
   userEmail: string | null;
   selectedTeam: string;
   columnId?: string;
-}
-
-interface JiraProjectMapping {
-  id: string;
-  dashboard_project_id: string;
-  jira_project_key: string;
-  jira_project_name?: string;
-  integration_user_email: string;
-  project?: {
-    id: string;
-    name: string;
-    product: string;
-    country: string;
-  };
-}
-
-interface JiraTicket {
-  key: string;
-  fields: {
-    summary: string;
-    status: {
-      name: string;
-    };
-    priority?: {
-      name: string;
-    };
-  };
 }
 
 export default function CreateTaskModalOptimized({
@@ -69,78 +42,34 @@ export default function CreateTaskModalOptimized({
     assigned_to: ''
   });
 
-  // Add state for multiple category selections
+  // Dynamic category selections - supports multiple categories as requested
   const [categorySelections, setCategorySelections] = useState<Record<string, string>>({});
-
   const [errors, setErrors] = useState<Record<keyof CreateTaskForm, string | undefined>>({} as Record<keyof CreateTaskForm, string | undefined>);
-
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [localCategories, setLocalCategories] = useState<ProjectCategory[]>([]);
-
   
-  // Loading states
+  // Loading states with better UX
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
-  const [isLoadingJira, setIsLoadingJira] = useState(false);
-  
-  // JIRA Integration states
-  const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
-  const [jiraProjectMappings, setJiraProjectMappings] = useState<JiraProjectMapping[]>([]);
-  const [selectedJiraProject, setSelectedJiraProject] = useState<string>('');
-  const [jiraTicketType, setJiraTicketType] = useState<'new' | 'existing'>('existing');
-  const [showJiraSearch, setShowJiraSearch] = useState(false);
-  const [jiraSearchQuery, setJiraSearchQuery] = useState('');
-  const [jiraSearchResults, setJiraSearchResults] = useState<JiraTicket[]>([]);
-  const [jiraSearching, setJiraSearching] = useState(false);
-  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
-  const [ticketCreated, setTicketCreated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Memoized function to load categories
+  // Memoized function to load categories with options - optimized
   const loadCategoriesForProject = useCallback(async (projectId: string) => {
     if (!projectId) return;
     
     setIsLoadingCategories(true);
     try {
-      console.log('Loading categories for project:', projectId);
-      
-      // Load categories
-      const categoriesResponse = await supabaseClient.get('project_categories', {
-        select: '*',
-        filters: { project_id: projectId, is_active: true },
-        order: { column: 'sort_order', ascending: true }
+      // Use the optimized database function
+      const { data, error } = await supabaseClient.rpc('get_project_categories_with_options', {
+        project_uuid: projectId
       });
 
-      if (categoriesResponse.error) throw new Error(categoriesResponse.error);
+      if (error) throw new Error(error);
       
-      const categories = categoriesResponse.data || [];
-      console.log('Loaded categories:', categories);
-
-      // Load category options for all categories
-      const categoryIds = categories.map((cat: any) => cat.id);
-      let categoryOptions: CategoryOption[] = [];
-      
-      if (categoryIds.length > 0) {
-        const optionsResponse = await supabaseClient.get('category_options', {
-          select: '*',
-          filters: { category_id: categoryIds, is_active: true },
-          order: { column: 'sort_order', ascending: true }
-        });
-
-        if (optionsResponse.error) throw new Error(optionsResponse.error);
-        categoryOptions = optionsResponse.data || [];
-      }
-
-      console.log('Loaded category options:', categoryOptions);
-      
-      // Attach options to categories
-      const categoriesWithOptions = categories.map((category: ProjectCategory) => ({
-        ...category,
-        options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
-      }));
-      
-      // Update local state with loaded categories and their options
-      setLocalCategories(categoriesWithOptions);
+      // Parse the JSON result
+      const categories = data ? JSON.parse(data) : [];
+      setLocalCategories(categories);
     } catch (error) {
       console.error('Error loading categories for project:', error);
       toast.error('Failed to load categories. Please try again.');
@@ -149,7 +78,7 @@ export default function CreateTaskModalOptimized({
     }
   }, []);
 
-  // Memoized function to load team members
+  // Memoized function to load team members - optimized
   const loadTeamMembers = useCallback(async () => {
     if (!selectedTeam) return;
     
@@ -167,58 +96,10 @@ export default function CreateTaskModalOptimized({
     }
   }, [selectedTeam]);
 
-  // Memoized function to check JIRA integration
-  const checkJiraIntegration = useCallback(async () => {
-    setIsLoadingJira(true);
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) return;
-
-      const response = await supabaseClient.get('user_integrations', {
-        select: 'is_verified',
-        filters: { 
-          user_email: currentUser.email,
-          integration_type: 'jira'
-        }
-      });
-
-      if (response.error) throw new Error(response.error);
-      setHasJiraIntegration(response.data && response.data.length > 0 && response.data[0].is_verified);
-    } catch (error) {
-      console.error('Error checking Jira integration:', error);
-      setHasJiraIntegration(false);
-    } finally {
-      setIsLoadingJira(false);
-    }
-  }, []);
-
-  // Memoized function to load JIRA project mappings
-  const loadJiraProjectMappings = useCallback(async () => {
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email || !projectData?.id) return;
-
-      const response = await supabaseClient.get('jira_project_mappings', {
-        select: '*,project:projects(*)',
-        filters: { 
-          dashboard_project_id: projectData.id,
-          integration_user_email: currentUser.email
-        }
-      });
-
-      if (response.error) throw new Error(response.error);
-      setJiraProjectMappings(response.data || []);
-    } catch (error) {
-      console.error('Error loading Jira project mappings:', error);
-    }
-  }, [projectData?.id]);
-
-  // Initialize modal when it opens
+  // Initialize modal when it opens - optimized with parallel loading
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      console.log('CreateTaskModal opened with projectData:', projectData);
-      console.log('Categories:', projectData?.categories);
       
       // Reset form data
       setFormData({
@@ -238,25 +119,18 @@ export default function CreateTaskModalOptimized({
       });
       
       setErrors({} as Record<keyof CreateTaskForm, string | undefined>);
-      setTicketCreated(false);
-      setShowJiraSearch(false);
-      setJiraSearchQuery('');
-      setJiraSearchResults([]);
+      setCategorySelections({});
       
-      // Load data in parallel
+      // Load data in parallel for better performance
       const loadData = async () => {
         try {
           await Promise.all([
             // Load categories if not available in projectData
-            projectData?.id && (!projectData.categories || (projectData.categories && projectData.categories.length === 0)) 
+            projectData?.id && (!projectData.categories || projectData.categories.length === 0) 
               ? loadCategoriesForProject(projectData.id) 
               : Promise.resolve(),
             // Load team members
-            selectedTeam ? loadTeamMembers() : Promise.resolve(),
-            // Check JIRA integration
-            checkJiraIntegration(),
-            // Load JIRA project mappings
-            loadJiraProjectMappings()
+            selectedTeam ? loadTeamMembers() : Promise.resolve()
           ]);
         } catch (error) {
           console.error('Error loading modal data:', error);
@@ -267,7 +141,7 @@ export default function CreateTaskModalOptimized({
       
       loadData();
     }
-  }, [isOpen, projectData, selectedTeam, columnId, loadCategoriesForProject, loadTeamMembers, checkJiraIntegration, loadJiraProjectMappings]);
+  }, [isOpen, projectData, selectedTeam, columnId, loadCategoriesForProject, loadTeamMembers]);
 
   // Update form data when project data changes
   useEffect(() => {
@@ -280,184 +154,17 @@ export default function CreateTaskModalOptimized({
     }
   }, [projectData, columnId]);
 
-  // Handle category change and load subcategories
-  // Effect to reset category option when category changes
-  useEffect(() => {
-    // Reset category option when category changes
-    if (formData.category_option_id) {
-      const selectedCategory = (projectData?.categories || localCategories).find(c => c.id === formData.category_id);
-      const optionExists = selectedCategory?.options?.some(opt => opt.id === formData.category_option_id);
-      
-      if (!optionExists) {
-        setFormData(prev => ({ ...prev, category_option_id: '' }));
-      }
-    }
-  }, [formData.category_id, projectData?.categories, localCategories]);
+  // Memoized available categories
+  const availableCategories = useMemo(() => {
+    return (projectData?.categories && projectData.categories.length > 0)
+      ? projectData.categories
+      : localCategories;
+  }, [projectData?.categories, localCategories]);
 
-  // Handle JIRA ticket type change
-  useEffect(() => {
-    if (jiraTicketType === 'existing') {
-      setFormData(prev => ({ 
-        ...prev, 
-        jira_ticket_key: ''
-      }));
-      setTicketCreated(false);
-    } else {
-      setFormData(prev => ({ 
-        ...prev, 
-        jira_ticket_id: '',
-        jira_ticket_key: ''
-      }));
-      setJiraSearchResults([]);
-      setShowJiraSearch(false);
-    }
-  }, [jiraTicketType]);
-
-  // Auto-submit form after JIRA ticket creation
-  useEffect(() => {
-    if (ticketCreated && jiraTicketType === 'new') {
-      // Submit the form after a short delay to ensure the ticket is properly linked
-      const timer = setTimeout(() => {
-        onSubmit(formData);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [ticketCreated, jiraTicketType, formData, onSubmit]);
-
-  const searchJiraTickets = async () => {
-    if (!jiraSearchQuery.trim() || !selectedJiraProject) return;
-
-    setJiraSearching(true);
-    setShowJiraSearch(false);
-    setJiraSearchResults([]);
-    
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) return;
-
-      const response = await fetch('/api/jira/search-tickets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userEmail: currentUser.email,
-          projectKey: selectedJiraProject,
-          searchTerm: jiraSearchQuery.trim(),
-          maxResults: 20
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setJiraSearchResults(data.tickets || []);
-        setShowJiraSearch(true);
-        
-        if (data.tickets.length === 0) {
-          toast('No tickets found matching your search term', { icon: '🔍' });
-        } else {
-          toast.success(`Found ${data.tickets.length} tickets`);
-        }
-      } else {
-        // Handle JIRA API errors
-        const errorMessage = data.error || 'Failed to search tickets';
-        toast.error(errorMessage);
-        
-        // Log detailed error for debugging
-        if (data.details) {
-          console.error('JIRA search error details:', data.details);
-        }
-        
-        // Show rate limit info if available
-        if (data.rateLimitInfo) {
-          console.log('Rate limit info:', data.rateLimitInfo);
-        }
-      }
-    } catch (error) {
-      console.error('Error searching JIRA tickets:', error);
-      toast.error('Network error. Please check your connection and try again.');
-    } finally {
-      setJiraSearching(false);
-    }
-  };
-
-  const createJiraTicket = async () => {
-    if (!selectedJiraProject || !formData.title.trim()) {
-      toast.error('Please select a JIRA project and enter task title');
-      return;
-    }
-
-    setIsCreatingTicket(true);
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) return;
-
-      // Prepare description with task details
-      let description = formData.description || '';
-      
-      // Add task details to description
-      if (formData.description) {
-        description += '\n\n---\n**Task Details:**\n';
-        description += `- Priority: ${formData.priority}\n`;
-        if (formData.estimated_hours) {
-          description += `- Estimated Hours: ${formData.estimated_hours}\n`;
-        }
-        if (formData.due_date) {
-          description += `- Due Date: ${new Date(formData.due_date).toLocaleDateString()}\n`;
-        }
-      }
-
-      const response = await fetch('/api/jira/create-ticket', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userEmail: currentUser.email,
-          projectKey: selectedJiraProject,
-          summary: formData.title,
-          description: description,
-          issueType: 'Task',
-          priority: formData.priority === 'urgent' ? 'Highest' : 
-                   formData.priority === 'high' ? 'High' : 
-                   formData.priority === 'medium' ? 'Medium' : 'Low'
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        const ticketKey = data.ticket.key;
-        setFormData(prev => ({ 
-          ...prev, 
-          jira_ticket_id: ticketKey,
-          jira_ticket_key: ticketKey 
-        }));
-        setTicketCreated(true);
-        toast.success(data.message || `JIRA ticket ${ticketKey} created successfully`);
-      } else {
-        const errorMessage = data.error || 'Failed to create JIRA ticket';
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error('Error creating JIRA ticket:', error);
-      toast.error('Network error. Please check your connection and try again.');
-    } finally {
-      setIsCreatingTicket(false);
-    }
-  };
-
-  const selectJiraTicket = (ticket: JiraTicket) => {
-    setFormData(prev => ({
-      ...prev,
-      jira_ticket_id: ticket.key,
-      jira_ticket_key: ticket.key
-    }));
-    setShowJiraSearch(false);
-    setJiraSearchQuery('');
-  };
+  // Memoized available columns
+  const availableColumns = useMemo(() => {
+    return projectData?.columns || [];
+  }, [projectData?.columns]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<keyof CreateTaskForm, string | undefined> = {} as Record<keyof CreateTaskForm, string | undefined>;
@@ -489,13 +196,13 @@ export default function CreateTaskModalOptimized({
     
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     try {
       // Get the first selected category and option for backward compatibility
       const selectedCategoryEntry = Object.entries(categorySelections).find(([categoryId, optionId]) => optionId && optionId.trim() !== '');
       const selectedCategoryId = selectedCategoryEntry ? selectedCategoryEntry[0] : '';
       const selectedOptionId = selectedCategoryEntry ? selectedCategoryEntry[1] : '';
 
-      // Fix timestamp issue: convert empty string to null for due_date
       const formDataToSubmit = {
         ...formData,
         category_id: selectedCategoryId,
@@ -507,6 +214,8 @@ export default function CreateTaskModalOptimized({
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Failed to create task. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -515,8 +224,8 @@ export default function CreateTaskModalOptimized({
       title: '',
       description: '',
       project_id: '',
-              category_id: '',
-        category_option_id: '',
+      category_id: '',
+      category_option_id: '',
       column_id: '',
       priority: 'medium',
       estimated_hours: undefined,
@@ -526,27 +235,12 @@ export default function CreateTaskModalOptimized({
       scope: 'project',
       assigned_to: ''
     });
-    setErrors({} as Record<keyof CreateTaskForm, string | undefined>);
     setCategorySelections({});
+    setErrors({} as Record<keyof CreateTaskForm, string | undefined>);
     setLocalCategories([]);
     setTeamMembers([]);
-    setJiraProjectMappings([]);
-    setSelectedJiraProject('');
-    setJiraTicketType('existing');
-    setShowJiraSearch(false);
-    setJiraSearchQuery('');
-    setJiraSearchResults([]);
-    setTicketCreated(false);
     onClose();
   };
-
-  // Get available categories (from projectData or local state)
-  const availableCategories = (projectData?.categories && projectData.categories.length > 0)
-    ? projectData.categories 
-    : localCategories;
-
-  // Get available columns (from projectData)
-  const availableColumns = projectData?.columns || [];
 
   if (!isOpen) return null;
 
@@ -631,7 +325,7 @@ export default function CreateTaskModalOptimized({
               />
             </div>
 
-            {/* Categories */}
+            {/* Dynamic Categories - As requested */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Categories *
@@ -742,12 +436,12 @@ export default function CreateTaskModalOptimized({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Due Date
                 </label>
-                                 <input
-                   type="date"
-                   value={formData.due_date || ''}
-                   onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                 />
+                <input
+                  type="date"
+                  value={formData.due_date || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
               </div>
 
               {/* Assigned To */}
@@ -783,170 +477,6 @@ export default function CreateTaskModalOptimized({
             </div>
           </div>
 
-          {/* JIRA Integration */}
-          {hasJiraIntegration && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">JIRA Integration</h3>
-              
-              <div className="space-y-4">
-                {/* JIRA Project Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    JIRA Project
-                  </label>
-                  <select
-                    value={selectedJiraProject}
-                    onChange={(e) => setSelectedJiraProject(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select JIRA project</option>
-                    {jiraProjectMappings.map((mapping) => (
-                      <option key={mapping.id} value={mapping.jira_project_key}>
-                        {mapping.jira_project_name || mapping.jira_project_key}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* JIRA Ticket Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    JIRA Ticket Type
-                  </label>
-                  <div className="flex space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="existing"
-                        checked={jiraTicketType === 'existing'}
-                        onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Link Existing Ticket</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="new"
-                        checked={jiraTicketType === 'new'}
-                        onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Create New Ticket</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* JIRA Ticket Search/Creation */}
-                {selectedJiraProject && (
-                  <div className="space-y-4">
-                    {jiraTicketType === 'existing' ? (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Search JIRA Tickets
-                        </label>
-                        <div className="flex space-x-2">
-                          <input
-                            type="text"
-                            value={jiraSearchQuery}
-                            onChange={(e) => setJiraSearchQuery(e.target.value)}
-                            placeholder="Search tickets..."
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={searchJiraTickets}
-                            disabled={!jiraSearchQuery.trim() || jiraSearching}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {jiraSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                          </button>
-                        </div>
-                        
-                        {/* JIRA Search Results */}
-                        {showJiraSearch && (
-                          <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md">
-                            {jiraSearchResults.length === 0 ? (
-                              <p className="p-2 text-sm text-gray-500">No tickets found</p>
-                            ) : (
-                              jiraSearchResults.map((ticket) => (
-                                <button
-                                  key={ticket.key}
-                                  type="button"
-                                  onClick={() => selectJiraTicket(ticket)}
-                                  className="w-full p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
-                                >
-                                  <div className="font-medium text-sm">{ticket.key}</div>
-                                  <div className="text-xs text-gray-500">{ticket.fields.summary}</div>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={createJiraTicket}
-                          disabled={!formData.title.trim() || isCreatingTicket}
-                          className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isCreatingTicket ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Creating JIRA Ticket...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Create JIRA Ticket
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Linked JIRA Ticket Display */}
-                {(formData.jira_ticket_key || formData.jira_ticket_id) && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Link className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                        Linked JIRA Ticket
-                      </label>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                          {formData.jira_ticket_key || formData.jira_ticket_id}
-                        </span>
-                        {ticketCreated && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Created
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, jira_ticket_id: '', jira_ticket_key: '' }));
-                          setTicketCreated(false);
-                        }}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Form Actions */}
           <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
             <button
@@ -958,10 +488,10 @@ export default function CreateTaskModalOptimized({
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Creating...

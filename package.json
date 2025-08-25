@@ -14,6 +14,7 @@
     "install:retry": "node scripts/install-with-retry.js"
   },
   "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.38.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.11",
