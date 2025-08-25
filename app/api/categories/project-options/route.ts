@@ -47,16 +47,41 @@ export async function GET(request: NextRequest) {
     // Add detailed logging for debugging
     console.log('🔍 Starting category fetch process...');
 
-    // Test if the RPC function exists
-    console.log('🔍 Testing RPC function availability...');
+    // Test if the API-specific RPC function exists
+    console.log('🔍 Testing API RPC function availability...');
     try {
       const { data: rpcTest, error: rpcError } = await supabase
-        .rpc('get_project_categories_with_options', { project_uuid: projectId });
+        .rpc('get_project_categories_with_options_api', { project_uuid: projectId });
       
       if (rpcError) {
-        console.log('⚠️ RPC function not available or failed:', rpcError.message);
+        console.log('⚠️ API RPC function not available, trying direct function...');
+        // Try the direct function as fallback
+        const { data: directTest, error: directError } = await supabase
+          .rpc('get_project_categories_direct', { project_uuid: projectId });
+        
+        if (directError) {
+          console.log('⚠️ Direct function also failed:', directError.message);
+        } else {
+          console.log('✅ Direct function available, result:', directTest ? 'has data' : 'empty');
+          // Use the direct function result
+          if (directTest && Array.isArray(directTest) && directTest.length > 0) {
+            console.log('✅ Using direct function result with', directTest.length, 'categories');
+            return NextResponse.json({
+              categories: directTest,
+              subcategories: []
+            });
+          }
+        }
       } else {
-        console.log('✅ RPC function available, result:', rpcTest ? 'has data' : 'empty');
+        console.log('✅ API RPC function available, result:', rpcTest ? 'has data' : 'empty');
+        // Use the API function result
+        if (rpcTest && Array.isArray(rpcTest) && rpcTest.length > 0) {
+          console.log('✅ Using API function result with', rpcTest.length, 'categories');
+          return NextResponse.json({
+            categories: rpcTest,
+            subcategories: []
+          });
+        }
       }
     } catch (rpcTestError) {
       const errorMessage = rpcTestError instanceof Error ? rpcTestError.message : String(rpcTestError);
