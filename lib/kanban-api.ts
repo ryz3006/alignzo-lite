@@ -397,6 +397,22 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
 
     if (response.error) throw new Error(response.error);
 
+    // Create timeline entry for task creation
+    if (response.data && response.data[0]) {
+      const createdTask = response.data[0];
+      await createTaskTimeline(
+        createdTask.id,
+        taskData.created_by || 'system',
+        'created',
+        {
+          title: createdTask.title,
+          description: createdTask.description,
+          priority: createdTask.priority,
+          column_id: createdTask.column_id
+        }
+      );
+    }
+
     return {
       data: response.data,
       success: true
@@ -413,12 +429,78 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
 
 export async function updateKanbanTask(
   taskId: string, 
-  updates: UpdateTaskForm
+  updates: UpdateTaskForm,
+  userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
     const response = await supabaseClient.update('kanban_tasks', taskId, updates);
 
     if (response.error) throw new Error(response.error);
+
+    // Create timeline entries for significant changes
+    if (response.data && response.data[0] && userEmail) {
+      const updatedTask = response.data[0];
+      
+      // Check for specific field changes and create appropriate timeline entries
+      if (updates.assigned_to !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'assigned',
+          {
+            assigned_to: updates.assigned_to,
+            previous_assigned_to: updatedTask.assigned_to
+          }
+        );
+      }
+
+      if (updates.status !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'status_changed',
+          {
+            from_status: updatedTask.status,
+            to_status: updates.status
+          }
+        );
+      }
+
+      if (updates.priority !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'priority_changed',
+          {
+            from_priority: updatedTask.priority,
+            to_priority: updates.priority
+          }
+        );
+      }
+
+      if (updates.title !== undefined || updates.description !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'updated',
+          {
+            field: updates.title !== undefined ? 'title' : 'description',
+            new_value: updates.title || updates.description
+          }
+        );
+      }
+
+      if (updates.jira_ticket_key !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'linked_jira',
+          {
+            ticket_key: updates.jira_ticket_key
+          }
+        );
+      }
+    }
 
     return {
       data: response.data,
@@ -457,15 +539,40 @@ export async function deleteKanbanTask(taskId: string): Promise<ApiResponse<bool
 export async function moveTask(
   taskId: string, 
   columnId: string, 
-  sortOrder: number
+  sortOrder: number,
+  userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
+    // Get current task data to record the move
+    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
+      filters: { id: taskId }
+    });
+
     const response = await supabaseClient.update('kanban_tasks', taskId, {
       column_id: columnId,
       sort_order: sortOrder
     });
 
     if (response.error) throw new Error(response.error);
+
+    // Create timeline entry for task move
+    if (response.data && response.data[0] && userEmail && currentTaskResponse.data && currentTaskResponse.data[0]) {
+      const currentTask = currentTaskResponse.data[0];
+      const updatedTask = response.data[0];
+      
+      if (currentTask.column_id !== columnId) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'moved',
+          {
+            from_column: currentTask.column_id,
+            to_column: columnId,
+            sort_order: sortOrder
+          }
+        );
+      }
+    }
 
     return {
       data: response.data,
@@ -620,6 +727,19 @@ export async function createTaskComment(
     });
 
     if (response.error) throw new Error(response.error);
+
+    // Create timeline entry for comment
+    if (response.data && response.data[0]) {
+      await createTaskTimeline(
+        taskId,
+        userEmail,
+        'commented',
+        {
+          comment_id: response.data[0].id,
+          comment_preview: comment.substring(0, 100) + (comment.length > 100 ? '...' : '')
+        }
+      );
+    }
 
     return {
       data: response.data,

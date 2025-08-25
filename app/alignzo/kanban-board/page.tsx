@@ -179,7 +179,7 @@ export default function KanbanBoardPage() {
     const newSortOrder = destination.index;
 
     try {
-      const response = await moveTask(taskId, newColumnId, newSortOrder);
+      const response = await moveTask(taskId, newColumnId, newSortOrder, user.email);
       if (response.success) {
         setKanbanBoard(prevBoard => {
           const newBoard = [...prevBoard];
@@ -229,7 +229,7 @@ export default function KanbanBoardPage() {
     if (!user) return;
 
     try {
-      const response = await updateKanbanTask(taskId, updates);
+      const response = await updateKanbanTask(taskId, updates, user.email);
       if (response.success) {
         setShowEditTaskModal(false);
         setEditingTask(null);

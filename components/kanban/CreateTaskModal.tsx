@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
+import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings } from 'lucide-react';
 import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
@@ -550,103 +550,149 @@ export default function CreateTaskModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-700">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create New Task</h2>
+        <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-neutral-800 dark:to-neutral-800">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+              <Plus className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Create New Task</h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Add a new task to your project</p>
+            </div>
+          </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Loading Overlay */}
         {isLoading && (
-          <div className="absolute inset-0 bg-white dark:bg-gray-800 bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+          <div className="absolute inset-0 bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl">
             <div className="flex flex-col items-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <p className="text-gray-600 dark:text-gray-400">Loading task form...</p>
+              <p className="text-neutral-600 dark:text-neutral-400">Loading task form...</p>
             </div>
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-8 overflow-y-auto max-h-[calc(90vh-120px)]">
           {/* Basic Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Basic Information</h3>
-            
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Task Title *
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.title ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
-                placeholder="Enter task title"
-              />
-              {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title}</p>
-              )}
+          <div className="space-y-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Basic Information</h3>
             </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Title */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Task Title *
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.title ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                  placeholder="Enter task title"
+                />
+                {errors.title && (
+                  <p className="mt-2 text-sm text-red-600">{errors.title}</p>
+                )}
+              </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Enter task description"
-              />
+              {/* Description */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                  placeholder="Enter task description"
+                />
+              </div>
             </div>
           </div>
 
           {/* Project and Category Selection */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Project & Categories</h3>
+          <div className="space-y-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                <FolderOpen className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Project & Categories</h3>
+            </div>
             
-            {/* Project */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Project *
-              </label>
-              <input
-                type="text"
-                value={projectData?.name || ''}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-600 text-gray-500 dark:text-gray-400"
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Project */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Project *
+                </label>
+                <input
+                  type="text"
+                  value={projectData?.name || ''}
+                  disabled
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-neutral-50 dark:bg-neutral-600 text-neutral-500 dark:text-neutral-400"
+                />
+              </div>
+
+              {/* Column */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Column *
+                </label>
+                <select
+                  value={formData.column_id}
+                  onChange={(e) => setFormData(prev => ({ ...prev, column_id: e.target.value }))}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.column_id ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                >
+                  <option value="">Select a column</option>
+                  {availableColumns.map((column) => (
+                    <option key={column.id} value={column.id}>
+                      {column.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.column_id && (
+                  <p className="mt-2 text-sm text-red-600">{errors.column_id}</p>
+                )}
+              </div>
             </div>
 
             {/* Categories */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
                 Categories *
               </label>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {isLoadingCategories ? (
-                  <div className="flex items-center space-x-2 text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  <div className="flex items-center space-x-3 text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     <span>Loading categories...</span>
                   </div>
                 ) : availableCategories.length === 0 ? (
-                  <div className="text-gray-500">No categories available for this project</div>
+                  <div className="text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">No categories available for this project</div>
                 ) : (
                   availableCategories.map((category) => (
-                    <div key={category.id} className="border border-gray-200 dark:border-gray-600 rounded-md p-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div key={category.id} className="border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
+                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                         {category.name}
                       </label>
                       <select
@@ -655,7 +701,7 @@ export default function CreateTaskModal({
                           ...prev,
                           [category.id]: e.target.value
                         }))}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                       >
                         <option value="">Select an option (optional)</option>
                         {(category.options || []).map((option) => (
@@ -669,49 +715,30 @@ export default function CreateTaskModal({
                 )}
               </div>
               {errors.category_id && (
-                <p className="mt-1 text-sm text-red-600">{errors.category_id}</p>
-              )}
-            </div>
-
-            {/* Column */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Column *
-              </label>
-              <select
-                value={formData.column_id}
-                onChange={(e) => setFormData(prev => ({ ...prev, column_id: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.column_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
-              >
-                <option value="">Select a column</option>
-                {availableColumns.map((column) => (
-                  <option key={column.id} value={column.id}>
-                    {column.name}
-                  </option>
-                ))}
-              </select>
-              {errors.column_id && (
-                <p className="mt-1 text-sm text-red-600">{errors.column_id}</p>
+                <p className="mt-2 text-sm text-red-600">{errors.category_id}</p>
               )}
             </div>
           </div>
 
           {/* Task Details */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Task Details</h3>
+          <div className="space-y-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                <Settings className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Task Details</h3>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Priority */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Priority
                 </label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -722,7 +749,7 @@ export default function CreateTaskModal({
 
               {/* Estimated Hours */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Estimated Hours
                 </label>
                 <input
@@ -731,34 +758,34 @@ export default function CreateTaskModal({
                   min="0"
                   value={formData.estimated_hours || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, estimated_hours: e.target.value ? parseFloat(e.target.value) : undefined }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                   placeholder="0.0"
                 />
               </div>
 
               {/* Due Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Due Date
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Due Date & Time
                 </label>
-                                 <input
-                   type="date"
-                   value={formData.due_date || ''}
-                   onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                 />
+                <input
+                  type="datetime-local"
+                  value={formData.due_date || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                />
               </div>
 
               {/* Assigned To */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                   Assign To
                 </label>
                 <div className="relative">
                   <select
                     value={formData.assigned_to}
                     onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                     disabled={isLoadingTeamMembers}
                   >
                     <option value="">Unassigned</option>
@@ -773,8 +800,8 @@ export default function CreateTaskModal({
                     )}
                   </select>
                   {isLoadingTeamMembers && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
                     </div>
                   )}
                 </div>
@@ -784,55 +811,62 @@ export default function CreateTaskModal({
 
           {/* JIRA Integration */}
           {hasJiraIntegration && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">JIRA Integration</h3>
-              
-              <div className="space-y-4">
-                {/* JIRA Project Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    JIRA Project
-                  </label>
-                  <select
-                    value={selectedJiraProject}
-                    onChange={(e) => setSelectedJiraProject(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select JIRA project</option>
-                    {jiraProjectMappings.map((mapping) => (
-                      <option key={mapping.id} value={mapping.jira_project_key}>
-                        {mapping.jira_project_name || mapping.jira_project_key}
-                      </option>
-                    ))}
-                  </select>
+            <div className="space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                  <Link className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                 </div>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">JIRA Integration</h3>
+              </div>
+              
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* JIRA Project Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      JIRA Project
+                    </label>
+                    <select
+                      value={selectedJiraProject}
+                      onChange={(e) => setSelectedJiraProject(e.target.value)}
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    >
+                      <option value="">Select JIRA project</option>
+                      {jiraProjectMappings.map((mapping) => (
+                        <option key={mapping.id} value={mapping.jira_project_key}>
+                          {mapping.jira_project_name || mapping.jira_project_key}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* JIRA Ticket Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    JIRA Ticket Type
-                  </label>
-                  <div className="flex space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="existing"
-                        checked={jiraTicketType === 'existing'}
-                        onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Link Existing Ticket</span>
+                  {/* JIRA Ticket Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      JIRA Ticket Type
                     </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        value="new"
-                        checked={jiraTicketType === 'new'}
-                        onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Create New Ticket</span>
-                    </label>
+                    <div className="flex space-x-4">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          value="existing"
+                          checked={jiraTicketType === 'existing'}
+                          onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-neutral-700 dark:text-neutral-300">Link Existing Ticket</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          value="new"
+                          checked={jiraTicketType === 'new'}
+                          onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
+                          className="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-neutral-700 dark:text-neutral-300">Create New Ticket</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -841,22 +875,22 @@ export default function CreateTaskModal({
                   <div className="space-y-4">
                     {jiraTicketType === 'existing' ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                           Search JIRA Tickets
                         </label>
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-3">
                           <input
                             type="text"
                             value={jiraSearchQuery}
                             onChange={(e) => setJiraSearchQuery(e.target.value)}
                             placeholder="Search tickets..."
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                           />
                           <button
                             type="button"
                             onClick={searchJiraTickets}
                             disabled={!jiraSearchQuery.trim() || jiraSearching}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                           >
                             {jiraSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                           </button>
@@ -864,19 +898,19 @@ export default function CreateTaskModal({
                         
                         {/* JIRA Search Results */}
                         {showJiraSearch && (
-                          <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md">
+                          <div className="mt-3 max-h-40 overflow-y-auto border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-700">
                             {jiraSearchResults.length === 0 ? (
-                              <p className="p-2 text-sm text-gray-500">No tickets found</p>
+                              <p className="p-4 text-sm text-neutral-500">No tickets found</p>
                             ) : (
                               jiraSearchResults.map((ticket) => (
                                 <button
                                   key={ticket.key}
                                   type="button"
                                   onClick={() => selectJiraTicket(ticket)}
-                                  className="w-full p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
+                                  className="w-full p-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-600 border-b border-neutral-200 dark:border-neutral-600 last:border-b-0 transition-colors"
                                 >
-                                  <div className="font-medium text-sm">{ticket.key}</div>
-                                  <div className="text-xs text-gray-500">{ticket.fields.summary}</div>
+                                  <div className="font-medium text-sm text-neutral-900 dark:text-white">{ticket.key}</div>
+                                  <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{ticket.fields.summary}</div>
                                 </button>
                               ))
                             )}
@@ -889,17 +923,17 @@ export default function CreateTaskModal({
                           type="button"
                           onClick={createJiraTicket}
                           disabled={!formData.title.trim() || isCreatingTicket}
-                          className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
                         >
                           {isCreatingTicket ? (
                             <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Creating JIRA Ticket...
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Creating JIRA Ticket...</span>
                             </>
                           ) : (
                             <>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Create JIRA Ticket
+                              <Plus className="h-4 w-4" />
+                              <span>Create JIRA Ticket</span>
                             </>
                           )}
                         </button>
@@ -910,20 +944,20 @@ export default function CreateTaskModal({
 
                 {/* Linked JIRA Ticket Display */}
                 {(formData.jira_ticket_key || formData.jira_ticket_id) && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <div className="flex items-center space-x-2 mb-2">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div className="flex items-center space-x-2 mb-3">
                       <Link className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
                         Linked JIRA Ticket
                       </label>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                      <div className="flex items-center space-x-3">
+                        <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
                           {formData.jira_ticket_key || formData.jira_ticket_id}
                         </span>
                         {ticketCreated && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Created
                           </span>
@@ -935,7 +969,7 @@ export default function CreateTaskModal({
                           setFormData(prev => ({ ...prev, jira_ticket_id: '', jira_ticket_key: '' }));
                           setTicketCreated(false);
                         }}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                        className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -947,26 +981,29 @@ export default function CreateTaskModal({
           )}
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end space-x-4 pt-8 border-t border-neutral-200 dark:border-neutral-700">
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="px-6 py-3 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-600 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors font-medium"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center space-x-2"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Creating...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Creating...</span>
                 </>
               ) : (
-                'Create Task'
+                <>
+                  <Plus className="h-4 w-4" />
+                  <span>Create Task</span>
+                </>
               )}
             </button>
           </div>

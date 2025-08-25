@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings } from 'lucide-react';
-import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn } from '@/lib/kanban-types';
+import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings, MessageSquare } from 'lucide-react';
+import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskComment } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -79,6 +79,13 @@ export default function EditTaskModal({
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const [ticketCreated, setTicketCreated] = useState(false);
 
+  // Comments states
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
+
   // Initialize form data when task changes
   useEffect(() => {
     if (task && projectData) {
@@ -113,6 +120,7 @@ export default function EditTaskModal({
     setLocalCategories(projectData.categories);
     await loadTeamMembers();
     await checkJiraIntegration();
+    await loadComments();
   };
 
   const loadTeamMembers = async () => {
@@ -285,6 +293,61 @@ export default function EditTaskModal({
     toast.success(`Linked to JIRA ticket ${ticket.key}`);
   };
 
+  const loadComments = async () => {
+    if (!task?.id) return;
+    
+    setLoadingComments(true);
+    try {
+      const response = await fetch(`/api/kanban/task-comments?taskId=${task.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setComments(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !task?.id) return;
+
+    setSubmittingComment(true);
+    try {
+      const response = await fetch('/api/kanban/task-comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskId: task.id,
+          comment: newComment.trim()
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setNewComment('');
+          toast.success('Comment added successfully');
+          await loadComments(); // Refresh comments
+        } else {
+          toast.error(data.error || 'Failed to add comment');
+        }
+      } else {
+        toast.error('Failed to add comment');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast.error('Failed to add comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<keyof UpdateTaskForm, string | undefined> = {} as Record<keyof UpdateTaskForm, string | undefined>;
 
@@ -368,8 +431,32 @@ export default function EditTaskModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
-          {/* Basic Information */}
-          <div className="space-y-6">
+          {/* Tabs */}
+          <div className="border-b border-neutral-200 dark:border-neutral-700">
+            <nav className="flex space-x-8">
+              {[
+                { id: 'details', label: 'Task Details' },
+                { id: 'comments', label: 'Comments' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as 'details' | 'comments')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+          {activeTab === 'details' && (
+            <>
+              {/* Basic Information */}
+              <div className="space-y-6">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                 <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -836,6 +923,82 @@ export default function EditTaskModal({
               )}
             </button>
           </div>
+            </>
+          )}
+
+          {activeTab === 'comments' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Comments</h3>
+              
+              {/* Add Comment */}
+              <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  rows={3}
+                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
+                />
+                <div className="flex justify-end mt-3">
+                  <button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim() || submittingComment}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {submittingComment ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Adding...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Add Comment</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Comments List */}
+              {loadingComments ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-neutral-400" />
+                  <p className="text-neutral-600 dark:text-neutral-400">Loading comments...</p>
+                </div>
+              ) : comments.length > 0 ? (
+                <div className="space-y-4">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-white dark:bg-neutral-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <User className="h-4 w-4 text-neutral-400" />
+                          <span className="font-semibold text-neutral-900 dark:text-white">
+                            {comment.user_email}
+                          </span>
+                        </div>
+                        <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                          {new Date(comment.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="bg-neutral-50 dark:bg-neutral-600 rounded-lg p-3">
+                        <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                          {comment.comment}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">No comments yet</p>
+                  <p className="text-sm">Be the first to add a comment to this task.</p>
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </div>
