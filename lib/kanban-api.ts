@@ -805,6 +805,173 @@ export async function getKanbanBoard(projectId: string, teamId?: string): Promis
 }
 
 // =====================================================
+// OPTIMIZED KANBAN BOARD API - SINGLE CALL
+// =====================================================
+
+export async function getKanbanBoardOptimized(
+  projectId: string, 
+  teamId?: string
+): Promise<ApiResponse<{
+  columns: KanbanColumnWithTasks[];
+  categories: ProjectCategory[];
+  subcategories: ProjectSubcategory[];
+}>> {
+  try {
+    // Get columns for the project and team
+    const columnFilters: any = {
+      project_id: projectId,
+      is_active: true
+    };
+
+    if (teamId) {
+      columnFilters.team_id = teamId;
+    }
+
+    const columnsResponse = await supabaseClient.get('kanban_columns', {
+      select: '*',
+      filters: columnFilters,
+      order: {
+        column: 'sort_order',
+        ascending: true
+      }
+    });
+
+    if (columnsResponse.error) throw new Error(columnsResponse.error);
+
+    // If no columns exist for this team-project combination and teamId is provided,
+    // create default columns manually instead of using RPC
+    if (teamId && (!columnsResponse.data || columnsResponse.data.length === 0)) {
+      try {
+        console.log('Creating default columns for project:', projectId, 'team:', teamId);
+        
+        // Create default columns manually
+        const defaultColumns = [
+          { name: 'To Do', description: 'Tasks that need to be started', color: '#6B7280', sort_order: 1 },
+          { name: 'In Progress', description: 'Tasks currently being worked on', color: '#3B82F6', sort_order: 2 },
+          { name: 'Review', description: 'Tasks ready for review', color: '#F59E0B', sort_order: 3 },
+          { name: 'Done', description: 'Completed tasks', color: '#10B981', sort_order: 4 }
+        ];
+
+        // Insert each default column
+        for (const columnData of defaultColumns) {
+          const insertResponse = await supabaseClient.insert('kanban_columns', {
+            project_id: projectId,
+            team_id: teamId,
+            ...columnData,
+            is_active: true
+          });
+
+          if (insertResponse.error) {
+            console.error('Error inserting default column:', insertResponse.error);
+          }
+        }
+
+        // Fetch the newly created columns
+        const newColumnsResponse = await supabaseClient.get('kanban_columns', {
+          select: '*',
+          filters: columnFilters,
+          order: {
+            column: 'sort_order',
+            ascending: true
+          }
+        });
+
+        if (!newColumnsResponse.error) {
+          columnsResponse.data = newColumnsResponse.data;
+          console.log('Default columns created successfully:', newColumnsResponse.data);
+        }
+      } catch (createError) {
+        console.error('Error creating default columns:', createError);
+        // Continue with empty columns if creation fails
+      }
+    }
+
+    // Get tasks for the project with team filtering
+    const taskFilters: any = {
+      project_id: projectId,
+      status: 'active'
+    };
+
+    // If team is specified, only show project/team scope tasks
+    if (teamId) {
+      taskFilters.scope = 'project';
+    }
+
+    const tasksResponse = await supabaseClient.get('kanban_tasks', {
+      select: '*',
+      filters: taskFilters,
+      order: {
+        column: 'sort_order',
+        ascending: true
+      }
+    });
+
+    if (tasksResponse.error) throw new Error(tasksResponse.error);
+
+    // Get categories for the project
+    const categoriesResponse = await supabaseClient.get('project_categories', {
+      select: '*',
+      filters: {
+        project_id: projectId,
+        is_active: true
+      },
+      order: {
+        column: 'sort_order',
+        ascending: true
+      }
+    });
+
+    if (categoriesResponse.error) throw new Error(categoriesResponse.error);
+
+    // Get subcategories for the project
+    const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
+      select: `
+        *,
+        project_categories!inner(*)
+      `,
+      filters: {
+        'project_categories.project_id': projectId
+      },
+      order: {
+        column: 'created_at',
+        ascending: true
+      }
+    });
+
+    if (subcategoriesResponse.error) {
+      console.warn('Error fetching subcategories:', subcategoriesResponse.error);
+      // Don't fail the entire request if subcategories fail
+    }
+
+    // Group tasks by column
+    const columnsWithTasks: KanbanColumnWithTasks[] = (columnsResponse.data || []).map((column: KanbanColumn) => ({
+      ...column,
+      tasks: (tasksResponse.data || []).filter((task: KanbanTask) => task.column_id === column.id)
+    }));
+
+    return {
+      data: {
+        columns: columnsWithTasks,
+        categories: categoriesResponse.data || [],
+        subcategories: subcategoriesResponse.data || []
+      },
+      success: true
+    };
+  } catch (error) {
+    console.error('Error fetching optimized kanban board:', error);
+    return {
+      data: {
+        columns: [],
+        categories: [],
+        subcategories: []
+      },
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+// =====================================================
 // UTILITY FUNCTIONS
 // =====================================================
 

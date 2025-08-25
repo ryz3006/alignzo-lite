@@ -25,6 +25,7 @@ import {
 import { getCurrentUser } from '@/lib/auth';
 import { 
   getKanbanBoard, 
+  getKanbanBoardOptimized,
   getUserAccessibleProjects,
   createKanbanTask,
   updateKanbanTask,
@@ -39,7 +40,9 @@ import {
   UpdateTaskForm,
   Project,
   ProjectWithCategories,
-  CreateColumnForm
+  CreateColumnForm,
+  ProjectCategory,
+  ProjectSubcategory
 } from '@/lib/kanban-types';
 import CreateTaskModal from '@/components/kanban/CreateTaskModal';
 import EditTaskModal from '@/components/kanban/EditTaskModal';
@@ -55,6 +58,10 @@ export default function KanbanBoardPage() {
   const [teams, setTeams] = useState<any[]>([]);
   const [kanbanBoard, setKanbanBoard] = useState<KanbanColumnWithTasks[]>([]);
   const [boardLoaded, setBoardLoaded] = useState(false);
+  const [categories, setCategories] = useState<ProjectCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Modal states
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
@@ -98,34 +105,6 @@ export default function KanbanBoardPage() {
     }
   };
 
-  const loadProjectData = async (projectId: string) => {
-    try {
-      // Load categories
-      const categoriesResponse = await fetch(`/api/kanban/project-categories?projectId=${projectId}`);
-      const categoriesData = await categoriesResponse.json();
-      
-      // Load subcategories
-      const subcategoriesResponse = await fetch(`/api/kanban/project-subcategories?projectId=${projectId}`);
-      const subcategoriesData = await subcategoriesResponse.json();
-      
-      // Load columns
-      const columnsResponse = await fetch(`/api/kanban/project-columns?projectId=${projectId}`);
-      const columnsData = await columnsResponse.json();
-      
-      // Update the selected project with full data
-      if (selectedProject) {
-        setSelectedProject({
-          ...selectedProject,
-          categories: categoriesData.categories || [],
-          subcategories: subcategoriesData.subcategories || [],
-          columns: columnsData.columns || []
-        });
-      }
-    } catch (error) {
-      console.error('Error loading project data:', error);
-    }
-  };
-
   const loadUserTeams = async (userEmail: string) => {
     try {
       const response = await fetch(`/api/teams/user-teams?email=${userEmail}`);
@@ -140,32 +119,56 @@ export default function KanbanBoardPage() {
 
   useEffect(() => {
     if (selectedProject && selectedTeam) {
-      loadProjectData(selectedProject.id);
       loadKanbanBoard();
     }
   }, [selectedProject, selectedTeam]);
 
-  const loadKanbanBoard = async () => {
+  const loadKanbanBoard = async (forceRefresh = false) => {
     if (!selectedProject || !selectedTeam) return;
+    
+    // Cache check: only fetch if data is older than 30 seconds or forced refresh
+    const now = Date.now();
+    const cacheAge = now - lastFetchTime;
+    const cacheValid = cacheAge < 30000; // 30 seconds cache
+    
+    if (!forceRefresh && cacheValid && boardLoaded) {
+      console.log('Using cached data, last fetch was', Math.round(cacheAge / 1000), 'seconds ago');
+      return;
+    }
     
     try {
       setLoading(true);
-      const response = await getKanbanBoard(selectedProject.id, selectedTeam);
+      setIsRefreshing(true);
+      
+      console.log('Fetching fresh kanban board data...');
+      const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
       if (response.success) {
-        setKanbanBoard(response.data);
+        setKanbanBoard(response.data.columns);
+        setCategories(response.data.categories);
+        setSubcategories(response.data.subcategories);
+        
+        // Update selectedProject with the fetched data
+        setSelectedProject({
+          ...selectedProject,
+          categories: response.data.categories,
+          subcategories: response.data.subcategories,
+          columns: response.data.columns
+        });
+        
         setBoardLoaded(true);
+        setLastFetchTime(now);
+        console.log('Kanban board data updated successfully');
       }
     } catch (error) {
       console.error('Error loading kanban board:', error);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  const handleApplyBoard = () => {
-    if (selectedProject && selectedTeam) {
-      loadKanbanBoard();
-    }
+  const handleRefresh = () => {
+    loadKanbanBoard(true); // Force refresh
   };
 
   const handleDragEnd = async (result: DropResult) => {
@@ -390,15 +393,16 @@ export default function KanbanBoardPage() {
               </div>
 
               <button
-                onClick={handleApplyBoard}
-                disabled={!selectedProject || !selectedTeam}
+                onClick={handleRefresh}
+                disabled={!selectedProject || !selectedTeam || isRefreshing}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed transition-colors"
               >
                 Apply
               </button>
 
               <button
-                onClick={loadKanbanBoard}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
                 className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />

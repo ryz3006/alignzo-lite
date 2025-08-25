@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     // Get team members with user details
     const teamResponse = await supabaseClient.get('team_members', {
-      select: 'user_id,users(id,email,first_name,last_name)',
+      select: 'user_id,users(id,email,full_name)',
       filters: { team_id: teamId }
     });
 
