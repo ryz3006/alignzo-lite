@@ -158,6 +158,7 @@ export interface CreateTaskForm {
   jira_ticket_key?: string;
   scope: 'personal' | 'project';
   assigned_to?: string;
+  created_by?: string;
 }
 
 export interface UpdateTaskForm {

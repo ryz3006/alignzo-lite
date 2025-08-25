@@ -215,7 +215,8 @@ export default function KanbanBoardPage() {
     try {
       const response = await createKanbanTask({
         ...taskData,
-        project_id: selectedProject.id
+        project_id: selectedProject.id,
+        created_by: user.email
       });
       if (response.success) {
         setShowCreateTaskModal(false);

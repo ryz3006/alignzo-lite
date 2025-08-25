@@ -369,8 +369,19 @@ export default function CreateTaskModal({
           toast.success(`Found ${data.tickets.length} tickets`);
         }
       } else {
+        // Handle JIRA API errors
         const errorMessage = data.error || 'Failed to search tickets';
         toast.error(errorMessage);
+        
+        // Log detailed error for debugging
+        if (data.details) {
+          console.error('JIRA search error details:', data.details);
+        }
+        
+        // Show rate limit info if available
+        if (data.rateLimitInfo) {
+          console.log('Rate limit info:', data.rateLimitInfo);
+        }
       }
     } catch (error) {
       console.error('Error searching JIRA tickets:', error);
