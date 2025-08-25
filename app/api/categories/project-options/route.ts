@@ -44,8 +44,28 @@ export async function GET(request: NextRequest) {
     let categoriesData = [];
     let subcategoriesData = [];
 
+    // Add detailed logging for debugging
+    console.log('🔍 Starting category fetch process...');
+
+    // Test if the RPC function exists
+    console.log('🔍 Testing RPC function availability...');
+    try {
+      const { data: rpcTest, error: rpcError } = await supabase
+        .rpc('get_project_categories_with_options', { project_uuid: projectId });
+      
+      if (rpcError) {
+        console.log('⚠️ RPC function not available or failed:', rpcError.message);
+      } else {
+        console.log('✅ RPC function available, result:', rpcTest ? 'has data' : 'empty');
+      }
+    } catch (rpcTestError) {
+      const errorMessage = rpcTestError instanceof Error ? rpcTestError.message : String(rpcTestError);
+      console.log('⚠️ RPC function test failed:', errorMessage);
+    }
+
     try {
       // Get categories directly
+      console.log('🔍 Querying project_categories table...');
       const { data: categories, error: categoriesError } = await supabase
         .from('project_categories')
         .select('*')
@@ -54,16 +74,20 @@ export async function GET(request: NextRequest) {
         .order('sort_order');
 
       if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
+        console.error('❌ Error fetching categories:', categoriesError);
         return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
       }
 
-      console.log('Found categories:', categories?.length || 0);
+      console.log('✅ Found categories:', categories?.length || 0);
+      if (categories && categories.length > 0) {
+        console.log('   Category details:', categories.map(c => ({ id: c.id, name: c.name, is_active: c.is_active })));
+      }
 
       // Get options for each category
       if (categories && categories.length > 0) {
         const categoryIds = categories.map(cat => cat.id);
         
+        console.log('🔍 Querying category_options table for category IDs:', categoryIds);
         const { data: options, error: optionsError } = await supabase
           .from('category_options')
           .select('*')
@@ -72,9 +96,12 @@ export async function GET(request: NextRequest) {
           .order('sort_order');
 
         if (optionsError) {
-          console.error('Error fetching category options:', optionsError);
+          console.error('❌ Error fetching category options:', optionsError);
         } else {
-          console.log('Found category options:', options?.length || 0);
+          console.log('✅ Found category options:', options?.length || 0);
+          if (options && options.length > 0) {
+            console.log('   Option details:', options.map(o => ({ id: o.id, option_name: o.option_name, category_id: o.category_id })));
+          }
           
           // Attach options to categories
           categoriesData = categories.map(category => ({
@@ -132,9 +159,10 @@ export async function GET(request: NextRequest) {
       subcategoriesData = [];
     }
 
-    console.log('Returning data:', {
+    console.log('📊 Final data summary:', {
       categoriesCount: categoriesData.length,
-      subcategoriesCount: subcategoriesData.length
+      subcategoriesCount: subcategoriesData.length,
+      categoriesWithOptions: categoriesData.filter(cat => cat.options && cat.options.length > 0).length
     });
 
     return NextResponse.json({
