@@ -1,14 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Server-side Supabase client with environment variables
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ CRITICAL: Supabase environment variables not configured!');
+  console.error('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  console.error('   SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+  console.error('   Please configure these variables in your Vercel deployment.');
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
 );
 
 // GET - Fetch category options for a specific category
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId');
 
@@ -39,6 +62,18 @@ export async function GET(request: NextRequest) {
 // POST - Create new category option
 export async function POST(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { category_id, option_name, option_value, sort_order } = body;
 
@@ -75,6 +110,18 @@ export async function POST(request: NextRequest) {
 // PUT - Update category option
 export async function PUT(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { id, option_name, option_value, sort_order, is_active } = body;
 
@@ -111,6 +158,18 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete category option (soft delete by setting is_active to false)
 export async function DELETE(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

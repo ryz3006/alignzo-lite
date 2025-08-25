@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Server-side Supabase client with environment variables
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ CRITICAL: Supabase environment variables not configured!');
+  console.error('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  console.error('   SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+  console.error('   Please configure these variables in your Vercel deployment.');
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
 );
 
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required. Please configure them in your Vercel deployment.',
+          code: 'SUPABASE_NOT_CONFIGURED'
+        },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
@@ -15,75 +38,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    // Get category options using the new function
-    const { data: categoryOptions, error: categoryError } = await supabase
+    // Get categories with their options using the RPC function
+    const { data: categoriesData, error: categoriesError } = await supabase
       .rpc('get_project_category_options', { project_uuid: projectId });
 
-    if (categoryError) {
-      console.error('Error fetching category options:', categoryError);
-      return NextResponse.json({ error: 'Failed to fetch category options' }, { status: 500 });
+    if (categoriesError) {
+      console.error('Error fetching categories with options:', categoriesError);
+      return NextResponse.json({ error: 'Failed to fetch categories with options' }, { status: 500 });
     }
 
-    // Get subcategory options using the new function
-    const { data: subcategoryOptions, error: subcategoryError } = await supabase
+    // Get subcategories with their options using the RPC function
+    const { data: subcategoriesData, error: subcategoriesError } = await supabase
       .rpc('get_project_subcategory_options', { project_uuid: projectId });
 
-    if (subcategoryError) {
-      console.error('Error fetching subcategory options:', subcategoryError);
-      return NextResponse.json({ error: 'Failed to fetch subcategory options' }, { status: 500 });
+    if (subcategoriesError) {
+      console.error('Error fetching subcategories with options:', subcategoriesError);
+      return NextResponse.json({ error: 'Failed to fetch subcategories with options' }, { status: 500 });
     }
 
-    // Group category options by category
-    const categoriesWithOptions = categoryOptions.reduce((acc: any, row: any) => {
-      if (!acc[row.category_id]) {
-        acc[row.category_id] = {
-          id: row.category_id,
-          name: row.category_name,
-          description: row.category_description,
-          options: []
-        };
-      }
-      
-      if (row.option_id) {
-        acc[row.category_id].options.push({
-          id: row.option_id,
-          name: row.option_name,
-          value: row.option_value,
-          sort_order: row.option_sort_order
-        });
-      }
-      
-      return acc;
-    }, {});
-
-    // Group subcategory options by subcategory
-    const subcategoriesWithOptions = subcategoryOptions.reduce((acc: any, row: any) => {
-      if (!acc[row.subcategory_id]) {
-        acc[row.subcategory_id] = {
-          id: row.subcategory_id,
-          name: row.subcategory_name,
-          description: row.subcategory_description,
-          category_id: row.category_id,
-          category_name: row.category_name,
-          options: []
-        };
-      }
-      
-      if (row.option_id) {
-        acc[row.subcategory_id].options.push({
-          id: row.option_id,
-          name: row.option_name,
-          value: row.option_value,
-          sort_order: row.option_sort_order
-        });
-      }
-      
-      return acc;
-    }, {});
-
     return NextResponse.json({
-      categories: Object.values(categoriesWithOptions),
-      subcategories: Object.values(subcategoriesWithOptions)
+      categories: categoriesData || [],
+      subcategories: subcategoriesData || []
     });
 
   } catch (error) {
