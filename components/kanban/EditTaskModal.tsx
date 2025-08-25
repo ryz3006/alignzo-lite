@@ -23,7 +23,7 @@ export default function EditTaskModal({
     title: task.title,
     description: task.description || '',
     category_id: task.category_id,
-    subcategory_id: task.subcategory_id || '',
+    category_option_id: task.category_option_id || '',
     column_id: task.column_id,
     priority: task.priority,
     estimated_hours: task.estimated_hours || undefined,
@@ -36,7 +36,7 @@ export default function EditTaskModal({
   });
 
   const [errors, setErrors] = useState<Record<keyof UpdateTaskForm, string | undefined>>({} as Record<keyof UpdateTaskForm, string | undefined>);
-  const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
+
   const [showJiraSearch, setShowJiraSearch] = useState(false);
   const [jiraSearchQuery, setJiraSearchQuery] = useState('');
   const [jiraSearchResults, setJiraSearchResults] = useState<any[]>([]);
@@ -48,7 +48,7 @@ export default function EditTaskModal({
         title: task.title,
         description: task.description || '',
         category_id: task.category_id,
-        subcategory_id: task.subcategory_id || '',
+        category_option_id: task.category_option_id || '',
         column_id: task.column_id,
         priority: task.priority,
         estimated_hours: task.estimated_hours || undefined,
@@ -62,20 +62,16 @@ export default function EditTaskModal({
     }
   }, [task, projectData]);
 
+  // Effect to reset category option when category changes
   useEffect(() => {
-    if (formData.category_id && projectData) {
-      const category = projectData.categories.find(c => c.id === formData.category_id);
-      if (category) {
-        const categorySubcategories = projectData.subcategories.filter(s => s.category_id === formData.category_id);
-        setSubcategories(categorySubcategories);
+    // Reset category option when category changes
+    if (formData.category_option_id && projectData) {
+      const selectedCategory = projectData.categories.find(c => c.id === formData.category_id);
+      const optionExists = selectedCategory?.options?.some(opt => opt.id === formData.category_option_id);
+      
+      if (!optionExists) {
+        setFormData(prev => ({ ...prev, category_option_id: '' }));
       }
-    } else {
-      setSubcategories([]);
-    }
-    
-    // Reset subcategory when category changes
-    if (formData.subcategory_id && !subcategories.find(s => s.id === formData.subcategory_id)) {
-      setFormData(prev => ({ ...prev, subcategory_id: '' }));
     }
   }, [formData.category_id, projectData]);
 
@@ -271,18 +267,18 @@ export default function EditTaskModal({
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Subcategory
+                  Category Option
                 </label>
                 <select
-                  value={formData.subcategory_id || ''}
-                  onChange={(e) => handleInputChange('subcategory_id', e.target.value)}
+                  value={formData.category_option_id || ''}
+                  onChange={(e) => handleInputChange('category_option_id', e.target.value)}
                   className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                   disabled={!formData.category_id}
                 >
-                  <option value="">Select Subcategory</option>
-                  {subcategories.map(subcategory => (
-                    <option key={subcategory.id} value={subcategory.id}>
-                      {subcategory.name}
+                  <option value="">Select Category Option</option>
+                  {(projectData?.categories.find(cat => cat.id === formData.category_id)?.options || []).map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.option_name}
                     </option>
                   ))}
                 </select>

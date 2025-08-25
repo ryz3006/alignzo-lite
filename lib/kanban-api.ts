@@ -5,7 +5,7 @@
 import { supabaseClient } from './supabase-client';
 import { 
   ProjectCategory, 
-  ProjectSubcategory, 
+  CategoryOption,
   KanbanColumn, 
   KanbanTask, 
   KanbanTaskWithDetails,
@@ -14,7 +14,6 @@ import {
   CreateTaskForm,
   UpdateTaskForm,
   CreateCategoryForm,
-  CreateSubcategoryForm,
   CreateColumnForm,
   TaskFilters,
   TaskSearchParams,
@@ -134,9 +133,9 @@ export async function deleteProjectCategory(categoryId: string): Promise<ApiResp
 // PROJECT SUBCATEGORIES API
 // =====================================================
 
-export async function getProjectSubcategories(categoryId: string): Promise<ApiResponse<ProjectSubcategory[]>> {
+export async function getCategoryOptions(categoryId: string): Promise<ApiResponse<CategoryOption[]>> {
   try {
-    const response = await supabaseClient.get('project_subcategories', {
+    const response = await supabaseClient.get('category_options', {
       select: '*',
       filters: {
         category_id: categoryId,
@@ -155,7 +154,7 @@ export async function getProjectSubcategories(categoryId: string): Promise<ApiRe
       success: true
     };
   } catch (error) {
-    console.error('Error fetching project subcategories:', error);
+    console.error('Error fetching category options:', error);
     return {
       data: [],
       success: false,
@@ -164,14 +163,14 @@ export async function getProjectSubcategories(categoryId: string): Promise<ApiRe
   }
 }
 
-export async function createProjectSubcategory(
+export async function createCategoryOption(
   categoryId: string, 
-  subcategoryData: CreateSubcategoryForm
-): Promise<ApiResponse<ProjectSubcategory>> {
+  optionData: { option_name: string; option_value: string; sort_order?: number }
+): Promise<ApiResponse<CategoryOption>> {
   try {
-    const response = await supabaseClient.insert('project_subcategories', {
+    const response = await supabaseClient.insert('category_options', {
       category_id: categoryId,
-      ...subcategoryData
+      ...optionData
     });
 
     if (response.error) throw new Error(response.error);
@@ -181,21 +180,21 @@ export async function createProjectSubcategory(
       success: true
     };
   } catch (error) {
-    console.error('Error creating project subcategory:', error);
+    console.error('Error creating category option:', error);
     return {
-      data: {} as ProjectSubcategory,
+      data: {} as CategoryOption,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
 
-export async function updateProjectSubcategory(
-  subcategoryId: string, 
-  updates: Partial<CreateSubcategoryForm>
-): Promise<ApiResponse<ProjectSubcategory>> {
+export async function updateCategoryOption(
+  optionId: string, 
+  updates: Partial<{ option_name: string; option_value: string; sort_order: number }>
+): Promise<ApiResponse<CategoryOption>> {
   try {
-    const response = await supabaseClient.update('project_subcategories', subcategoryId, updates);
+    const response = await supabaseClient.update('category_options', optionId, updates);
 
     if (response.error) throw new Error(response.error);
 
@@ -204,18 +203,18 @@ export async function updateProjectSubcategory(
       success: true
     };
   } catch (error) {
-    console.error('Error updating project subcategory:', error);
+    console.error('Error updating category option:', error);
     return {
-      data: {} as ProjectSubcategory,
+      data: {} as CategoryOption,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
 
-export async function deleteProjectSubcategory(subcategoryId: string): Promise<ApiResponse<boolean>> {
+export async function deleteCategoryOption(optionId: string): Promise<ApiResponse<boolean>> {
   try {
-    const response = await supabaseClient.update('project_subcategories', subcategoryId, { is_active: false });
+    const response = await supabaseClient.update('category_options', optionId, { is_active: false });
 
     if (response.error) throw new Error(response.error);
 
@@ -224,7 +223,7 @@ export async function deleteProjectSubcategory(subcategoryId: string): Promise<A
       success: true
     };
   } catch (error) {
-    console.error('Error deleting project subcategory:', error);
+    console.error('Error deleting category option:', error);
     return {
       data: false,
       success: false,
@@ -817,7 +816,6 @@ export async function getKanbanBoardOptimized(
 ): Promise<ApiResponse<{
   columns: KanbanColumnWithTasks[];
   categories: ProjectCategory[];
-  subcategories: ProjectSubcategory[];
 }>> {
   try {
     // Get columns for the project and team
@@ -926,22 +924,36 @@ export async function getKanbanBoardOptimized(
 
     if (categoriesResponse.error) throw new Error(categoriesResponse.error);
 
-    // Get subcategories for the project
-    const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
-      select: '*',
-      filters: {
-        category_id: (categoriesResponse.data || []).map((cat: any) => cat.id)
-      },
-      order: {
-        column: 'sort_order',
-        ascending: true
-      }
-    });
+    // Get category options for all categories
+    const categoryIds = (categoriesResponse.data || []).map((cat: any) => cat.id);
+    let categoryOptions: CategoryOption[] = [];
+    
+    if (categoryIds.length > 0) {
+      const optionsResponse = await supabaseClient.get('category_options', {
+        select: '*',
+        filters: {
+          category_id: categoryIds,
+          is_active: true
+        },
+        order: {
+          column: 'sort_order',
+          ascending: true
+        }
+      });
 
-    if (subcategoriesResponse.error) {
-      console.warn('Error fetching subcategories:', subcategoriesResponse.error);
-      // Don't fail the entire request if subcategories fail
+      if (optionsResponse.error) {
+        console.warn('Error fetching category options:', optionsResponse.error);
+        // Don't fail the entire request if options fail
+      } else {
+        categoryOptions = optionsResponse.data || [];
+      }
     }
+
+    // Attach options to categories
+    const categoriesWithOptions = (categoriesResponse.data || []).map((category: ProjectCategory) => ({
+      ...category,
+      options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
+    }));
 
     // Group tasks by column
     const columnsWithTasks: KanbanColumnWithTasks[] = (columnsResponse.data || []).map((column: KanbanColumn) => ({
@@ -952,8 +964,7 @@ export async function getKanbanBoardOptimized(
     return {
       data: {
         columns: columnsWithTasks,
-        categories: categoriesResponse.data || [],
-        subcategories: subcategoriesResponse.data || []
+        categories: categoriesWithOptions
       },
       success: true
     };
@@ -962,8 +973,7 @@ export async function getKanbanBoardOptimized(
     return {
       data: {
         columns: [],
-        categories: [],
-        subcategories: []
+        categories: []
       },
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1049,11 +1059,10 @@ export async function getUserAccessibleProjects(userEmail: string): Promise<ApiR
     const projectsWithCategories: ProjectWithCategories[] = (projectsResponse.data || []).map((project: any) => ({
       ...project,
       categories: [],
-      subcategories: [],
       columns: []
     }));
 
-    // Load categories and subcategories for each project
+    // Load categories and their options for each project
     for (const project of projectsWithCategories) {
       try {
         // Load categories for this project
@@ -1064,21 +1073,27 @@ export async function getUserAccessibleProjects(userEmail: string): Promise<ApiR
         });
 
         if (!categoriesResponse.error && categoriesResponse.data) {
-          project.categories = categoriesResponse.data;
-          
-          // Load subcategories for all categories
+          // Load options for all categories
           const categoryIds = categoriesResponse.data.map((cat: any) => cat.id);
+          let categoryOptions: CategoryOption[] = [];
+          
           if (categoryIds.length > 0) {
-            const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
+            const optionsResponse = await supabaseClient.get('category_options', {
               select: '*',
               filters: { category_id: categoryIds, is_active: true },
               order: { column: 'sort_order', ascending: true }
             });
 
-            if (!subcategoriesResponse.error && subcategoriesResponse.data) {
-              project.subcategories = subcategoriesResponse.data;
+            if (!optionsResponse.error && optionsResponse.data) {
+              categoryOptions = optionsResponse.data;
             }
           }
+
+          // Attach options to categories
+          project.categories = categoriesResponse.data.map((category: ProjectCategory) => ({
+            ...category,
+            options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
+          }));
         }
       } catch (error) {
         console.warn('Error loading categories for project:', project.id, error);

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Edit3, Trash2, Palette, Settings } from 'lucide-react';
-import { ProjectWithCategories, ProjectCategory, ProjectSubcategory, CreateCategoryForm, CreateSubcategoryForm } from '@/lib/kanban-types';
-import { createProjectCategory, updateProjectCategory, deleteProjectCategory, createProjectSubcategory } from '@/lib/kanban-api';
+import { ProjectWithCategories, ProjectCategory, CategoryOption, CreateCategoryForm } from '@/lib/kanban-types';
+import { createProjectCategory, updateProjectCategory, deleteProjectCategory, createCategoryOption, updateCategoryOption, deleteCategoryOption } from '@/lib/kanban-api';
 
 interface CategoryManagementModalProps {
   isOpen: boolean;
@@ -18,11 +18,11 @@ export default function CategoryManagementModal({
   projectData,
   onUpdate
 }: CategoryManagementModalProps) {
-  const [activeTab, setActiveTab] = useState<'categories' | 'subcategories'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'options'>('categories');
   const [showCreateCategory, setShowCreateCategory] = useState(false);
-  const [showCreateSubcategory, setShowCreateSubcategory] = useState(false);
+  const [showCreateOption, setShowCreateOption] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProjectCategory | null>(null);
-  const [editingSubcategory, setEditingSubcategory] = useState<ProjectSubcategory | null>(null);
+  const [editingOption, setEditingOption] = useState<CategoryOption | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | null>(null);
 
   // Form states
@@ -33,10 +33,9 @@ export default function CategoryManagementModal({
     sort_order: 0
   });
 
-  const [subcategoryForm, setSubcategoryForm] = useState<CreateSubcategoryForm>({
-    name: '',
-    description: '',
-    color: '#6B7280',
+  const [optionForm, setOptionForm] = useState<{ option_name: string; option_value: string; sort_order: number }>({
+    option_name: '',
+    option_value: '',
     sort_order: 0
   });
 
@@ -68,19 +67,19 @@ export default function CategoryManagementModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const validateSubcategoryForm = (): boolean => {
+  const validateOptionForm = (): boolean => {
     const newErrors: any = {};
 
-    if (!subcategoryForm.name.trim()) {
-      newErrors.name = 'Name is required';
+    if (!optionForm.option_name.trim()) {
+      newErrors.option_name = 'Option name is required';
+    }
+
+    if (!optionForm.option_value.trim()) {
+      newErrors.option_value = 'Option value is required';
     }
 
     if (!selectedCategory) {
       newErrors.category = 'Please select a category first';
-    }
-
-    if (!subcategoryForm.color) {
-      newErrors.color = 'Color is required';
     }
 
     setErrors(newErrors);
@@ -102,18 +101,18 @@ export default function CategoryManagementModal({
     }
   };
 
-  const handleCreateSubcategory = async () => {
-    if (!validateSubcategoryForm()) return;
+  const handleCreateOption = async () => {
+    if (!validateOptionForm()) return;
 
     try {
-      const response = await createProjectSubcategory(selectedCategory!.id, subcategoryForm);
+      const response = await createCategoryOption(selectedCategory!.id, optionForm);
       if (response.success) {
-        setShowCreateSubcategory(false);
-        setSubcategoryForm({ name: '', description: '', color: '#6B7280', sort_order: 0 });
+        setShowCreateOption(false);
+        setOptionForm({ option_name: '', option_value: '', sort_order: 0 });
         onUpdate();
       }
     } catch (error) {
-      console.error('Error creating subcategory:', error);
+      console.error('Error creating category option:', error);
     }
   };
 
@@ -133,7 +132,7 @@ export default function CategoryManagementModal({
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('Are you sure you want to delete this category? This will also delete all associated subcategories.')) {
+    if (!confirm('Are you sure you want to delete this category? This will also delete all associated options.')) {
       return;
     }
 
@@ -163,23 +162,23 @@ export default function CategoryManagementModal({
     setErrors({});
   };
 
-  const openCreateSubcategory = () => {
+  const openCreateOption = () => {
     if (!selectedCategory) {
       alert('Please select a category first');
       return;
     }
-    setShowCreateSubcategory(true);
-    setSubcategoryForm({ name: '', description: '', color: '#6B7280', sort_order: 0 });
+    setShowCreateOption(true);
+    setOptionForm({ option_name: '', option_value: '', sort_order: 0 });
     setErrors({});
   };
 
   const resetForms = () => {
     setShowCreateCategory(false);
-    setShowCreateSubcategory(false);
+    setShowCreateOption(false);
     setEditingCategory(null);
-    setEditingSubcategory(null);
+    setEditingOption(null);
     setCategoryForm({ name: '', description: '', color: '#3B82F6', sort_order: 0 });
-    setSubcategoryForm({ name: '', description: '', color: '#6B7280', sort_order: 0 });
+    setOptionForm({ option_name: '', option_value: '', sort_order: 0 });
     setErrors({});
   };
 
@@ -209,7 +208,7 @@ export default function CategoryManagementModal({
           <nav className="flex space-x-8 px-6">
             {[
               { id: 'categories', label: 'Categories' },
-              { id: 'subcategories', label: 'Subcategories' }
+              { id: 'options', label: 'Category Options' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -412,19 +411,19 @@ export default function CategoryManagementModal({
             </div>
           )}
 
-          {activeTab === 'subcategories' && (
+          {activeTab === 'options' && (
             <div className="space-y-6">
-              {/* Subcategories Header */}
+              {/* Category Options Header */}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-neutral-900 dark:text-white">
-                  Project Subcategories
+                  Category Options
                 </h3>
                 <button
-                  onClick={openCreateSubcategory}
+                  onClick={openCreateOption}
                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  New Subcategory
+                  New Option
                 </button>
               </div>
 
@@ -450,26 +449,21 @@ export default function CategoryManagementModal({
                 </select>
               </div>
 
-              {/* Subcategories List */}
+              {/* Options List */}
               {selectedCategory && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {projectData.subcategories
-                    .filter(sub => sub.category_id === selectedCategory.id)
-                    .map((subcategory) => (
-                      <div key={subcategory.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+                  {(selectedCategory.options || [])
+                    .map((option) => (
+                      <div key={option.id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center space-x-2">
-                            <div 
-                              className="w-4 h-4 rounded-full"
-                              style={{ backgroundColor: subcategory.color }}
-                            ></div>
                             <h4 className="font-medium text-neutral-900 dark:text-white">
-                              {subcategory.name}
+                              {option.option_name}
                             </h4>
                           </div>
                           <div className="flex items-center space-x-1">
                             <button
-                              onClick={() => setEditingSubcategory(subcategory)}
+                              onClick={() => setEditingOption(option)}
                               className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
                             >
                               <Edit3 className="h-4 w-4" />
@@ -477,32 +471,29 @@ export default function CategoryManagementModal({
                           </div>
                         </div>
                         
-                        {subcategory.description && (
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                            {subcategory.description}
-                          </p>
-                        )}
+                        <div className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                          Value: {option.option_value}
+                        </div>
 
                         <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                          <span>Order: {subcategory.sort_order}</span>
-                          <span>Color: {subcategory.color}</span>
+                          <span>Order: {option.sort_order}</span>
                         </div>
                       </div>
                     ))}
                 </div>
               )}
 
-              {/* Create Subcategory Modal */}
-              {showCreateSubcategory && (
+              {/* Create Option Modal */}
+              {showCreateOption && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
                   <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full mx-4">
                     <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
                       <h3 className="text-lg font-medium text-neutral-900 dark:text-white">
-                        New Subcategory
+                        New Category Option
                       </h3>
                       <button
                         onClick={() => {
-                          setShowCreateSubcategory(false);
+                          setShowCreateOption(false);
                           resetForms();
                         }}
                         className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
@@ -513,7 +504,7 @@ export default function CategoryManagementModal({
 
                     <form onSubmit={(e) => {
                       e.preventDefault();
-                      handleCreateSubcategory();
+                      handleCreateOption();
                     }} className="p-4 space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -529,60 +520,45 @@ export default function CategoryManagementModal({
 
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                          Name *
+                          Option Name *
                         </label>
                         <input
                           type="text"
-                          value={subcategoryForm.name}
-                          onChange={(e) => setSubcategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                          value={optionForm.option_name}
+                          onChange={(e) => setOptionForm(prev => ({ ...prev, option_name: e.target.value }))}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                            errors.name 
+                            errors.option_name 
                               ? 'border-red-300 focus:ring-red-500' 
                               : 'border-neutral-300 dark:border-neutral-600'
                           } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                          placeholder="Subcategory name"
+                          placeholder="Option name"
                         />
-                        {errors.name && (
-                          <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                        {errors.option_name && (
+                          <p className="mt-1 text-sm text-red-600">{errors.option_name}</p>
                         )}
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                          Description
+                          Option Value *
                         </label>
-                        <textarea
-                          value={subcategoryForm.description}
-                          onChange={(e) => setSubcategoryForm(prev => ({ ...prev, description: e.target.value }))}
-                          rows={3}
-                          className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                          placeholder="Subcategory description"
+                        <input
+                          type="text"
+                          value={optionForm.option_value}
+                          onChange={(e) => setOptionForm(prev => ({ ...prev, option_value: e.target.value }))}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            errors.option_value 
+                              ? 'border-red-300 focus:ring-red-500' 
+                              : 'border-neutral-300 dark:border-neutral-600'
+                          } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                          placeholder="Option value"
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                          Color *
-                        </label>
-                        <div className="grid grid-cols-5 gap-2">
-                          {colorOptions.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => setSubcategoryForm(prev => ({ ...prev, color }))}
-                              className={`w-8 h-8 rounded-full border-2 transition-all ${
-                                subcategoryForm.color === color 
-                                  ? 'border-neutral-900 dark:border-white scale-110' 
-                                  : 'border-neutral-300 dark:border-neutral-600 hover:scale-105'
-                              }`}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        {errors.color && (
-                          <p className="mt-1 text-sm text-red-600">{errors.color}</p>
+                        {errors.option_value && (
+                          <p className="mt-1 text-sm text-red-600">{errors.option_value}</p>
                         )}
                       </div>
+
+
 
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -590,8 +566,8 @@ export default function CategoryManagementModal({
                         </label>
                         <input
                           type="number"
-                          value={subcategoryForm.sort_order}
-                          onChange={(e) => setSubcategoryForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                          value={optionForm.sort_order}
+                          onChange={(e) => setOptionForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
                           className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
                           min="0"
                         />
@@ -601,7 +577,7 @@ export default function CategoryManagementModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setShowCreateSubcategory(false);
+                            setShowCreateOption(false);
                             resetForms();
                           }}
                           className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"

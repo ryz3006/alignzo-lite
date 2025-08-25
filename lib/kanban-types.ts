@@ -2,6 +2,17 @@
 // KANBAN BOARD TYPE DEFINITIONS
 // =====================================================
 
+export interface CategoryOption {
+  id: string;
+  category_id: string;
+  option_name: string;
+  option_value: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProjectCategory {
   id: string;
   project_id: string;
@@ -12,6 +23,7 @@ export interface ProjectCategory {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  options?: CategoryOption[];
 }
 
 export interface ProjectSubcategory {
@@ -45,7 +57,7 @@ export interface KanbanTask {
   description?: string;
   project_id: string;
   category_id: string;
-  subcategory_id?: string;
+  category_option_id?: string;
   column_id: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimated_hours?: number;
@@ -123,7 +135,7 @@ export interface User {
 // Extended interfaces for UI components
 export interface KanbanTaskWithDetails extends KanbanTask {
   category?: ProjectCategory;
-  subcategory?: ProjectSubcategory;
+  category_option?: CategoryOption;
   column?: KanbanColumn;
   project?: Project;
   created_by_user?: User;
@@ -139,7 +151,6 @@ export interface KanbanColumnWithTasks extends KanbanColumn {
 
 export interface ProjectWithCategories extends Project {
   categories: ProjectCategory[];
-  subcategories: ProjectSubcategory[];
   columns: KanbanColumn[];
 }
 
@@ -149,7 +160,7 @@ export interface CreateTaskForm {
   description?: string;
   project_id: string;
   category_id: string;
-  subcategory_id?: string;
+  category_option_id?: string;
   column_id: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimated_hours?: number;
@@ -165,7 +176,7 @@ export interface UpdateTaskForm {
   title?: string;
   description?: string;
   category_id?: string;
-  subcategory_id?: string;
+  category_option_id?: string;
   column_id?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   estimated_hours?: number;

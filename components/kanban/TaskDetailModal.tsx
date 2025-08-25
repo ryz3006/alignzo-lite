@@ -197,12 +197,12 @@ export default function TaskDetailModal({
                       </div>
                     </div>
 
-                    {task.subcategory && (
+                    {task.category_option && (
                       <div className="flex items-center space-x-3">
                         <Tag className="h-4 w-4 text-neutral-400" />
                         <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Subcategory</p>
-                          <p className="text-neutral-900 dark:text-white">{task.subcategory.name}</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Category Option</p>
+                          <p className="text-neutral-900 dark:text-white">{task.category_option.option_name}</p>
                         </div>
                       </div>
                     )}

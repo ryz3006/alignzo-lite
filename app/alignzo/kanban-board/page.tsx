@@ -59,7 +59,7 @@ export default function KanbanBoardPage() {
   const [kanbanBoard, setKanbanBoard] = useState<KanbanColumnWithTasks[]>([]);
   const [boardLoaded, setBoardLoaded] = useState(false);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
-  const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
+
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -146,13 +146,11 @@ export default function KanbanBoardPage() {
       if (response.success) {
         setKanbanBoard(response.data.columns);
         setCategories(response.data.categories);
-        setSubcategories(response.data.subcategories);
         
         // Update selectedProject with the fetched data
         setSelectedProject({
           ...selectedProject,
           categories: response.data.categories,
-          subcategories: response.data.subcategories,
           columns: response.data.columns
         });
         
@@ -278,8 +276,8 @@ export default function KanbanBoardPage() {
       setSelectedColumnForTask(columnId);
     }
     
-    // Ensure categories and subcategories are loaded before opening modal
-    if (selectedProject && (!categories.length || !subcategories.length)) {
+    // Ensure categories are loaded before opening modal
+    if (selectedProject && !categories.length) {
       try {
         console.log('Loading categories for modal...', { projectId: selectedProject.id, teamId: selectedTeam });
         
@@ -289,15 +287,12 @@ export default function KanbanBoardPage() {
         
         if (debugData.success && debugData.data.projectCategories && debugData.data.projectCategories.length > 0) {
           console.log('Categories loaded from debug endpoint:', debugData.data.projectCategories);
-          console.log('Subcategories loaded from debug endpoint:', debugData.data.projectSubcategories);
           setCategories(debugData.data.projectCategories);
-          setSubcategories(debugData.data.projectSubcategories);
           
           // Update selectedProject with the fetched data
           setSelectedProject({
             ...selectedProject,
             categories: debugData.data.projectCategories,
-            subcategories: debugData.data.projectSubcategories,
             columns: selectedProject.columns || []
           });
         } else {
@@ -305,15 +300,12 @@ export default function KanbanBoardPage() {
           const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
           if (response.success) {
             console.log('Categories loaded from kanban API:', response.data.categories);
-            console.log('Subcategories loaded from kanban API:', response.data.subcategories);
             setCategories(response.data.categories);
-            setSubcategories(response.data.subcategories);
             
             // Update selectedProject with the fetched data
             setSelectedProject({
               ...selectedProject,
               categories: response.data.categories,
-              subcategories: response.data.subcategories,
               columns: response.data.columns
             });
           }
@@ -398,9 +390,8 @@ export default function KanbanBoardPage() {
                   value={selectedProject?.id || ''}
                   onChange={(e) => {
                     const project = projects.find(p => p.id === e.target.value);
-                    setSelectedProject(project ? { ...project, categories: [], subcategories: [], columns: [] } as ProjectWithCategories : null);
-                    setCategories([]);
-                    setSubcategories([]);
+                            setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
+        setCategories([]);
                     setBoardLoaded(false);
                   }}
                   className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
@@ -456,7 +447,7 @@ export default function KanbanBoardPage() {
                     const response = await fetch('/api/debug/categories');
                     const data = await response.json();
                     console.log('Debug categories data:', data);
-                    alert(`Categories: ${data.data.totalCategories}, Subcategories: ${data.data.totalSubcategories}`);
+                    alert(`Categories: ${data.data.totalCategories}`);
                   } catch (error) {
                     console.error('Error fetching debug data:', error);
                   }
@@ -770,7 +761,6 @@ export default function KanbanBoardPage() {
           projectData={selectedProject ? {
             ...selectedProject,
             categories: categories,
-            subcategories: subcategories,
             columns: kanbanBoard
           } : null}
           userEmail={user?.email}

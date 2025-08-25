@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
-import { CreateTaskForm, ProjectWithCategories, ProjectCategory, ProjectSubcategory, KanbanColumn } from '@/lib/kanban-types';
+import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -58,7 +58,7 @@ export default function CreateTaskModalOptimized({
     description: '',
     project_id: '',
     category_id: '',
-    subcategory_id: '',
+    category_option_id: '',
     column_id: '',
     priority: 'medium',
     estimated_hours: undefined,
@@ -70,10 +70,10 @@ export default function CreateTaskModalOptimized({
   });
 
   const [errors, setErrors] = useState<Record<keyof CreateTaskForm, string | undefined>>({} as Record<keyof CreateTaskForm, string | undefined>);
-  const [subcategories, setSubcategories] = useState<ProjectSubcategory[]>([]);
+
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [localCategories, setLocalCategories] = useState<ProjectCategory[]>([]);
-  const [localSubcategories, setLocalSubcategories] = useState<ProjectSubcategory[]>([]);
+
   
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
@@ -113,26 +113,31 @@ export default function CreateTaskModalOptimized({
       const categories = categoriesResponse.data || [];
       console.log('Loaded categories:', categories);
 
-      // Load subcategories for all categories
+      // Load category options for all categories
       const categoryIds = categories.map((cat: any) => cat.id);
-      let subcategories: any[] = [];
+      let categoryOptions: CategoryOption[] = [];
       
       if (categoryIds.length > 0) {
-        const subcategoriesResponse = await supabaseClient.get('project_subcategories', {
+        const optionsResponse = await supabaseClient.get('category_options', {
           select: '*',
           filters: { category_id: categoryIds, is_active: true },
           order: { column: 'sort_order', ascending: true }
         });
 
-        if (subcategoriesResponse.error) throw new Error(subcategoriesResponse.error);
-        subcategories = subcategoriesResponse.data || [];
+        if (optionsResponse.error) throw new Error(optionsResponse.error);
+        categoryOptions = optionsResponse.data || [];
       }
 
-      console.log('Loaded subcategories:', subcategories);
+      console.log('Loaded category options:', categoryOptions);
       
-      // Update local state with loaded categories and subcategories
-      setLocalCategories(categories);
-      setLocalSubcategories(subcategories);
+      // Attach options to categories
+      const categoriesWithOptions = categories.map((category: ProjectCategory) => ({
+        ...category,
+        options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
+      }));
+      
+      // Update local state with loaded categories and their options
+      setLocalCategories(categoriesWithOptions);
     } catch (error) {
       console.error('Error loading categories for project:', error);
       toast.error('Failed to load categories. Please try again.');
@@ -211,7 +216,6 @@ export default function CreateTaskModalOptimized({
       setIsLoading(true);
       console.log('CreateTaskModal opened with projectData:', projectData);
       console.log('Categories:', projectData?.categories);
-      console.log('Subcategories:', projectData?.subcategories);
       
       // Reset form data
       setFormData({
@@ -219,7 +223,7 @@ export default function CreateTaskModalOptimized({
         description: '',
         project_id: projectData?.id || '',
         category_id: '',
-        subcategory_id: '',
+        category_option_id: '',
         column_id: columnId || (projectData?.columns && projectData.columns[0]?.id) || '',
         priority: 'medium',
         estimated_hours: undefined,
@@ -274,33 +278,18 @@ export default function CreateTaskModalOptimized({
   }, [projectData, columnId]);
 
   // Handle category change and load subcategories
+  // Effect to reset category option when category changes
   useEffect(() => {
-    if (formData.category_id) {
-      let categorySubcategories: ProjectSubcategory[] = [];
+    // Reset category option when category changes
+    if (formData.category_option_id) {
+      const selectedCategory = (projectData?.categories || localCategories).find(c => c.id === formData.category_id);
+      const optionExists = selectedCategory?.options?.some(opt => opt.id === formData.category_option_id);
       
-      // First try to get subcategories from projectData
-      if (projectData && projectData.categories) {
-        const category = projectData.categories.find(c => c.id === formData.category_id);
-        if (category && projectData.subcategories) {
-          categorySubcategories = projectData.subcategories.filter(s => s.category_id === formData.category_id);
-        }
+      if (!optionExists) {
+        setFormData(prev => ({ ...prev, category_option_id: '' }));
       }
-      
-      // If no subcategories found in projectData, try local subcategories
-      if (categorySubcategories.length === 0) {
-        categorySubcategories = localSubcategories.filter(s => s.category_id === formData.category_id);
-      }
-      
-      setSubcategories(categorySubcategories);
-    } else {
-      setSubcategories([]);
     }
-    
-    // Reset subcategory when category changes
-    if (formData.subcategory_id && !subcategories.find(s => s.id === formData.subcategory_id)) {
-      setFormData(prev => ({ ...prev, subcategory_id: '' }));
-    }
-  }, [formData.category_id, projectData, localSubcategories]);
+  }, [formData.category_id, projectData?.categories, localCategories]);
 
   // Handle JIRA ticket type change
   useEffect(() => {
@@ -514,8 +503,8 @@ export default function CreateTaskModalOptimized({
       title: '',
       description: '',
       project_id: '',
-      category_id: '',
-      subcategory_id: '',
+              category_id: '',
+        category_option_id: '',
       column_id: '',
       priority: 'medium',
       estimated_hours: undefined,
@@ -526,9 +515,8 @@ export default function CreateTaskModalOptimized({
       assigned_to: ''
     });
     setErrors({} as Record<keyof CreateTaskForm, string | undefined>);
-    setSubcategories([]);
+
     setLocalCategories([]);
-    setLocalSubcategories([]);
     setTeamMembers([]);
     setJiraProjectMappings([]);
     setSelectedJiraProject('');
@@ -639,7 +627,7 @@ export default function CreateTaskModalOptimized({
               <div className="relative">
                 <select
                   value={formData.category_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value, subcategory_id: '' }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value, category_option_id: '' }))}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.category_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
@@ -669,21 +657,21 @@ export default function CreateTaskModalOptimized({
               )}
             </div>
 
-            {/* Subcategory */}
+            {/* Category Option */}
             {formData.category_id && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Subcategory
+                  Category Option
                 </label>
                 <select
-                  value={formData.subcategory_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subcategory_id: e.target.value }))}
+                  value={formData.category_option_id}
+                  onChange={(e) => setFormData(prev => ({ ...prev, category_option_id: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="">Select a subcategory (optional)</option>
-                  {subcategories.map((subcategory) => (
-                    <option key={subcategory.id} value={subcategory.id}>
-                      {subcategory.name}
+                  <option value="">Select a category option (optional)</option>
+                  {(availableCategories.find(cat => cat.id === formData.category_id)?.options || []).map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.option_name}
                     </option>
                   ))}
                 </select>
