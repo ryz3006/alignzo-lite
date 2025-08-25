@@ -102,46 +102,82 @@ export default function CreateTaskModal({
     try {
       console.log('Loading categories for project:', projectId);
       
-      // Load categories
-      const categoriesResponse = await supabaseClient.get('project_categories', {
-        select: '*',
-        filters: { project_id: projectId, is_active: true },
-        order: { column: 'sort_order', ascending: true }
-      });
-
-      if (categoriesResponse.error) throw new Error(categoriesResponse.error);
+      // Use the optimized API endpoint to get categories with options
+      const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
       
-      const categories = categoriesResponse.data || [];
-      console.log('Loaded categories:', categories);
-
-      // Load category options for all categories
-      const categoryIds = categories.map((cat: any) => cat.id);
-      let categoryOptions: CategoryOption[] = [];
-      
-      if (categoryIds.length > 0) {
-        const optionsResponse = await supabaseClient.get('category_options', {
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Categories loaded from API:', data);
+        
+        if (data.categories && data.categories.length > 0) {
+          // Transform the data to match the expected format
+          const categoriesWithOptions = data.categories.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            description: cat.description,
+            project_id: projectId,
+            sort_order: cat.sort_order || 0,
+            is_active: cat.is_active !== false,
+            options: (cat.options || []).map((opt: any) => ({
+              id: opt.id,
+              category_id: cat.id,
+              option_name: opt.name || opt.option_name,
+              option_value: opt.value || opt.option_value,
+              sort_order: opt.sort_order || 0,
+              is_active: opt.is_active !== false
+            }))
+          }));
+          
+          console.log('Transformed categories with options:', categoriesWithOptions);
+          setLocalCategories(categoriesWithOptions);
+        } else {
+          console.log('No categories found for project');
+          setLocalCategories([]);
+        }
+      } else {
+        console.warn('API failed, falling back to direct database query');
+        
+        // Fallback: Load categories directly from database
+        const categoriesResponse = await supabaseClient.get('project_categories', {
           select: '*',
-          filters: { category_id: categoryIds, is_active: true },
+          filters: { project_id: projectId, is_active: true },
           order: { column: 'sort_order', ascending: true }
         });
 
-        if (optionsResponse.error) throw new Error(optionsResponse.error);
-        categoryOptions = optionsResponse.data || [];
-      }
+        if (categoriesResponse.error) throw new Error(categoriesResponse.error);
+        
+        const categories = categoriesResponse.data || [];
+        console.log('Loaded categories from fallback:', categories);
 
-      console.log('Loaded category options:', categoryOptions);
-      
-      // Attach options to categories
-      const categoriesWithOptions = categories.map((category: ProjectCategory) => ({
-        ...category,
-        options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
-      }));
-      
-      // Update local state with loaded categories and their options
-      setLocalCategories(categoriesWithOptions);
+        // Load category options for all categories
+        const categoryIds = categories.map((cat: any) => cat.id);
+        let categoryOptions: CategoryOption[] = [];
+        
+        if (categoryIds.length > 0) {
+          const optionsResponse = await supabaseClient.get('category_options', {
+            select: '*',
+            filters: { category_id: categoryIds, is_active: true },
+            order: { column: 'sort_order', ascending: true }
+          });
+
+          if (optionsResponse.error) throw new Error(optionsResponse.error);
+          categoryOptions = optionsResponse.data || [];
+        }
+
+        console.log('Loaded category options from fallback:', categoryOptions);
+        
+        // Attach options to categories
+        const categoriesWithOptions = categories.map((category: ProjectCategory) => ({
+          ...category,
+          options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
+        }));
+        
+        setLocalCategories(categoriesWithOptions);
+      }
     } catch (error) {
       console.error('Error loading categories for project:', error);
       toast.error('Failed to load categories. Please try again.');
+      setLocalCategories([]);
     } finally {
       setIsLoadingCategories(false);
     }
@@ -214,7 +250,6 @@ export default function CreateTaskModal({
   // Initialize modal when it opens
   useEffect(() => {
     if (isOpen) {
-      setIsLoading(true);
       console.log('CreateTaskModal opened with projectData:', projectData);
       console.log('Categories:', projectData?.categories);
       
@@ -242,14 +277,15 @@ export default function CreateTaskModal({
       setJiraSearchQuery('');
       setJiraSearchResults([]);
       
+      // Show loading state immediately
+      setIsLoading(true);
+      
       // Load data in parallel
       const loadData = async () => {
         try {
           await Promise.all([
-            // Load categories if not available in projectData
-            projectData?.id && (!projectData.categories || (projectData.categories && projectData.categories.length === 0)) 
-              ? loadCategoriesForProject(projectData.id) 
-              : Promise.resolve(),
+            // Always load categories to ensure we have the latest data with options
+            projectData?.id ? loadCategoriesForProject(projectData.id) : Promise.resolve(),
             // Load team members
             selectedTeam ? loadTeamMembers() : Promise.resolve(),
             // Check JIRA integration
@@ -279,18 +315,23 @@ export default function CreateTaskModal({
     }
   }, [projectData, columnId]);
 
+  // Get available categories (prioritize local state as it has the latest data with options)
+  const availableCategories = localCategories.length > 0 
+    ? localCategories 
+    : (projectData?.categories || []);
+
   // Handle category change and reset category option
   useEffect(() => {
     // Reset category option when category changes
     if (formData.category_option_id) {
-      const selectedCategory = (projectData?.categories || localCategories).find(c => c.id === formData.category_id);
+      const selectedCategory = availableCategories.find(c => c.id === formData.category_id);
       const optionExists = selectedCategory?.options?.some(opt => opt.id === formData.category_option_id);
       
       if (!optionExists) {
         setFormData(prev => ({ ...prev, category_option_id: '' }));
       }
     }
-  }, [formData.category_id, projectData?.categories, localCategories]);
+  }, [formData.category_id, availableCategories]);
 
   // Handle JIRA ticket type change
   useEffect(() => {
@@ -537,11 +578,6 @@ export default function CreateTaskModal({
     setTicketCreated(false);
     onClose();
   };
-
-    // Get available categories (from projectData or local state)
-  const availableCategories = (projectData?.categories && projectData.categories.length > 0)
-    ? projectData.categories
-    : localCategories;
 
   // Get available columns (from projectData)
   const availableColumns = projectData?.columns || [];

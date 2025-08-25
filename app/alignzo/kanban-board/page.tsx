@@ -276,7 +276,10 @@ export default function KanbanBoardPage() {
       setSelectedColumnForTask(columnId);
     }
     
-    // Ensure categories are loaded before opening modal
+    // Show modal immediately with loading state
+    setShowCreateTaskModal(true);
+    
+    // Load categories in background if needed (modal will handle its own loading state)
     if (selectedProject && !categories.length) {
       try {
         console.log('Loading categories for modal...', { projectId: selectedProject.id, teamId: selectedTeam });
@@ -314,8 +317,6 @@ export default function KanbanBoardPage() {
         console.error('Error loading categories for modal:', error);
       }
     }
-    
-    setShowCreateTaskModal(true);
   };
   const openEditTaskModal = (task: KanbanTaskWithDetails) => {
     setEditingTask(task);

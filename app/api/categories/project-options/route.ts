@@ -45,16 +45,18 @@ export async function GET(request: NextRequest) {
     let subcategoriesData = [];
 
     try {
-      // Get categories with their options using the RPC function
+      // Get categories with their options using the optimized RPC function
       const { data: categoriesRPC, error: categoriesError } = await supabase
-        .rpc('get_project_category_options', { project_uuid: projectId });
+        .rpc('get_project_categories_with_options', { project_uuid: projectId });
 
       if (categoriesError) {
         console.warn('RPC function failed, falling back to direct query:', categoriesError);
         throw new Error('RPC function not available');
       }
 
-      categoriesData = categoriesRPC || [];
+      // Parse the JSON result
+      const parsedCategories = categoriesRPC ? JSON.parse(categoriesRPC) : [];
+      categoriesData = parsedCategories || [];
       console.log('Categories fetched via RPC:', categoriesData.length);
 
     } catch (rpcError) {

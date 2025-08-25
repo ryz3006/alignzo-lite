@@ -1,145 +1,122 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
+
 export async function GET(request: NextRequest) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl) {
-      return NextResponse.json({
-        success: false,
-        error: 'SUPABASE_URL not configured'
-      }, { status: 500 });
-    }
-    
-    // Try to use service role key first (bypasses RLS), fall back to anon key
-    const supabaseKey = supabaseServiceKey || supabaseAnonKey;
-    if (!supabaseKey) {
-      return NextResponse.json({
-        success: false,
-        error: 'No Supabase key configured (neither service role nor anon key)'
-      }, { status: 500 });
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
-    // First, let's get all projects to see what we're working with
-    const { data: projects, error: projectsError } = await supabase
-      .from('projects')
-      .select('id, name, product, country')
-      .order('name', { ascending: true });
-
-    if (projectsError) {
-      throw new Error(`Projects error: ${projectsError.message}`);
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    // Get ALL categories without any filters to see what's in the table
-    const { data: allCategories, error: allCategoriesError } = await supabase
+    console.log('Debug: Fetching categories for project:', projectId);
+
+    // Test 1: Direct query to project_categories
+    const { data: categories, error: categoriesError } = await supabase
       .from('project_categories')
       .select('*')
-      .order('sort_order', { ascending: true });
+      .eq('project_id', projectId)
+      .eq('is_active', true)
+      .order('sort_order');
 
-    if (allCategoriesError) {
-      throw new Error(`All categories error: ${allCategoriesError.message}`);
+    if (categoriesError) {
+      console.error('Debug: Error fetching categories:', categoriesError);
+      return NextResponse.json({ 
+        error: 'Failed to fetch categories',
+        details: categoriesError
+      }, { status: 500 });
     }
 
-    // Get categories for specific project if provided
-    let projectCategories: any[] = [];
-    if (projectId) {
-      const { data: projectCategoriesData, error: projectCategoriesError } = await supabase
-        .from('project_categories')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('sort_order', { ascending: true });
+    console.log('Debug: Found categories:', categories?.length || 0);
 
-      if (projectCategoriesError) {
-        throw new Error(`Project categories error: ${projectCategoriesError.message}`);
-      }
-      projectCategories = projectCategoriesData || [];
-    }
-
-    // Get ALL subcategories to see what's in the table
-    const { data: allSubcategories, error: allSubcategoriesError } = await supabase
-      .from('project_subcategories')
-      .select('*')
-      .order('sort_order', { ascending: true });
-
-    if (allSubcategoriesError) {
-      throw new Error(`All subcategories error: ${allSubcategoriesError.message}`);
-    }
-
-    // Get subcategories for the project's categories
-    const categoryIds = projectCategories.map((cat: any) => cat.id);
-    
-    let projectSubcategories: any[] = [];
-    if (categoryIds.length > 0) {
-      const { data: projectSubcategoriesData, error: projectSubcategoriesError } = await supabase
-        .from('project_subcategories')
-        .select('*')
-        .in('category_id', categoryIds)
-        .order('sort_order', { ascending: true });
-
-      if (projectSubcategoriesError) {
-        throw new Error(`Project subcategories error: ${projectSubcategoriesError.message}`);
-      }
-      projectSubcategories = projectSubcategoriesData || [];
-    }
-
-    // Let's also check if there are any category_options
-    let categoryOptions: any[] = [];
+    // Test 2: Check if category_options table exists and has data
+    let categoryOptions = [];
     try {
-      const { data: categoryOptionsData, error: categoryOptionsError } = await supabase
+      const { data: options, error: optionsError } = await supabase
         .from('category_options')
         .select('*')
-        .order('sort_order', { ascending: true });
+        .eq('is_active', true)
+        .order('sort_order');
 
-      if (!categoryOptionsError) {
-        categoryOptions = categoryOptionsData || [];
+      if (!optionsError && options) {
+        categoryOptions = options;
+        console.log('Debug: Found category options:', categoryOptions.length);
+      } else {
+        console.log('Debug: No category options found or table doesn\'t exist');
       }
     } catch (error) {
-      console.log('category_options table might not exist or have access issues');
+      console.log('Debug: category_options table might not exist:', error);
+    }
+
+    // Test 3: Try the RPC function
+    let rpcResult = null;
+    try {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_project_categories_with_options', { project_uuid: projectId });
+
+      if (rpcError) {
+        console.log('Debug: RPC function failed:', rpcError);
+      } else {
+        rpcResult = rpcData ? JSON.parse(rpcData) : [];
+        console.log('Debug: RPC function returned:', rpcResult.length, 'categories');
+      }
+    } catch (error) {
+      console.log('Debug: RPC function error:', error);
+    }
+
+    // Test 4: Manual join to get categories with options
+    let manualJoinResult = [];
+    try {
+      const { data: joinData, error: joinError } = await supabase
+        .from('project_categories')
+        .select(`
+          *,
+          category_options(*)
+        `)
+        .eq('project_id', projectId)
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (!joinError && joinData) {
+        manualJoinResult = joinData;
+        console.log('Debug: Manual join returned:', manualJoinResult.length, 'categories');
+      } else {
+        console.log('Debug: Manual join failed:', joinError);
+      }
+    } catch (error) {
+      console.log('Debug: Manual join error:', error);
     }
 
     return NextResponse.json({
       success: true,
-      connection: {
-        url: supabaseUrl ? 'Configured' : 'Missing',
-        serviceKey: supabaseServiceKey ? 'Available' : 'Missing',
-        anonKey: supabaseAnonKey ? 'Available' : 'Missing',
-        usedKey: supabaseServiceKey ? 'Service Role' : 'Anon'
-      },
       data: {
-        projects: projects || [],
-        allCategories: allCategories || [],
-        projectCategories: projectCategories || [],
-        allSubcategories: allSubcategories || [],
-        projectSubcategories: projectSubcategories || [],
-        categoryOptions: categoryOptions || [],
-        totalCategories: allCategories?.length || 0,
-        totalSubcategories: allSubcategories?.length || 0,
-        projectTotalCategories: projectCategories?.length || 0,
-        projectTotalSubcategories: projectSubcategories?.length || 0,
-        debug: {
-          requestedProjectId: projectId,
-          foundCategoryIds: categoryIds,
-          allCategoryIds: allCategories?.map((cat: any) => ({ id: cat.id, project_id: cat.project_id, name: cat.name })) || [],
-          allSubcategoryIds: allSubcategories?.map((sub: any) => ({ id: sub.id, category_id: sub.category_id, name: sub.name })) || []
+        projectCategories: categories || [],
+        categoryOptions: categoryOptions,
+        rpcResult: rpcResult,
+        manualJoinResult: manualJoinResult,
+        summary: {
+          categoriesCount: categories?.length || 0,
+          optionsCount: categoryOptions.length,
+          rpcCategoriesCount: rpcResult?.length || 0,
+          manualJoinCount: manualJoinResult.length
         }
       }
     });
+
   } catch (error) {
-    console.error('Error fetching debug data:', error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to fetch debug data',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('Debug: Error in categories debug endpoint:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
