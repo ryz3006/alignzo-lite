@@ -179,40 +179,56 @@ export default function ProjectsPage() {
     setSelectedProject(project);
     
     try {
-      // Load categories with their options from the new table structure
-      const categoriesWithOptions = [];
+      // Load categories with their options using the admin API
+      const response = await fetch(`/api/admin/categories?projectId=${project.id}`);
       
-      for (const category of project.categories) {
-        // Fetch options for this category
-        const optionsResponse = await fetch(`/api/categories/options?categoryId=${category.id}`);
+      if (response.ok) {
+        const result = await response.json();
+        const categoriesWithOptions = (result.data || []).map((category: any) => ({
+          name: category.name,
+          options: (category.category_options || []).map((opt: any) => opt.option_value),
+          description: category.description || ''
+        }));
         
-        if (optionsResponse.ok) {
-          const options = await optionsResponse.json();
-          categoriesWithOptions.push({
-            name: category.name,
-            options: options.map((opt: any) => opt.option_value),
-            description: category.description || ''
-          });
-        } else {
-          // Fallback to parsing from description if API fails
-          let options: string[] = [];
-          if (category.description && category.description.includes('Category with options:')) {
-            const optionsMatch = category.description.match(/Category with options: (.+)/);
-            if (optionsMatch) {
-              options = optionsMatch[1].split(', ').map(opt => opt.trim());
-            }
-          }
+        setCategories(categoriesWithOptions);
+        setShowCategoriesModal(true);
+      } else {
+        // Fallback to the old method if admin API fails
+        console.warn('Admin API failed, falling back to old method');
+        const categoriesWithOptions = [];
+        
+        for (const category of project.categories) {
+          // Fetch options for this category
+          const optionsResponse = await fetch(`/api/categories/options?categoryId=${category.id}`);
           
-          categoriesWithOptions.push({
-            name: category.name,
-            options: options.length > 0 ? options : [''],
-            description: category.description || ''
-          });
+          if (optionsResponse.ok) {
+            const options = await optionsResponse.json();
+            categoriesWithOptions.push({
+              name: category.name,
+              options: options.map((opt: any) => opt.option_value),
+              description: category.description || ''
+            });
+          } else {
+            // Fallback to parsing from description if API fails
+            let options: string[] = [];
+            if (category.description && category.description.includes('Category with options:')) {
+              const optionsMatch = category.description.match(/Category with options: (.+)/);
+              if (optionsMatch) {
+                options = optionsMatch[1].split(', ').map(opt => opt.trim());
+              }
+            }
+            
+            categoriesWithOptions.push({
+              name: category.name,
+              options: options.length > 0 ? options : [''],
+              description: category.description || ''
+            });
+          }
         }
+        
+        setCategories(categoriesWithOptions);
+        setShowCategoriesModal(true);
       }
-      
-      setCategories(categoriesWithOptions);
-      setShowCategoriesModal(true);
     } catch (error) {
       console.error('Error loading categories with options:', error);
       toast.error('Failed to load category options');
@@ -303,80 +319,26 @@ export default function ProjectsPage() {
       console.log('Selected project object:', selectedProject);
       console.log('Categories to insert:', validCategories);
 
-      // Remove all current categories and their options
-      const deleteResponse = await supabaseClient.query({
-        table: 'project_categories',
-        action: 'delete',
-        filters: { project_id: selectedProject.id }
+      // Use the dedicated admin API endpoint
+      const response = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          categories: validCategories
+        })
       });
 
-      if (deleteResponse.error) {
-        console.error('Error deleting project categories:', deleteResponse.error);
-        throw new Error(deleteResponse.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Admin API error:', errorData);
+        throw new Error(errorData.error || 'Failed to update categories');
       }
 
-      // Add new categories with the new table-based structure
-      for (const cat of validCategories) {
-        console.log('Creating category:', cat.name, 'for project:', selectedProject.id);
-        
-        // Create the category
-        const categoryResponse = await supabaseClient.insert('project_categories', {
-          project_id: selectedProject.id,
-          name: cat.name.trim(),
-          description: cat.description || '',
-          color: '#3B82F6', // Default blue color
-          sort_order: 0,
-          is_active: true
-        });
-
-        if (categoryResponse.error) {
-          console.error('Error creating category:', categoryResponse.error);
-          console.error('Category data sent:', {
-            project_id: selectedProject.id,
-            name: cat.name.trim(),
-            description: cat.description || '',
-            color: '#3B82F6',
-            sort_order: 0,
-            is_active: true
-          });
-          throw new Error(categoryResponse.error);
-        }
-
-        const categoryId = categoryResponse.data?.[0]?.id;
-        if (!categoryId) {
-          console.error('Category response:', categoryResponse);
-          throw new Error('Failed to get category ID');
-        }
-
-        console.log('Created category with ID:', categoryId);
-
-        // Create category options
-        for (let i = 0; i < cat.options.length; i++) {
-          const option = cat.options[i].trim();
-          if (option) {
-            console.log('Creating option:', option, 'for category:', categoryId);
-            
-            const optionResponse = await fetch('/api/categories/options', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                category_id: categoryId,
-                option_name: option,
-                option_value: option,
-                sort_order: i
-              })
-            });
-
-            if (!optionResponse.ok) {
-              const errorData = await optionResponse.json();
-              console.error('Option creation failed:', errorData);
-              throw new Error(errorData.error || 'Failed to create category option');
-            }
-          }
-        }
-      }
+      const result = await response.json();
+      console.log('Admin API success:', result);
 
       toast.success('Project categories updated successfully');
       setShowCategoriesModal(false);

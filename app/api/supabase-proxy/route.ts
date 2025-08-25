@@ -35,7 +35,9 @@ function isAdminOperation(table: string, action: string): boolean {
     'teams',
     'users',
     'audit_trail',
-    'security_alerts'
+    'security_alerts',
+    'category_options',
+    'subcategory_options'
   ];
   
   const adminActions = ['insert', 'update', 'delete'];
@@ -61,17 +63,28 @@ export async function POST(request: NextRequest) {
 
     // Determine which client to use based on the operation
     const isAdmin = isAdminOperation(table, action);
-    const client = isAdmin ? supabaseAdmin : supabase;
     
     if (isAdmin) {
       console.log(`Using admin client for ${action} operation on ${table}`);
+      
+      // For admin operations, use service role key if available, otherwise use anon key
+      const client = supabaseServiceKey ? supabaseAdmin : supabase;
+      
+      // If using service role key, we can bypass RLS entirely
+      // If using anon key, we need to ensure the user context is set properly
+      if (!supabaseServiceKey) {
+        console.warn('Service role key not available, using anon key for admin operation');
+      }
+    } else {
+      // For non-admin operations, use the regular anon key
+      const client = supabase;
     }
 
     let result;
 
     switch (action) {
       case 'select':
-        let query = client.from(table).select(select || '*');
+        let query = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).select(select || '*');
         
         // Apply filters
         if (filters) {
@@ -181,11 +194,11 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'insert':
-        result = await client.from(table).insert(data);
+        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).insert(data);
         break;
 
       case 'update':
-        let updateQuery = client.from(table).update(data);
+        let updateQuery = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).update(data);
         
         // Apply filters for update operation
         if (filters) {
@@ -200,7 +213,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'delete':
-        let deleteQuery = client.from(table).delete();
+        let deleteQuery = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).delete();
         
         // Apply filters for delete operation
         if (filters) {
@@ -215,13 +228,13 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'upsert':
-        result = await client.from(table).upsert(data, { 
+        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).upsert(data, { 
           onConflict: 'project_id,team_id,user_email,shift_date' 
         });
         break;
 
       case 'rpc':
-        result = await client.rpc(functionName, params || {});
+        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).rpc(functionName, params || {});
         break;
 
       default:
