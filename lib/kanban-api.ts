@@ -288,7 +288,7 @@ export async function createKanbanColumn(columnData: CreateColumnForm & { projec
 
 export async function updateKanbanColumn(
   columnId: string,
-  updates: { name: string; description?: string; color: string }
+  updates: { name: string; description?: string; color: string; sort_order?: number }
 ): Promise<ApiResponse<KanbanColumn>> {
   try {
     const response = await supabaseClient.update('kanban_columns', columnId, updates);

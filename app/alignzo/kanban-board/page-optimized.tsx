@@ -308,7 +308,7 @@ export default function KanbanBoardPageOptimized() {
     setShowEditColumnModal(true);
   };
 
-  const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string }) => {
+  const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string; sort_order?: number }) => {
     try {
       const response = await updateKanbanColumn(columnId, updates);
       if (response.success) {
@@ -584,7 +584,12 @@ export default function KanbanBoardPageOptimized() {
               {/* Archived Tasks Button */}
               <button
                 onClick={() => setShowArchivedTasksModal(true)}
-                className="flex items-center space-x-2 px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                disabled={!selectedProject || !selectedTeam}
+                className={`flex items-center space-x-2 px-3 py-2 transition-colors rounded-lg ${
+                  selectedProject && selectedTeam
+                    ? 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                    : 'text-neutral-400 dark:text-neutral-500 cursor-not-allowed'
+                }`}
               >
                 <Archive className="h-4 w-4" />
                 <span className="text-sm font-medium">Archived</span>
@@ -966,6 +971,7 @@ export default function KanbanBoardPageOptimized() {
           }}
           onSubmit={handleUpdateColumn}
           column={editingColumn}
+          allColumns={kanbanBoard}
         />
       )}
 

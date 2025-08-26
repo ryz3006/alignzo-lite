@@ -7,8 +7,9 @@ import { KanbanColumn } from '@/lib/kanban-types';
 interface EditColumnModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (columnId: string, updates: { name: string; description?: string; color: string }) => void;
+  onSubmit: (columnId: string, updates: { name: string; description?: string; color: string; sort_order?: number }) => void;
   column: KanbanColumn | null;
+  allColumns?: KanbanColumn[];
 }
 
 const COLORS = [
@@ -16,11 +17,25 @@ const COLORS = [
   '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280'
 ];
 
-export default function EditColumnModal({ isOpen, onClose, onSubmit, column }: EditColumnModalProps) {
+const SORT_ORDER_OPTIONS = [
+  { value: 1, label: '1st Position' },
+  { value: 2, label: '2nd Position' },
+  { value: 3, label: '3rd Position' },
+  { value: 4, label: '4th Position' },
+  { value: 5, label: '5th Position' },
+  { value: 6, label: '6th Position' },
+  { value: 7, label: '7th Position' },
+  { value: 8, label: '8th Position' },
+  { value: 9, label: '9th Position' },
+  { value: 10, label: '10th Position' }
+];
+
+export default function EditColumnModal({ isOpen, onClose, onSubmit, column, allColumns = [] }: EditColumnModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    sort_order: 1
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -29,7 +44,8 @@ export default function EditColumnModal({ isOpen, onClose, onSubmit, column }: E
       setFormData({
         name: column.name || '',
         description: column.description || '',
-        color: column.color || '#3B82F6'
+        color: column.color || '#3B82F6',
+        sort_order: column.sort_order || 1
       });
       setErrors({});
     }
@@ -53,7 +69,8 @@ export default function EditColumnModal({ isOpen, onClose, onSubmit, column }: E
       onSubmit(column.id, {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        color: formData.color
+        color: formData.color,
+        sort_order: formData.sort_order
       });
     }
   };
@@ -137,6 +154,27 @@ export default function EditColumnModal({ isOpen, onClose, onSubmit, column }: E
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Sort Order */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+              Column Position
+            </label>
+            <select
+              value={formData.sort_order}
+              onChange={(e) => setFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) }))}
+              className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+            >
+              {SORT_ORDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+              Choose where this column should appear in the board layout
+            </p>
           </div>
 
           {/* Actions */}
