@@ -671,7 +671,12 @@ export async function createTaskTimeline(
 
     console.log('Supabase insert response:', response);
 
-    if (response.error) throw new Error(response.error);
+    if (response.error) {
+      console.error('Timeline insert error:', response.error);
+      throw new Error(response.error);
+    }
+
+    console.log('Timeline entry created successfully:', response.data);
 
     return {
       data: response.data,
@@ -702,7 +707,13 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
 
     console.log('Supabase timeline response:', response);
 
-    if (response.error) throw new Error(response.error);
+    if (response.error) {
+      console.error('Timeline get error:', response.error);
+      throw new Error(response.error);
+    }
+
+    console.log('Timeline data retrieved successfully:', response.data);
+    console.log('Timeline data length:', response.data?.length || 0);
 
     return {
       data: response.data || [],

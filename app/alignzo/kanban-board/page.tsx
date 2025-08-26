@@ -253,6 +253,40 @@ export default function KanbanBoardPage() {
     }
   };
 
+  // Test function for timeline debugging
+  const testTimeline = async (taskId: string) => {
+    if (!user?.email) return;
+    
+    try {
+      console.log('Testing timeline for task:', taskId);
+      
+      // Test creating a timeline entry
+      const createResponse = await fetch('/api/test-timeline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskId,
+          userEmail: user.email,
+          action: 'test_entry',
+          details: { message: 'Test timeline entry' }
+        }),
+      });
+      
+      const createResult = await createResponse.json();
+      console.log('Timeline creation test result:', createResult);
+      
+      // Test retrieving timeline entries
+      const getResponse = await fetch(`/api/test-timeline?taskId=${taskId}`);
+      const getResult = await getResponse.json();
+      console.log('Timeline retrieval test result:', getResult);
+      
+    } catch (error) {
+      console.error('Timeline test error:', error);
+    }
+  };
+
   const handleCreateColumn = async (columnData: CreateColumnForm) => {
     if (!selectedProject || !selectedTeam) return;
 
@@ -657,6 +691,13 @@ export default function KanbanBoardPage() {
                               className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
                             >
                               <Edit3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => testTimeline(task.id)}
+                              className="p-2 text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                              title="Test Timeline"
+                            >
+                              <Clock className="h-4 w-4" />
                             </button>
                           </div>
                         </div>

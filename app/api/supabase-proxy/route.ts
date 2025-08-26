@@ -37,7 +37,9 @@ function isAdminOperation(table: string, action: string): boolean {
     'audit_trail',
     'security_alerts',
     'category_options',
-    'subcategory_options'
+    'subcategory_options',
+    'task_timeline', // Add timeline table to admin operations
+    'task_comments'  // Add comments table to admin operations
   ];
   
   const adminActions = ['insert', 'update', 'delete'];
@@ -64,10 +66,14 @@ export async function POST(request: NextRequest) {
     // Determine which client to use based on the operation
     const isAdmin = isAdminOperation(table, action);
     
-    if (isAdmin) {
+    // Special handling for timeline and comments - use admin client for all operations
+    const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments';
+    
+    if (isAdmin || isTimelineOrComments) {
       console.log(`Using admin client for ${action} operation on ${table}`);
+      console.log(`Service role key available: ${!!supabaseServiceKey}`);
       
-      // For admin operations, use service role key if available, otherwise use anon key
+      // For admin operations and timeline/comments, use service role key if available, otherwise use anon key
       const client = supabaseServiceKey ? supabaseAdmin : supabase;
       
       // If using service role key, we can bypass RLS entirely
@@ -84,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'select':
-        let query = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).select(select || '*');
+        let query = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).select(select || '*');
         
         // Apply filters
         if (filters) {
@@ -194,11 +200,11 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'insert':
-        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).insert(data);
+        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).insert(data);
         break;
 
       case 'update':
-        let updateQuery = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).update(data);
+        let updateQuery = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).update(data);
         
         // Apply filters for update operation
         if (filters) {
@@ -213,7 +219,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'delete':
-        let deleteQuery = (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).delete();
+        let deleteQuery = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).delete();
         
         // Apply filters for delete operation
         if (filters) {
@@ -228,13 +234,13 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'upsert':
-        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).from(table).upsert(data, { 
+        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).upsert(data, { 
           onConflict: 'project_id,team_id,user_email,shift_date' 
         });
         break;
 
       case 'rpc':
-        result = await (isAdmin && supabaseServiceKey ? supabaseAdmin : supabase).rpc(functionName, params || {});
+        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).rpc(functionName, params || {});
         break;
 
       default:
