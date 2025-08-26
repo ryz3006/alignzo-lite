@@ -158,7 +158,13 @@ export async function moveTaskWithRedis(
       },
       body: JSON.stringify({
         action: 'move_task',
-        data: { taskId, columnId: newColumnId, sortOrder: newSortOrder }
+        data: { 
+          taskId, 
+          columnId: newColumnId, 
+          sortOrder: newSortOrder,
+          projectId,
+          teamId
+        }
       }),
     });
     
