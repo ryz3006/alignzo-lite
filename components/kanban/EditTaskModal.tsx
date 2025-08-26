@@ -652,7 +652,7 @@ export default function EditTaskModal({
                       <option value="">Unassigned</option>
                       {teamMembers.map((member) => (
                         <option key={member.id} value={member.user_email}>
-                          {member.users.full_name}
+                          {member.users?.full_name || member.user_email}
                         </option>
                       ))}
                     </select>
