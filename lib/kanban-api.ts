@@ -406,9 +406,36 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
 
     if (response.error) throw new Error(response.error);
 
-    // Create timeline entry for task creation
+    // If the insert was successful but no data returned, try to fetch the created task
+    let createdTask: KanbanTask | null = null;
+    
     if (response.data && response.data[0]) {
-      const createdTask = response.data[0];
+      createdTask = response.data[0];
+      console.log('Task data returned from insert:', createdTask);
+    } else {
+      console.log('No task data returned from insert, attempting to fetch created task...');
+      
+      // Try to fetch the most recently created task by this user
+      const fetchResponse = await supabaseClient.get('kanban_tasks', {
+        filters: {
+          created_by: taskData.created_by,
+          title: taskData.title,
+          project_id: taskData.project_id
+        },
+        order: { column: 'created_at', ascending: false },
+        limit: 1
+      });
+      
+      if (fetchResponse.data && fetchResponse.data.length > 0) {
+        createdTask = fetchResponse.data[0];
+        console.log('Successfully fetched created task:', createdTask);
+      } else {
+        console.log('Failed to fetch created task');
+      }
+    }
+
+    // Create timeline entry for task creation
+    if (createdTask) {
       console.log('=== CREATING TIMELINE ENTRY ===');
       console.log('Created task:', createdTask);
       console.log('Task ID for timeline:', createdTask.id);
@@ -445,14 +472,14 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
       } catch (error) {
         console.error('Error creating timeline entry:', error);
         console.error('Error details:', error);
+        // Don't fail the task creation if timeline creation fails
       }
     } else {
-      console.log('No task data returned from creation');
-      console.log('Response data is:', response.data);
+      console.log('No task data available for timeline creation');
     }
 
     return {
-      data: response.data,
+      data: createdTask || {} as KanbanTask,
       success: true
     };
   } catch (error) {
