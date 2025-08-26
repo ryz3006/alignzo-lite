@@ -20,7 +20,8 @@ import {
   FolderOpen,
   Grid3X3,
   List,
-  RefreshCw
+  RefreshCw,
+  Archive
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { 
@@ -31,7 +32,10 @@ import {
   updateKanbanTask,
   deleteKanbanTask,
   moveTask,
-  createKanbanColumn
+  createKanbanColumn,
+  updateKanbanColumn,
+  deleteKanbanColumn,
+  permanentlyDeleteTask
 } from '@/lib/kanban-api';
 import {
   KanbanColumnWithTasks,
@@ -48,6 +52,10 @@ import CreateTaskModal from '@/components/kanban/CreateTaskModal';
 import EditTaskModal from '@/components/kanban/EditTaskModal';
 import TaskDetailModal from '@/components/kanban/TaskDetailModal';
 import CreateColumnModal from '@/components/kanban/CreateColumnModal';
+import ColumnMenu from '@/components/kanban/ColumnMenu';
+import EditColumnModal from '@/components/kanban/EditColumnModal';
+import ConfirmationModal from '@/components/kanban/ConfirmationModal';
+import ArchivedTasksModal from '@/components/kanban/ArchivedTasksModal';
 
 export default function KanbanBoardPage() {
   const [user, setUser] = useState<any>(null);
@@ -68,6 +76,14 @@ export default function KanbanBoardPage() {
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
+  const [showEditColumnModal, setShowEditColumnModal] = useState(false);
+  const [showArchivedTasksModal, setShowArchivedTasksModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  
+  // Column management
+  const [editingColumn, setEditingColumn] = useState<any>(null);
+  const [columnToDelete, setColumnToDelete] = useState<string>('');
+  const [taskToDelete, setTaskToDelete] = useState<string>('');
   
   // Selected task for editing/viewing
   const [selectedTask, setSelectedTask] = useState<KanbanTaskWithDetails | null>(null);
@@ -252,6 +268,66 @@ export default function KanbanBoardPage() {
     }
   };
 
+  // Column Management Handlers
+  const handleEditColumn = (column: any) => {
+    setEditingColumn(column);
+    setShowEditColumnModal(true);
+  };
+
+  const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string }) => {
+    try {
+      const response = await updateKanbanColumn(columnId, updates);
+      if (response.success) {
+        setShowEditColumnModal(false);
+        setEditingColumn(null);
+        loadKanbanBoard();
+      } else {
+        console.error('Failed to update column');
+      }
+    } catch (error) {
+      console.error('Error updating column:', error);
+    }
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    setColumnToDelete(columnId);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!columnToDelete) return;
+    
+    try {
+      const response = await deleteKanbanColumn(columnToDelete);
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setColumnToDelete('');
+        loadKanbanBoard();
+      } else {
+        console.error(response.error || 'Failed to delete column');
+      }
+    } catch (error) {
+      console.error('Error deleting column:', error);
+    }
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete || !user) return;
+    
+    try {
+      const response = await deleteKanbanTask(taskToDelete, user.email);
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setTaskToDelete('');
+        loadKanbanBoard();
+      } else {
+        console.error('Failed to delete task');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
 
 
   const handleCreateColumn = async (columnData: CreateColumnForm) => {
@@ -401,6 +477,15 @@ export default function KanbanBoardPage() {
           {/* Search and View Mode */}
           <div className="flex items-center justify-between mt-6">
             <div className="flex items-center space-x-4">
+              {/* Archived Tasks Button */}
+              <button
+                onClick={() => setShowArchivedTasksModal(true)}
+                className="flex items-center space-x-2 px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
+              >
+                <Archive className="h-4 w-4" />
+                <span className="text-sm font-medium">Archived</span>
+              </button>
+
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
                 <input
@@ -450,26 +535,35 @@ export default function KanbanBoardPage() {
                     <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
                       {/* Column Header */}
                       <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm"
-                              style={{ backgroundColor: column.color }}
-                            ></div>
-                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
-                              {column.name}
-                            </h3>
-                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
-                              {filteredTasks(column.tasks).length}
-                            </span>
+                                                  <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm"
+                                style={{ backgroundColor: column.color }}
+                              ></div>
+                              <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
+                                {column.name}
+                              </h3>
+                              <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
+                                {filteredTasks(column.tasks).length}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={() => openCreateTaskModal(column.id)}
+                                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
+                              >
+                                <Plus className="h-5 w-5" />
+                              </button>
+                              <ColumnMenu
+                                column={column}
+                                taskCount={filteredTasks(column.tasks).length}
+                                onEdit={handleEditColumn}
+                                onDelete={handleDeleteColumn}
+                                isOwner={user?.role === 'owner'}
+                              />
+                            </div>
                           </div>
-                          <button
-                            onClick={() => openCreateTaskModal(column.id)}
-                            className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
-                          >
-                            <Plus className="h-5 w-5" />
-                          </button>
-                        </div>
                         {column.description && (
                           <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
                             {column.description}
@@ -574,7 +668,7 @@ export default function KanbanBoardPage() {
                                           >
                                             <Edit3 className="h-3.5 w-3.5" />
                                           </button>
-                                          {(task.created_by === user?.email || user?.access_dashboard) && (
+                                          {user?.role === 'owner' && (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -756,6 +850,48 @@ export default function KanbanBoardPage() {
           onClose={() => setShowCreateColumnModal(false)}
           onSubmit={handleCreateColumn}
           projectId={selectedProject?.id}
+        />
+      )}
+
+      {/* Edit Column Modal */}
+      {showEditColumnModal && (
+        <EditColumnModal
+          isOpen={showEditColumnModal}
+          onClose={() => {
+            setShowEditColumnModal(false);
+            setEditingColumn(null);
+          }}
+          onSubmit={handleUpdateColumn}
+          column={editingColumn}
+        />
+      )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirmModal}
+        onClose={() => {
+          setShowDeleteConfirmModal(false);
+          setColumnToDelete('');
+          setTaskToDelete('');
+        }}
+        onConfirm={columnToDelete ? confirmDeleteColumn : confirmDeleteTask}
+        title={columnToDelete ? "Delete Column" : "Delete Task"}
+        message={
+          columnToDelete 
+            ? "Are you sure you want to delete this column? This action cannot be undone."
+            : "Are you sure you want to delete this task? This action cannot be undone."
+        }
+        confirmText="Delete"
+        type="danger"
+      />
+
+      {/* Archived Tasks Modal */}
+      {showArchivedTasksModal && (
+        <ArchivedTasksModal
+          isOpen={showArchivedTasksModal}
+          onClose={() => setShowArchivedTasksModal(false)}
+          projectId={selectedProject?.id || ''}
+          isOwner={user?.role === 'owner'}
         />
       )}
     </div>
