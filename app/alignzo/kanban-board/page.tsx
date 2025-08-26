@@ -259,29 +259,12 @@ export default function KanbanBoardPage() {
       if (response.success) {
         console.log('🟢 Task: Task moved successfully');
         
-        // Optimistic UI update
-        setKanbanBoard(prevBoard => {
-          const newBoard = [...prevBoard];
-          let taskToMove: KanbanTaskWithDetails | null = null;
-          
-          newBoard.forEach(column => {
-            const taskIndex = column.tasks.findIndex(task => task.id === taskId);
-            if (taskIndex !== -1) {
-              taskToMove = column.tasks.splice(taskIndex, 1)[0];
-            }
-          });
-
-          if (taskToMove) {
-            const targetColumn = newBoard.find(col => col.id === newColumnId);
-            if (targetColumn) {
-              targetColumn.tasks.splice(newSortOrder, 0, taskToMove);
-            }
-          }
-
-          return newBoard;
-        });
+        // Force refresh to ensure data consistency
+        loadKanbanBoard(true);
       } else {
         console.error('🔴 Task: Failed to move task:', response.error);
+        // Refresh board to revert any optimistic updates
+        loadKanbanBoard(true);
       }
     } catch (error) {
       console.error('🔴 Task: Error moving task:', error);
@@ -303,7 +286,7 @@ export default function KanbanBoardPage() {
       if (response.success) {
         setShowCreateTaskModal(false);
         console.log('🟢 Task: Task created successfully');
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to show new task
       } else {
         console.error('🔴 Task: Failed to create task:', response.error);
       }
@@ -324,7 +307,7 @@ export default function KanbanBoardPage() {
         setShowEditTaskModal(false);
         setEditingTask(null);
         console.log('🟢 Task: Task updated successfully');
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to show updated task
       } else {
         console.error('🔴 Task: Failed to update task:', response.error);
       }
@@ -343,7 +326,7 @@ export default function KanbanBoardPage() {
       
       if (response.success) {
         console.log('🟢 Task: Task deleted successfully');
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to show task removed
       } else {
         console.error('🔴 Task: Failed to delete task:', response.error);
       }
@@ -486,7 +469,10 @@ export default function KanbanBoardPage() {
     }
   };
 
-  const filteredTasks = (tasks: KanbanTaskWithDetails[]) => {
+  const filteredTasks = (tasks: KanbanTaskWithDetails[] | undefined) => {
+    if (!tasks || !Array.isArray(tasks)) {
+      return [];
+    }
     return tasks.filter(task => {
       if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
           !task.description?.toLowerCase().includes(searchQuery.toLowerCase())) {

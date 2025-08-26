@@ -156,7 +156,7 @@ async function getKanbanBoardFromDatabase(
     // Group tasks by column
     const columnsWithTasks: KanbanColumnWithTasks[] = (columnsResponse.data || []).map((column: KanbanColumn) => ({
       ...column,
-      tasks: (tasksResponse.data || []).filter((task: KanbanTask) => task.column_id === column.id)
+      tasks: (tasksResponse.data || []).filter((task: KanbanTask) => task.column_id === column.id) || []
     }));
 
     console.log('🟢 Database: Successfully fetched kanban board data');

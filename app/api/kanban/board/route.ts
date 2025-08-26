@@ -46,12 +46,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get project and team IDs from query parameters or request body
+    // Get project and team IDs from query parameters, request body, or data object
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId') || data.projectId;
-    const teamId = searchParams.get('teamId') || data.teamId;
+    const projectId = searchParams.get('projectId') || data.projectId || data.project_id;
+    const teamId = searchParams.get('teamId') || data.teamId || data.team_id;
 
     if (!projectId) {
+      console.error('🔴 API: Project ID missing in request', { 
+        searchParams: Object.fromEntries(searchParams.entries()),
+        dataKeys: Object.keys(data || {}),
+        data
+      });
       return NextResponse.json(
         { success: false, error: 'Project ID is required' },
         { status: 400 }
@@ -62,24 +67,39 @@ export async function POST(request: NextRequest) {
       case 'move_task':
         const { taskId, columnId, sortOrder } = data;
         
-        console.log('🔄 API: Moving task with Redis', { taskId, columnId, sortOrder, projectId, teamId });
+        console.log('🔄 API: Moving task with Redis', { 
+          taskId, 
+          columnId, 
+          sortOrder, 
+          projectId, 
+          teamId,
+          requestData: data 
+        });
         
-        const moveResult = await moveTaskWithRedis(taskId, columnId, sortOrder, projectId, teamId);
-        
-        if (!moveResult.success) {
-          console.error('Error moving task:', moveResult.error);
+        try {
+          const moveResult = await moveTaskWithRedis(taskId, columnId, sortOrder, projectId, teamId);
+          
+          if (!moveResult.success) {
+            console.error('🔴 API: Error moving task:', moveResult.error);
+            return NextResponse.json(
+              { success: false, error: moveResult.error || 'Failed to move task' },
+              { status: 500 }
+            );
+          }
+
+          console.log('🟢 API: Task moved successfully');
+          return NextResponse.json({
+            success: true,
+            data: moveResult.data,
+            source: moveResult.source
+          });
+        } catch (moveError) {
+          console.error('🔴 API: Exception during task move:', moveError);
           return NextResponse.json(
-            { success: false, error: moveResult.error || 'Failed to move task' },
+            { success: false, error: 'Internal server error during task move' },
             { status: 500 }
           );
         }
-
-        console.log('🟢 API: Task moved successfully');
-        return NextResponse.json({
-          success: true,
-          data: moveResult.data,
-          source: moveResult.source
-        });
 
       case 'create_task':
         console.log('🔄 API: Creating task with Redis', { taskData: data, projectId, teamId });
