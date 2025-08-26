@@ -95,17 +95,17 @@ export default function EditTaskModal({
   const [availableCategories, setAvailableCategories] = useState<ProjectCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
 
-  // Format date for datetime-local input (remove timezone info)
+  // Format date for datetime-local input (handle timezone properly)
   const formatDateForInput = (dateString: string | null | undefined) => {
     if (!dateString) return '';
     try {
+      // For datetime-local inputs, we need to format as YYYY-MM-DDTHH:mm
+      // The input will be interpreted in the user's local timezone
       const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      
+      // Use toISOString and slice to get YYYY-MM-DDTHH:mm format
+      // This preserves the original time but formats it for the input
+      return date.toISOString().slice(0, 16);
     } catch (error) {
       console.error('Error formatting date:', error);
       return '';
@@ -135,7 +135,7 @@ export default function EditTaskModal({
       // Then load additional data
       loadInitialData();
     }
-  }, [isOpen, task]);
+  }, [isOpen, task?.id]); // Only depend on task.id to prevent re-initialization on other changes
 
   const loadInitialData = async () => {
     if (!projectData) return;
@@ -168,6 +168,11 @@ export default function EditTaskModal({
         
         if (teamMembersResponse.data) {
           setTeamMembers(teamMembersResponse.data);
+          
+          // Ensure assigned_to is properly set if it exists in the task
+          if (task.assigned_to && teamMembersResponse.data.some((member: TeamMember) => member.user_email === task.assigned_to)) {
+            setFormData(prev => ({ ...prev, assigned_to: task.assigned_to }));
+          }
         }
       }
     } catch (error) {

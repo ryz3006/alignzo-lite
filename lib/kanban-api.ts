@@ -393,6 +393,11 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
     // Remove team_id from taskData as kanban_tasks table doesn't have this column
     const { team_id, ...taskDataWithoutTeamId } = taskData as any;
     
+    // Clean the task data to handle empty strings for date fields
+    if (taskDataWithoutTeamId.due_date === '') {
+      taskDataWithoutTeamId.due_date = null;
+    }
+    
     const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
 
     if (response.error) throw new Error(response.error);
@@ -470,7 +475,13 @@ export async function updateKanbanTask(
     const currentTask = currentTaskResponse.data?.[0];
     if (!currentTask) throw new Error('Task not found');
 
-    const response = await supabaseClient.update('kanban_tasks', taskId, updates);
+    // Clean the updates object to handle empty strings for date fields
+    const cleanedUpdates = { ...updates };
+    if (cleanedUpdates.due_date === '') {
+      cleanedUpdates.due_date = null;
+    }
+
+    const response = await supabaseClient.update('kanban_tasks', taskId, cleanedUpdates);
 
     if (response.error) throw new Error(response.error);
 
