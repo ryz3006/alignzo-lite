@@ -35,9 +35,10 @@ interface JiraTicket {
 
 interface TeamMember {
   id: string;
-  user_email: string;
+  user_id: string;
   users: {
     full_name: string;
+    email: string;
   };
 }
 
@@ -165,9 +166,11 @@ export default function EditTaskModal({
     try {
       console.log('Loading team members for teamId:', teamId);
       if (teamId) {
-        // Use a more specific query to get team members with user information
-        const teamMembersResponse = await supabaseClient.get('team_members', {
-          select: 'id, user_email, users(full_name, email)',
+        // Use a join query to get team members with user information
+        const teamMembersResponse = await supabaseClient.query({
+          table: 'team_members',
+          action: 'select',
+          select: 'id, user_id, users(full_name, email)',
           filters: { team_id: teamId },
           order: { column: 'created_at', ascending: true }
         });
@@ -179,13 +182,13 @@ export default function EditTaskModal({
           setTeamMembers(teamMembersResponse.data);
           
           // Ensure assigned_to is properly set if it exists in the task
-          if (task.assigned_to && teamMembersResponse.data.some((member: TeamMember) => member.user_email === task.assigned_to)) {
+          if (task.assigned_to && teamMembersResponse.data.some((member: TeamMember) => member.users.email === task.assigned_to)) {
             console.log('Setting assigned_to to:', task.assigned_to);
             setFormData(prev => ({ ...prev, assigned_to: task.assigned_to }));
           } else {
             console.log('Task assigned_to not found in team members or task.assigned_to is empty');
             console.log('Task assigned_to:', task.assigned_to);
-            console.log('Available team member emails:', teamMembersResponse.data.map((m: TeamMember) => m.user_email));
+            console.log('Available team member emails:', teamMembersResponse.data.map((m: TeamMember) => m.users.email));
           }
         } else {
           console.log('No team members data returned');
@@ -674,8 +677,8 @@ export default function EditTaskModal({
                     >
                       <option value="">Unassigned</option>
                       {teamMembers.map((member) => (
-                        <option key={member.id} value={member.user_email}>
-                          {member.users?.full_name || member.user_email}
+                        <option key={member.id} value={member.users.email}>
+                          {member.users?.full_name || member.users.email}
                         </option>
                       ))}
                     </select>
