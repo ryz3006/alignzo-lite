@@ -11,6 +11,12 @@ interface TeamWithMembers extends Team {
   memberCount: number;
 }
 
+interface MemberWithRole {
+  user_id: string;
+  role: string;
+  user: User;
+}
+
 export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithMembers[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -23,7 +29,7 @@ export default function TeamsPage() {
   const [formData, setFormData] = useState({
     name: '',
   });
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<MemberWithRole[]>([]);
 
   useEffect(() => {
     loadTeams();
@@ -42,7 +48,7 @@ export default function TeamsPage() {
         throw new Error(teamsResponse.error);
       }
 
-      // Get team members
+      // Get team members with roles
       const membersResponse = await supabaseClient.get('team_members', {
         select: '*,users(*)'
       });
@@ -150,10 +156,34 @@ export default function TeamsPage() {
     }
   };
 
-  const handleManageMembers = (team: TeamWithMembers) => {
+  const handleManageMembers = async (team: TeamWithMembers) => {
     setSelectedTeam(team);
-    setSelectedMembers(team.members.map(member => member.id));
-    setShowMembersModal(true);
+    
+    try {
+      // Get current team members with roles
+      const membersResponse = await supabaseClient.get('team_members', {
+        select: '*,users(*)',
+        filters: { team_id: team.id }
+      });
+
+      if (membersResponse.error) {
+        console.error('Error loading team members:', membersResponse.error);
+        throw new Error(membersResponse.error);
+      }
+
+      const currentMembers = membersResponse.data || [];
+      const membersWithRoles: MemberWithRole[] = currentMembers.map((member: any) => ({
+        user_id: member.user_id,
+        role: member.role || 'member',
+        user: member.users
+      }));
+
+      setSelectedMembers(membersWithRoles);
+      setShowMembersModal(true);
+    } catch (error: any) {
+      console.error('Error loading team members:', error);
+      toast.error('Failed to load team members');
+    }
   };
 
   const handleUpdateMembers = async () => {
@@ -172,11 +202,12 @@ export default function TeamsPage() {
         throw new Error(response.error);
       }
 
-      // Add new members
+      // Add new members with roles
       if (selectedMembers.length > 0) {
-        const newMembers = selectedMembers.map(userId => ({
+        const newMembers = selectedMembers.map(member => ({
           team_id: selectedTeam.id,
-          user_id: userId,
+          user_id: member.user_id,
+          role: member.role,
         }));
 
         const insertResponse = await supabaseClient.insert('team_members', newMembers);
@@ -196,6 +227,27 @@ export default function TeamsPage() {
       console.error('Error updating team members:', error);
       toast.error(error.message || 'Failed to update team members');
     }
+  };
+
+  const addMember = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (user && !selectedMembers.find(m => m.user_id === userId)) {
+      setSelectedMembers([...selectedMembers, {
+        user_id: userId,
+        role: 'member',
+        user: user
+      }]);
+    }
+  };
+
+  const removeMember = (userId: string) => {
+    setSelectedMembers(selectedMembers.filter(m => m.user_id !== userId));
+  };
+
+  const updateMemberRole = (userId: string, role: string) => {
+    setSelectedMembers(selectedMembers.map(member => 
+      member.user_id === userId ? { ...member, role } : member
+    ));
   };
 
   const filteredTeams = teams.filter(team =>
@@ -354,37 +406,76 @@ export default function TeamsPage() {
       {/* Members Modal */}
       {showMembersModal && selectedTeam && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Manage Team Members - {selectedTeam.name}
               </h3>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Members
-                </label>
-                <div className="max-h-60 overflow-y-auto border border-gray-300 rounded-md p-2">
-                  {users.map((user) => (
-                    <label key={user.id} className="flex items-center p-2 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={selectedMembers.includes(user.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedMembers([...selectedMembers, user.id]);
-                          } else {
-                            setSelectedMembers(selectedMembers.filter(id => id !== user.id));
-                          }
-                        }}
-                        className="mr-3"
-                      />
-                      <span className="text-sm text-gray-900">
-                        {user.full_name} ({user.email})
-                      </span>
-                    </label>
-                  ))}
+              
+              {/* Add New Member Section */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Member</h4>
+                <div className="flex gap-3">
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addMember(e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Select a user to add...</option>
+                    {users
+                      .filter(user => !selectedMembers.find(m => m.user_id === user.id))
+                      .map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.full_name} ({user.email})
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </div>
+
+              {/* Current Members Section */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Current Members</h4>
+                {selectedMembers.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">No members added yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedMembers.map((member) => (
+                      <div key={member.user_id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">
+                            {member.user.full_name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {member.user.email}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <select
+                            value={member.role}
+                            onChange={(e) => updateMemberRole(member.user_id, e.target.value)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          >
+                            <option value="member">Member</option>
+                            <option value="owner">Owner</option>
+                          </select>
+                          <button
+                            onClick={() => removeMember(member.user_id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => {
