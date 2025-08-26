@@ -156,7 +156,6 @@ export default function KanbanBoardPage() {
         
         setBoardLoaded(true);
         setLastFetchTime(now);
-        console.log('Kanban board data updated successfully');
       }
     } catch (error) {
       console.error('Error loading kanban board:', error);
@@ -244,7 +243,7 @@ export default function KanbanBoardPage() {
     if (!user) return;
 
     try {
-      const response = await deleteKanbanTask(taskId);
+      const response = await deleteKanbanTask(taskId, user.email);
       if (response.success) {
         loadKanbanBoard();
       }
@@ -253,39 +252,7 @@ export default function KanbanBoardPage() {
     }
   };
 
-  // Test function for timeline debugging
-  const testTimeline = async (taskId: string) => {
-    if (!user?.email) return;
-    
-    try {
-      console.log('Testing timeline for task:', taskId);
-      
-      // Test creating a timeline entry with debug endpoint
-      const createResponse = await fetch('/api/debug-timeline', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskId,
-          userEmail: user.email,
-          action: 'test_entry',
-          details: { message: 'Test timeline entry' }
-        }),
-      });
-      
-      const createResult = await createResponse.json();
-      console.log('Timeline creation debug result:', createResult);
-      
-      // Test retrieving timeline entries with debug endpoint
-      const getResponse = await fetch(`/api/debug-timeline?taskId=${taskId}`);
-      const getResult = await getResponse.json();
-      console.log('Timeline retrieval debug result:', getResult);
-      
-    } catch (error) {
-      console.error('Timeline test error:', error);
-    }
-  };
+
 
   const handleCreateColumn = async (columnData: CreateColumnForm) => {
     if (!selectedProject || !selectedTeam) return;
@@ -692,13 +659,7 @@ export default function KanbanBoardPage() {
                             >
                               <Edit3 className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => testTimeline(task.id)}
-                              className="p-2 text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
-                              title="Test Timeline"
-                            >
-                              <Clock className="h-4 w-4" />
-                            </button>
+
                           </div>
                         </div>
                       ))

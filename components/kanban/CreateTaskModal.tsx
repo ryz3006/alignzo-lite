@@ -100,14 +100,11 @@ export default function CreateTaskModal({
     
     setIsLoadingCategories(true);
     try {
-      console.log('Loading categories for project:', projectId);
-      
       // Use the simplified API endpoint to get categories with options
       const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Categories loaded from API:', data);
         
         if (data.categories && data.categories.length > 0) {
           // Transform the data to match the expected format
@@ -128,10 +125,8 @@ export default function CreateTaskModal({
             }))
           }));
           
-          console.log('Transformed categories with options:', categoriesWithOptions);
           setLocalCategories(categoriesWithOptions);
         } else {
-          console.log('No categories found for project');
           setLocalCategories([]);
         }
       } else {
@@ -215,8 +210,6 @@ export default function CreateTaskModal({
   // Initialize modal when it opens
   useEffect(() => {
     if (isOpen) {
-      console.log('CreateTaskModal opened with projectData:', projectData);
-      console.log('Categories:', projectData?.categories);
       
       // Reset form data
       setFormData({
@@ -375,9 +368,7 @@ export default function CreateTaskModal({
         }
         
         // Show rate limit info if available
-        if (data.rateLimitInfo) {
-          console.log('Rate limit info:', data.rateLimitInfo);
-        }
+
       }
     } catch (error) {
       console.error('Error searching JIRA tickets:', error);

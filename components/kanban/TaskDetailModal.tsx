@@ -37,19 +37,13 @@ export default function TaskDetailModal({
   const loadTaskData = async () => {
     setLoading(true);
     try {
-      console.log('Loading task data for task ID:', task.id);
-      
       const [timelineResponse, commentsResponse] = await Promise.all([
         fetch(`/api/kanban/task-timeline?taskId=${task.id}`).then(res => res.json()),
         fetch(`/api/kanban/task-comments?taskId=${task.id}`).then(res => res.json())
       ]);
 
-      console.log('Timeline response:', timelineResponse);
-      console.log('Comments response:', commentsResponse);
-
       if (timelineResponse.success) {
         setTimeline(timelineResponse.data);
-        console.log('Timeline data set:', timelineResponse.data);
       } else {
         console.error('Failed to load timeline:', timelineResponse.error);
       }

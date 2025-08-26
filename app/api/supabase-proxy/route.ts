@@ -50,8 +50,6 @@ function isAdminOperation(table: string, action: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== PROXY REQUEST START ===');
-    
     // Check if Supabase is properly configured
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
       console.error('Supabase environment variables not configured');
@@ -66,7 +64,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('Request body:', body);
     
     const { table, action, data, filters, select, order, limit, offset, userEmail, functionName, params } = body;
 
@@ -76,42 +73,11 @@ export async function POST(request: NextRequest) {
     // Special handling for timeline and comments - use admin client for these operations
     // Note: kanban_tasks is handled separately to ensure RLS works properly
     const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments';
-    
-    console.log(`=== SUPABASE PROXY DEBUG ===`);
-    console.log(`Table: ${table}`);
-    console.log(`Action: ${action}`);
-    console.log(`Is admin operation: ${isAdmin}`);
-    console.log(`Is timeline/comments: ${isTimelineOrComments}`);
-    console.log(`Service role key available: ${!!supabaseServiceKey}`);
-    console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
-    
-    if (isAdmin || isTimelineOrComments) {
-      console.log(`Using admin client for ${action} operation on ${table}`);
-      
-      // For admin operations and timeline/comments, use service role key if available, otherwise use anon key
-      const client = supabaseServiceKey ? supabaseAdmin : supabase;
-      
-      // If using service role key, we can bypass RLS entirely
-      // If using anon key, we need to ensure the user context is set properly
-      if (!supabaseServiceKey) {
-        console.warn('Service role key not available, using anon key for admin operation');
-      }
-    } else {
-      // For non-admin operations, use the regular anon key
-      const client = supabase;
-    }
 
     let result;
 
     switch (action) {
       case 'select':
-        console.log(`=== SELECT OPERATION ===`);
-        console.log(`Table: ${table}`);
-        console.log(`Select: ${select || '*'}`);
-        console.log(`Filters:`, filters);
-        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
-        console.log(`Admin client available: ${!!supabaseServiceKey}`);
-        
         // For kanban_tasks, use anon client to ensure RLS works properly
         let selectClient;
         if (table === 'kanban_tasks') {
@@ -119,7 +85,6 @@ export async function POST(request: NextRequest) {
         } else {
           selectClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
         }
-        console.log(`Using client:`, selectClient === supabaseAdmin ? 'admin' : 'anon');
         
         let query = selectClient.from(table).select(select || '*');
         
@@ -228,53 +193,21 @@ export async function POST(request: NextRequest) {
         }
         
         result = await query;
-        
-        console.log(`Select result:`, result);
-        console.log(`Select success:`, !result.error);
-        console.log(`Select data:`, result.data);
-        console.log(`Select error:`, result.error);
         break;
 
       case 'insert':
-        console.log(`=== INSERT OPERATION ===`);
-        console.log(`Table: ${table}`);
-        console.log(`Data:`, data);
-        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
-        console.log(`Admin client available: ${!!supabaseServiceKey}`);
-        
         // For kanban_tasks, use anon client to ensure RLS works properly
         let insertClient;
         if (table === 'kanban_tasks') {
           insertClient = supabase;
-          console.log('Using anon client for kanban_tasks to ensure RLS works properly');
         } else {
           insertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
         }
-        console.log(`Using client:`, insertClient === supabaseAdmin ? 'admin' : 'anon');
         
-        try {
-          console.log('About to execute insert...');
-          result = await insertClient.from(table).insert(data);
-          console.log('Insert executed successfully');
-        } catch (insertError) {
-          console.error('Insert execution error:', insertError);
-          throw insertError;
-        }
-        
-        console.log(`Insert result:`, result);
-        console.log(`Insert success:`, !result.error);
-        console.log(`Insert data:`, result.data);
-        console.log(`Insert error:`, result.error);
+        result = await insertClient.from(table).insert(data);
         break;
 
       case 'update':
-        console.log(`=== UPDATE OPERATION ===`);
-        console.log(`Table: ${table}`);
-        console.log(`Data:`, data);
-        console.log(`Filters:`, filters);
-        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
-        console.log(`Admin client available: ${!!supabaseServiceKey}`);
-        
         // For kanban_tasks, use anon client to ensure RLS works properly
         let updateClient;
         if (table === 'kanban_tasks') {
@@ -282,7 +215,6 @@ export async function POST(request: NextRequest) {
         } else {
           updateClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
         }
-        console.log(`Using client:`, updateClient === supabaseAdmin ? 'admin' : 'anon');
         
         let updateQuery = updateClient.from(table).update(data);
         
@@ -296,11 +228,6 @@ export async function POST(request: NextRequest) {
         }
         
         result = await updateQuery;
-        
-        console.log(`Update result:`, result);
-        console.log(`Update success:`, !result.error);
-        console.log(`Update data:`, result.data);
-        console.log(`Update error:`, result.error);
         break;
 
       case 'delete':
@@ -359,9 +286,6 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    console.log('=== PROXY REQUEST END ===');
-    console.log('Final result:', result);
-    
     if (result.error) {
       console.error('Supabase error:', result.error);
       return NextResponse.json(
@@ -375,7 +299,6 @@ export async function POST(request: NextRequest) {
       count: result.count
     };
     
-    console.log('Proxy response:', response);
     return NextResponse.json(response);
 
   } catch (error) {

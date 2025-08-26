@@ -42,13 +42,8 @@ class SupabaseClient {
 
   async query<T = any>(query: SupabaseQuery): Promise<SupabaseResponse<T>> {
     try {
-      console.log('=== SUPABASE CLIENT QUERY ===');
-      console.log('Environment:', typeof window === 'undefined' ? 'server' : 'browser');
-      console.log('Query:', query);
-      
       // In server environment, use direct Supabase client
       if (typeof window === 'undefined') {
-        console.log('Using direct Supabase client (server environment)');
         const { createClient } = require('@supabase/supabase-js');
         const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -101,7 +96,6 @@ class SupabaseClient {
             }
             
             const result = await supabaseQuery;
-            console.log('Server-side result:', result);
             
             if (result.error) {
               throw new Error(result.error.message);
@@ -113,10 +107,7 @@ class SupabaseClient {
             };
             
           case 'insert':
-            console.log('Server-side insert for table:', query.table);
-            console.log('Insert data:', query.data);
             const insertResult = await supabase.from(query.table).insert(query.data);
-            console.log('Server-side insert result:', insertResult);
             if (insertResult.error) {
               throw new Error(insertResult.error.message);
             }
@@ -148,8 +139,6 @@ class SupabaseClient {
       }
 
       // In browser environment, use the proxy
-      console.log('Using proxy (browser environment)');
-      console.log('Proxy URL:', this.baseUrl);
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
@@ -158,16 +147,12 @@ class SupabaseClient {
         body: JSON.stringify(query),
       });
 
-      console.log('Proxy response status:', response.status);
-      console.log('Proxy response ok:', response.ok);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('Proxy result:', result);
       return result;
     } catch (error) {
       console.error('Supabase client error:', error);
@@ -196,16 +181,11 @@ class SupabaseClient {
   }
 
   async insert<T = any>(table: string, data: any): Promise<SupabaseResponse<T>> {
-    console.log('=== SUPABASE CLIENT INSERT ===');
-    console.log('Table:', table);
-    console.log('Data:', data);
-    const result = await this.query<T>({
+    return this.query<T>({
       table,
       action: 'insert',
       data,
     });
-    console.log('Insert result:', result);
-    return result;
   }
 
   async update<T = any>(table: string, id: string, data: any): Promise<SupabaseResponse<T>> {

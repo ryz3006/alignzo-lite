@@ -390,19 +390,10 @@ export async function getKanbanTask(taskId: string): Promise<ApiResponse<KanbanT
 
 export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiResponse<KanbanTask>> {
   try {
-    console.log('=== CREATING KANBAN TASK ===');
-    console.log('Task data:', taskData);
-    
     // Remove team_id from taskData as kanban_tasks table doesn't have this column
     const { team_id, ...taskDataWithoutTeamId } = taskData as any;
     
-    console.log('Task data without team_id:', taskDataWithoutTeamId);
-    
     const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
-
-    console.log('Task creation response:', response);
-    console.log('Response data:', response.data);
-    console.log('Response error:', response.error);
 
     if (response.error) throw new Error(response.error);
 
@@ -411,10 +402,7 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
     
     if (response.data && response.data[0]) {
       createdTask = response.data[0];
-      console.log('Task data returned from insert:', createdTask);
     } else {
-      console.log('No task data returned from insert, attempting to fetch created task...');
-      
       // Try to fetch the most recently created task by this user
       const fetchResponse = await supabaseClient.get('kanban_tasks', {
         filters: {
@@ -428,19 +416,11 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
       
       if (fetchResponse.data && fetchResponse.data.length > 0) {
         createdTask = fetchResponse.data[0];
-        console.log('Successfully fetched created task:', createdTask);
-      } else {
-        console.log('Failed to fetch created task');
       }
     }
 
     // Create timeline entry for task creation
     if (createdTask) {
-      console.log('=== CREATING TIMELINE ENTRY ===');
-      console.log('Created task:', createdTask);
-      console.log('Task ID for timeline:', createdTask.id);
-      console.log('User email for timeline:', taskData.created_by || 'system');
-      
       const timelineDetails = {
         title: createdTask.title,
         description: createdTask.description,
@@ -448,34 +428,16 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
         column_id: createdTask.column_id
       };
       
-      console.log('Timeline details:', timelineDetails);
-      
       try {
-        console.log('About to call createTaskTimeline...');
-        const timelineResponse = await createTaskTimeline(
+        await createTaskTimeline(
           createdTask.id,
           taskData.created_by || 'system',
           'created',
           timelineDetails
         );
-        
-        console.log('Timeline creation response:', timelineResponse);
-        console.log('Timeline success:', timelineResponse.success);
-        console.log('Timeline data:', timelineResponse.data);
-        console.log('Timeline error:', timelineResponse.error);
-        
-        if (timelineResponse.success) {
-          console.log('Timeline entry created successfully:', timelineResponse.data);
-        } else {
-          console.error('Failed to create timeline entry:', timelineResponse.error);
-        }
       } catch (error) {
-        console.error('Error creating timeline entry:', error);
-        console.error('Error details:', error);
         // Don't fail the task creation if timeline creation fails
       }
-    } else {
-      console.log('No task data available for timeline creation');
     }
 
     return {
@@ -565,6 +527,18 @@ export async function updateKanbanTask(
           }
         );
       }
+
+      if (updates.column_id !== undefined) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'moved',
+          {
+            from_column: updatedTask.column_id,
+            to_column: updates.column_id
+          }
+        );
+      }
     }
 
     return {
@@ -581,11 +555,23 @@ export async function updateKanbanTask(
   }
 }
 
-export async function deleteKanbanTask(taskId: string): Promise<ApiResponse<boolean>> {
+export async function deleteKanbanTask(taskId: string, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
     const response = await supabaseClient.update('kanban_tasks', taskId, { status: 'archived' });
 
     if (response.error) throw new Error(response.error);
+
+    // Create timeline entry for task deletion
+    if (userEmail) {
+      await createTaskTimeline(
+        taskId,
+        userEmail,
+        'archived',
+        {
+          action: 'Task archived'
+        }
+      );
+    }
 
     return {
       data: true,
@@ -698,14 +684,6 @@ export async function createTaskTimeline(
   details?: any
 ): Promise<ApiResponse<TaskTimeline>> {
   try {
-    console.log('=== CREATING TASK TIMELINE ENTRY ===');
-    console.log('Parameters:', {
-      taskId,
-      userEmail,
-      action,
-      details
-    });
-    
     const timelineData = {
       task_id: taskId,
       user_email: userEmail,
@@ -713,20 +691,11 @@ export async function createTaskTimeline(
       details
     };
     
-    console.log('Timeline data to insert:', timelineData);
-    
     const response = await supabaseClient.insert('task_timeline', timelineData);
 
-    console.log('Supabase insert response:', response);
-    console.log('Response data:', response.data);
-    console.log('Response error:', response.error);
-
     if (response.error) {
-      console.error('Timeline insert error:', response.error);
       throw new Error(response.error);
     }
-
-    console.log('Timeline entry created successfully:', response.data);
 
     return {
       data: response.data,
@@ -744,9 +713,6 @@ export async function createTaskTimeline(
 
 export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskTimeline[]>> {
   try {
-    console.log('=== GETTING TASK TIMELINE ===');
-    console.log('Task ID:', taskId);
-    
     const queryOptions = {
       select: '*',
       filters: { task_id: taskId },
@@ -756,22 +722,11 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
       }
     };
     
-    console.log('Query options:', queryOptions);
-    
     const response = await supabaseClient.get('task_timeline', queryOptions);
 
-    console.log('Supabase timeline response:', response);
-    console.log('Response data:', response.data);
-    console.log('Response error:', response.error);
-    console.log('Data length:', response.data?.length || 0);
-
     if (response.error) {
-      console.error('Timeline get error:', response.error);
       throw new Error(response.error);
     }
-
-    console.log('Timeline data retrieved successfully:', response.data);
-    console.log('Timeline data length:', response.data?.length || 0);
 
     return {
       data: response.data || [],
