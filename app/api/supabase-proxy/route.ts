@@ -50,8 +50,11 @@ function isAdminOperation(table: string, action: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== PROXY REQUEST START ===');
+    
     // Check if Supabase is properly configured
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      console.error('Supabase environment variables not configured');
       return NextResponse.json(
         { 
           error: 'Database not configured',
@@ -62,7 +65,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { table, action, data, filters, select, order, limit, offset, userEmail, functionName, params } = await request.json();
+    const body = await request.json();
+    console.log('Request body:', body);
+    
+    const { table, action, data, filters, select, order, limit, offset, userEmail, functionName, params } = body;
 
     // Determine which client to use based on the operation
     const isAdmin = isAdminOperation(table, action);
@@ -232,7 +238,14 @@ export async function POST(request: NextRequest) {
         const insertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
         console.log(`Using client:`, insertClient === supabaseAdmin ? 'admin' : 'anon');
         
-        result = await insertClient.from(table).insert(data);
+        try {
+          console.log('About to execute insert...');
+          result = await insertClient.from(table).insert(data);
+          console.log('Insert executed successfully');
+        } catch (insertError) {
+          console.error('Insert execution error:', insertError);
+          throw insertError;
+        }
         
         console.log(`Insert result:`, result);
         console.log(`Insert success:`, !result.error);
@@ -302,6 +315,9 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    console.log('=== PROXY REQUEST END ===');
+    console.log('Final result:', result);
+    
     if (result.error) {
       console.error('Supabase error:', result.error);
       return NextResponse.json(
@@ -310,15 +326,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    const response = {
       data: result.data,
       count: result.count
-    });
+    };
+    
+    console.log('Proxy response:', response);
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Supabase proxy error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
