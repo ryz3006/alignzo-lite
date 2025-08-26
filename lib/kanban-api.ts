@@ -670,6 +670,11 @@ export async function moveTask(
       filters: { id: taskId }
     });
 
+    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+    
+    const currentTask = currentTaskResponse.data?.[0];
+    if (!currentTask) throw new Error('Task not found');
+
     const response = await supabaseClient.update('kanban_tasks', taskId, {
       column_id: columnId,
       sort_order: sortOrder
@@ -678,22 +683,17 @@ export async function moveTask(
     if (response.error) throw new Error(response.error);
 
     // Create timeline entry for task move
-    if (response.data && response.data[0] && userEmail && currentTaskResponse.data && currentTaskResponse.data[0]) {
-      const currentTask = currentTaskResponse.data[0];
-      const updatedTask = response.data[0];
-      
-      if (currentTask.column_id !== columnId) {
-        await createTaskTimeline(
-          taskId,
-          userEmail,
-          'moved',
-          {
-            from_column: currentTask.column_id,
-            to_column: columnId,
-            sort_order: sortOrder
-          }
-        );
-      }
+    if (userEmail && currentTask.column_id !== columnId) {
+      await createTaskTimeline(
+        taskId,
+        userEmail,
+        'moved',
+        {
+          from_column: currentTask.column_id,
+          to_column: columnId,
+          sort_order: sortOrder
+        }
+      );
     }
 
     return {

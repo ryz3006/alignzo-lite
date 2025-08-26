@@ -12,8 +12,8 @@ interface EditTaskModalProps {
   onClose: () => void;
   onSubmit: (taskId: string, updates: UpdateTaskForm) => void;
   task: KanbanTaskWithDetails;
-  projectData: ProjectWithCategories | null;
-  userEmail?: string | null;
+  projectData: ProjectWithCategories;
+  userEmail: string;
 }
 
 interface JiraProjectMapping {
@@ -26,12 +26,17 @@ interface JiraProjectMapping {
 
 interface JiraTicket {
   key: string;
-  summary: string;
-  status: {
-    name: string;
+  fields: {
+    summary: string;
+    description?: string;
   };
-  priority?: {
-    name: string;
+}
+
+interface TeamMember {
+  id: string;
+  user_email: string;
+  users: {
+    full_name: string;
   };
 }
 
@@ -44,36 +49,35 @@ export default function EditTaskModal({
   userEmail
 }: EditTaskModalProps) {
   const [formData, setFormData] = useState<UpdateTaskForm>({
-    title: task.title,
-    description: task.description || '',
-    category_id: task.category_id,
-    category_option_id: task.category_option_id || '',
-    column_id: task.column_id,
-    priority: task.priority,
-    estimated_hours: task.estimated_hours || undefined,
-    actual_hours: task.actual_hours || undefined,
-    due_date: task.due_date || '',
-    jira_ticket_id: task.jira_ticket_id || '',
-    jira_ticket_key: task.jira_ticket_key || '',
-    assigned_to: task.assigned_to || '',
-    status: task.status
+    title: '',
+    description: '',
+    category_id: '',
+    category_option_id: '',
+    column_id: '',
+    priority: 'medium',
+    status: 'active',
+    estimated_hours: undefined,
+    actual_hours: undefined,
+    due_date: '',
+    jira_ticket_key: '',
+    assigned_to: ''
   });
 
   const [errors, setErrors] = useState<Record<keyof UpdateTaskForm, string | undefined>>({} as Record<keyof UpdateTaskForm, string | undefined>);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [localCategories, setLocalCategories] = useState<ProjectCategory[]>([]);
-  
-  // Loading states
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
-  const [isLoadingJira, setIsLoadingJira] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
   
-  // JIRA Integration states
+  // Comments state
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+
+  // JIRA integration state
   const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
   const [jiraProjectMappings, setJiraProjectMappings] = useState<JiraProjectMapping[]>([]);
-  const [selectedJiraProject, setSelectedJiraProject] = useState<string>('');
-  const [jiraTicketType, setJiraTicketType] = useState<'new' | 'existing'>('existing');
+  const [selectedJiraProject, setSelectedJiraProject] = useState('');
+  const [jiraTicketType, setJiraTicketType] = useState<'existing' | 'new'>('existing');
   const [showJiraSearch, setShowJiraSearch] = useState(false);
   const [jiraSearchQuery, setJiraSearchQuery] = useState('');
   const [jiraSearchResults, setJiraSearchResults] = useState<JiraTicket[]>([]);
@@ -81,12 +85,13 @@ export default function EditTaskModal({
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const [ticketCreated, setTicketCreated] = useState(false);
 
-  // Comments states
-  const [comments, setComments] = useState<TaskComment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
+  // Team members state
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
+
+  // Categories state
+  const [availableCategories, setAvailableCategories] = useState<ProjectCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
 
   // Format date for datetime-local input (remove timezone info)
   const formatDateForInput = (dateString: string | null | undefined) => {
@@ -132,104 +137,145 @@ export default function EditTaskModal({
 
   const loadInitialData = async () => {
     if (!projectData) return;
-    
-    setLocalCategories(projectData.categories);
-    await loadTeamMembers();
-    await checkJiraIntegration();
-    await loadComments();
-  };
 
-  const loadTeamMembers = async () => {
-    if (!projectData?.id) return;
-    
+    try {
+      // Load categories
+      setIsLoadingCategories(true);
+      const categoriesResponse = await supabaseClient.get('project_categories', {
+        filters: { project_id: projectData.id, is_active: true },
+        order: { column: 'sort_order', ascending: true }
+      });
+      
+      if (categoriesResponse.data) {
+        setAvailableCategories(categoriesResponse.data);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+
+    // Load team members
     setIsLoadingTeamMembers(true);
     try {
-      const response = await supabaseClient.get('team_members', {
-        select: 'id,user_email,users!inner(id,email,full_name,avatar_url)',
-        filters: {
-          project_id: projectData.id,
-          status: 'active'
-        }
+      const teamMembersResponse = await supabaseClient.get('team_members', {
+        filters: { team_id: projectData.team_id },
+        order: { column: 'created_at', ascending: true }
       });
-
-      if (response.error) throw new Error(response.error);
       
-      setTeamMembers(response.data || []);
+      if (teamMembersResponse.data) {
+        setTeamMembers(teamMembersResponse.data);
+      }
     } catch (error) {
       console.error('Error loading team members:', error);
-      toast.error('Failed to load team members');
     } finally {
       setIsLoadingTeamMembers(false);
     }
-  };
 
-  const checkJiraIntegration = async () => {
-    if (!projectData?.id) return;
-    
+    // Check JIRA integration
     try {
-      const response = await supabaseClient.get('jira_project_mappings', {
-        filters: {
-          project_id: projectData.id,
-          is_active: true
-        }
+      const integrationResponse = await supabaseClient.get('user_integrations', {
+        filters: { user_email: userEmail, integration_type: 'jira', is_verified: true }
       });
-
-      if (response.error) throw new Error(response.error);
       
-      if (response.data && response.data.length > 0) {
+      if (integrationResponse.data && integrationResponse.data.length > 0) {
         setHasJiraIntegration(true);
-        setJiraProjectMappings(response.data);
-        setSelectedJiraProject(response.data[0].id);
+        await loadJiraProjectMappings();
       }
     } catch (error) {
       console.error('Error checking JIRA integration:', error);
     }
+
+    // Load comments
+    await loadComments();
+  };
+
+  const loadJiraProjectMappings = async () => {
+    try {
+      const mappingsResponse = await supabaseClient.get('jira_project_mappings', {
+        filters: { integration_user_email: userEmail }
+      });
+      
+      if (mappingsResponse.data) {
+        setJiraProjectMappings(mappingsResponse.data);
+        if (mappingsResponse.data.length > 0) {
+          setSelectedJiraProject(mappingsResponse.data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading JIRA project mappings:', error);
+    }
+  };
+
+  const loadComments = async () => {
+    if (!task) return;
+    
+    setLoadingComments(true);
+    try {
+      const commentsResponse = await supabaseClient.get('task_comments', {
+        filters: { task_id: task.id },
+        order: { column: 'created_at', ascending: true }
+      });
+      
+      if (commentsResponse.data) {
+        setComments(commentsResponse.data);
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !task) return;
+
+    setSubmittingComment(true);
+    try {
+      const response = await supabaseClient.insert('task_comments', {
+        task_id: task.id,
+        user_email: userEmail,
+        comment: newComment.trim()
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      setNewComment('');
+      toast.success('Comment added successfully');
+      await loadComments(); // Refresh comments
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast.error('Failed to add comment');
+    } finally {
+      setSubmittingComment(false);
+    }
   };
 
   const searchJiraTickets = async () => {
-    if (!jiraSearchQuery.trim() || !selectedJiraProject) {
-      toast.error('Please enter a search term and select a JIRA project');
-      return;
-    }
+    if (!jiraSearchQuery.trim() || !selectedJiraProject) return;
 
     setJiraSearching(true);
     try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) return;
-
       const response = await fetch('/api/jira/search-tickets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          searchQuery: jiraSearchQuery,
-          projectMappingId: selectedJiraProject,
-          userEmail: currentUser.email
+          userEmail: userEmail,
+          projectKey: selectedJiraProject,
+          searchTerm: jiraSearchQuery.trim()
         }),
       });
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.success) {
         setJiraSearchResults(data.tickets || []);
-        
-        if (data.tickets.length === 0) {
-          toast('No tickets found matching your search term', { icon: '🔍' });
-        } else {
-          toast.success(`Found ${data.tickets.length} tickets`);
-        }
       } else {
         const errorMessage = data.error || 'Failed to search tickets';
         toast.error(errorMessage);
-        
-        if (data.details) {
-          console.error('JIRA search error details:', data.details);
-        }
-        
-        if (data.rateLimitInfo) {
-          console.log('Rate limit info:', data.rateLimitInfo);
-        }
+        setJiraSearchResults([]);
       }
     } catch (error) {
       console.error('Error searching JIRA tickets:', error);
@@ -240,7 +286,7 @@ export default function EditTaskModal({
   };
 
   const createJiraTicket = async () => {
-    if (!selectedJiraProject || !formData.title?.trim()) {
+    if (!selectedJiraProject || !formData.title.trim()) {
       toast.error('Please select a JIRA project and enter task title');
       return;
     }
@@ -250,8 +296,10 @@ export default function EditTaskModal({
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
+      // Prepare description with task details
       let description = formData.description || '';
       
+      // Add task details to description
       if (formData.description) {
         description += '\n\n---\n**Task Details:**\n';
         description += `- Priority: ${formData.priority}\n`;
@@ -269,26 +317,31 @@ export default function EditTaskModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          projectMappingId: selectedJiraProject,
+          userEmail: currentUser.email,
+          projectKey: selectedJiraProject,
           summary: formData.title,
           description: description,
-          priority: formData.priority,
-          userEmail: currentUser.email
+          issueType: 'Task',
+          priority: formData.priority === 'urgent' ? 'Highest' : 
+                   formData.priority === 'high' ? 'High' : 
+                   formData.priority === 'medium' ? 'Medium' : 'Low'
         }),
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        setFormData(prev => ({
-          ...prev,
-          jira_ticket_id: data.ticket.id,
-          jira_ticket_key: data.ticket.key
+      if (response.ok && data.success) {
+        const ticketKey = data.ticket.key;
+        setFormData(prev => ({ 
+          ...prev, 
+          jira_ticket_id: ticketKey,
+          jira_ticket_key: ticketKey 
         }));
         setTicketCreated(true);
-        toast.success(`JIRA ticket ${data.ticket.key} created successfully!`);
+        toast.success(data.message || `JIRA ticket ${ticketKey} created successfully`);
       } else {
-        toast.error(data.error || 'Failed to create JIRA ticket');
+        const errorMessage = data.error || 'Failed to create JIRA ticket';
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error creating JIRA ticket:', error);
@@ -306,97 +359,24 @@ export default function EditTaskModal({
     }));
     setShowJiraSearch(false);
     setJiraSearchQuery('');
-    toast.success(`Linked to JIRA ticket ${ticket.key}`);
-  };
-
-  const loadComments = async () => {
-    if (!task?.id) return;
-    
-    setLoadingComments(true);
-    try {
-      const response = await fetch(`/api/kanban/task-comments?taskId=${task.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setComments(data.data || []);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading comments:', error);
-    } finally {
-      setLoadingComments(false);
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!newComment.trim() || !task?.id || !userEmail) return;
-
-    setSubmittingComment(true);
-    try {
-      const response = await fetch('/api/kanban/task-comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskId: task.id,
-          comment: newComment.trim(),
-          userEmail: userEmail
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setNewComment('');
-          toast.success('Comment added successfully');
-          await loadComments(); // Refresh comments
-        } else {
-          toast.error(data.error || 'Failed to add comment');
-        }
-      } else {
-        toast.error('Failed to add comment');
-      }
-    } catch (error) {
-      console.error('Error adding comment:', error);
-      toast.error('Failed to add comment');
-    } finally {
-      setSubmittingComment(false);
-    }
   };
 
   const validateForm = (): boolean => {
     const newErrors: Record<keyof UpdateTaskForm, string | undefined> = {} as Record<keyof UpdateTaskForm, string | undefined>;
 
-    if (!formData.title?.trim()) {
+    if (!formData.title.trim()) {
       newErrors.title = 'Title is required';
-    }
-
-    if (!formData.category_id) {
-      newErrors.category_id = 'Category is required';
     }
 
     if (!formData.column_id) {
       newErrors.column_id = 'Column is required';
     }
 
-    if (formData.estimated_hours && formData.estimated_hours <= 0) {
-      newErrors.estimated_hours = 'Estimated hours must be greater than 0';
-    }
-
-    if (formData.actual_hours && formData.actual_hours <= 0) {
-      newErrors.actual_hours = 'Actual hours must be greater than 0';
-    }
-
-    if (formData.due_date && new Date(formData.due_date) < new Date()) {
-      newErrors.due_date = 'Due date cannot be in the past';
-    }
-
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.values(newErrors).every(error => !error);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (validateForm()) {
@@ -431,9 +411,7 @@ export default function EditTaskModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
           <div>
-            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">
-            Edit Task
-          </h2>
+            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Edit Task</h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
               Update task details and settings
             </p>
@@ -470,465 +448,517 @@ export default function EditTaskModal({
               ))}
             </nav>
           </div>
+
           {activeTab === 'details' && (
             <>
-          {/* Basic Information */}
+              {/* Basic Information */}
               <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-              Basic Information
-            </h3>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Task Title *
-              </label>
-              <input
-                type="text"
-                value={formData.title || ''}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                  errors.title 
-                    ? 'border-red-300 focus:ring-red-500' 
-                    : 'border-neutral-300 dark:border-neutral-600'
-                } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                placeholder="Enter task title"
-              />
-              {errors.title && (
-                  <p className="mt-2 text-sm text-red-600">{errors.title}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Assign To
-                </label>
-                <select
-                  value={formData.assigned_to || ''}
-                  onChange={(e) => handleInputChange('assigned_to', e.target.value)}
-                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                >
-                  <option value="">Unassigned</option>
-                  {teamMembers.map(member => (
-                    <option key={member.id} value={member.user_email}>
-                      {member.users.full_name} ({member.user_email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Description
-              </label>
-              <textarea
-                value={formData.description || ''}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
-                placeholder="Enter task description"
-              />
-            </div>
-          </div>
-
-          {/* Categories */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                <FolderOpen className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-              Categories
-            </h3>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Category *
-                </label>
-                <select
-                  value={formData.category_id || ''}
-                  onChange={(e) => handleInputChange('category_id', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.category_id 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                >
-                  <option value="">Select Category</option>
-                  {localCategories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.category_id && (
-                  <p className="mt-2 text-sm text-red-600">{errors.category_id}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Category Option
-                </label>
-                <select
-                  value={formData.category_option_id || ''}
-                  onChange={(e) => handleInputChange('category_option_id', e.target.value)}
-                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                  disabled={!formData.category_id}
-                >
-                  <option value="">Select Category Option</option>
-                  {(localCategories.find(cat => cat.id === formData.category_id)?.options || []).map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.option_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Task Details */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                <Settings className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-              Task Details
-            </h3>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Column *
-                </label>
-                <select
-                  value={formData.column_id || ''}
-                  onChange={(e) => handleInputChange('column_id', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.column_id 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                >
-                  <option value="">Select Column</option>
-                  {projectData?.columns.map(column => (
-                    <option key={column.id} value={column.id}>
-                      {column.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.column_id && (
-                  <p className="mt-2 text-sm text-red-600">{errors.column_id}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Priority
-                </label>
-                <select
-                  value={formData.priority || 'medium'}
-                  onChange={(e) => handleInputChange('priority', e.target.value)}
-                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Status
-                </label>
-                <select
-                  value={formData.status || 'active'}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Estimated Hours
-                </label>
-                <input
-                  type="number"
-                  value={formData.estimated_hours || ''}
-                  onChange={(e) => handleInputChange('estimated_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  step="0.5"
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.estimated_hours 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                  placeholder="0.0"
-                />
-                {errors.estimated_hours && (
-                  <p className="mt-2 text-sm text-red-600">{errors.estimated_hours}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Actual Hours
-                </label>
-                <input
-                  type="number"
-                  value={formData.actual_hours || ''}
-                  onChange={(e) => handleInputChange('actual_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  step="0.5"
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.actual_hours 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                  placeholder="0.0"
-                />
-                {errors.actual_hours && (
-                  <p className="mt-2 text-sm text-red-600">{errors.actual_hours}</p>
-                )}
-            </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Due Date
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.due_date || ''}
-                  onChange={(e) => handleInputChange('due_date', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.due_date 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                />
-                {errors.due_date && (
-                  <p className="mt-2 text-sm text-red-600">{errors.due_date}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* JIRA Integration */}
-          {hasJiraIntegration && (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                  <Link className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                    <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Basic Information</h3>
                 </div>
-                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                  JIRA Integration
-                </h3>
-              </div>
-              
-              <div className="space-y-4">
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Title */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Task Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.title || ''}
+                      onChange={(e) => handleInputChange('title', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors.title ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                      } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                      placeholder="Enter task title"
+                    />
+                    {errors.title && (
+                      <p className="mt-2 text-sm text-red-600">{errors.title}</p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={formData.description || ''}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      rows={4}
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                      placeholder="Enter task description"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Project and Category Selection */}
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                    <FolderOpen className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Project & Categories</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Project */}
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                      JIRA Project
+                      Project
+                    </label>
+                    <input
+                      type="text"
+                      value={projectData?.name || ''}
+                      disabled
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-neutral-50 dark:bg-neutral-600 text-neutral-500 dark:text-neutral-400"
+                    />
+                  </div>
+
+                  {/* Column */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Column *
                     </label>
                     <select
-                      value={selectedJiraProject}
-                      onChange={(e) => setSelectedJiraProject(e.target.value)}
-                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                      value={formData.column_id || ''}
+                      onChange={(e) => handleInputChange('column_id', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors.column_id ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                      } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
                     >
-                      {jiraProjectMappings.map(mapping => (
-                        <option key={mapping.id} value={mapping.id}>
-                          {mapping.jira_project_name} ({mapping.jira_project_key})
+                      <option value="">Select Column</option>
+                      {projectData?.columns.map(column => (
+                        <option key={column.id} value={column.id}>
+                          {column.name}
                         </option>
                       ))}
                     </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                      Ticket Type
-                    </label>
-                    <div className="flex space-x-4">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="radio"
-                          value="existing"
-                          checked={jiraTicketType === 'existing'}
-                          onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                          className="text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-neutral-700 dark:text-neutral-300">Link Existing</span>
-                </label>
-                      <label className="flex items-center space-x-2">
-                <input
-                          type="radio"
-                          value="new"
-                          checked={jiraTicketType === 'new'}
-                          onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
-                          className="text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-neutral-700 dark:text-neutral-300">Create New</span>
-                      </label>
-              </div>
-            </div>
-          </div>
-
-                {jiraTicketType === 'existing' ? (
-          <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="text"
-                  value={formData.jira_ticket_key || ''}
-                  onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
-                        className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                  placeholder="e.g., PROJ-123"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowJiraSearch(!showJiraSearch)}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                >
-                        <Search className="h-4 w-4" />
-                        <span>Search</span>
-                </button>
-              </div>
-
-              {showJiraSearch && (
-                      <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700">
-                        <div className="flex space-x-3 mb-4">
-                    <input
-                      type="text"
-                      value={jiraSearchQuery}
-                      onChange={(e) => setJiraSearchQuery(e.target.value)}
-                            className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                      placeholder="Search JIRA tickets..."
-                    />
-                    <button
-                      type="button"
-                      onClick={searchJiraTickets}
-                      disabled={jiraSearching}
-                            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
-                          >
-                            {jiraSearching ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Searching...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Search className="h-4 w-4" />
-                                <span>Search</span>
-                              </>
-                            )}
-                    </button>
+                    {errors.column_id && (
+                      <p className="mt-2 text-sm text-red-600">{errors.column_id}</p>
+                    )}
                   </div>
+                </div>
 
-                  {jiraSearchResults.length > 0 && (
-                          <div className="space-y-3">
-                      {jiraSearchResults.map((ticket, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectJiraTicket(ticket)}
-                                className="p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-600 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-500 transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
-                              {ticket.key}
-                            </span>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor((ticket.priority?.name || 'medium').toLowerCase())}`}>
-                                    {ticket.priority?.name || 'Medium'}
-                            </span>
+                {/* Categories */}
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
+                    Categories
+                  </label>
+                  <div className="space-y-4">
+                    {isLoadingCategories ? (
+                      <div className="flex items-center space-x-3 text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Loading categories...</span>
+                      </div>
+                    ) : availableCategories.length === 0 ? (
+                      <div className="text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">No categories available for this project</div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {availableCategories.map((category) => (
+                          <div key={category.id} className="space-y-2">
+                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                              {category.name}
+                            </label>
+                            <select
+                              value={formData.category_id === category.id ? (formData.category_option_id || '') : ''}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleInputChange('category_id', category.id);
+                                  handleInputChange('category_option_id', e.target.value);
+                                } else {
+                                  handleInputChange('category_id', '');
+                                  handleInputChange('category_option_id', '');
+                                }
+                              }}
+                              className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                            >
+                              <option value="">Select {category.name}</option>
+                              {category.options?.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.option_name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                                <p className="text-sm text-neutral-600 dark:text-neutral-300 mt-2">
-                            {ticket.summary}
-                          </p>
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                                    Status: {ticket.status.name}
-                                  </span>
-                                </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="p-4 border border-neutral-200 dark:border-neutral-700 rounded-xl bg-neutral-50 dark:bg-neutral-700">
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-                        A new JIRA ticket will be created with the task details.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={createJiraTicket}
-                        disabled={isCreatingTicket}
-                        className="px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
-                      >
-                        {isCreatingTicket ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Creating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-4 w-4" />
-                            <span>Create JIRA Ticket</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                </div>
+              </div>
 
-                {formData.jira_ticket_key && (
-                  <div className="flex items-center space-x-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    <div>
-                      <p className="text-sm font-medium text-green-800 dark:text-green-400">
-                        Linked to JIRA ticket: {formData.jira_ticket_key}
-                      </p>
-                      <p className="text-xs text-green-600 dark:text-green-500">
-                        {ticketCreated ? 'New ticket created' : 'Existing ticket linked'}
-                      </p>
+              {/* Task Settings */}
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                    <Settings className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Task Settings</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Priority */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={formData.priority || 'medium'}
+                      onChange={(e) => handleInputChange('priority', e.target.value)}
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status || 'active'}
+                      onChange={(e) => handleInputChange('status', e.target.value)}
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    >
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </div>
+
+                  {/* Assigned To */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Assigned To
+                    </label>
+                    <select
+                      value={formData.assigned_to || ''}
+                      onChange={(e) => handleInputChange('assigned_to', e.target.value)}
+                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    >
+                      <option value="">Unassigned</option>
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.user_email}>
+                          {member.users.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Estimated Hours */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Estimated Hours
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.estimated_hours || ''}
+                      onChange={(e) => handleInputChange('estimated_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      min="0"
+                      step="0.5"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors.estimated_hours ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                      } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                      placeholder="0.0"
+                    />
+                    {errors.estimated_hours && (
+                      <p className="mt-2 text-sm text-red-600">{errors.estimated_hours}</p>
+                    )}
+                  </div>
+
+                  {/* Actual Hours */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Actual Hours
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.actual_hours || ''}
+                      onChange={(e) => handleInputChange('actual_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      min="0"
+                      step="0.5"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors.actual_hours ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                      } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                      placeholder="0.0"
+                    />
+                    {errors.actual_hours && (
+                      <p className="mt-2 text-sm text-red-600">{errors.actual_hours}</p>
+                    )}
+                  </div>
+
+                  {/* Due Date */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Due Date
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.due_date || ''}
+                      onChange={(e) => handleInputChange('due_date', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors.due_date ? 'border-red-300 focus:ring-red-500' : 'border-neutral-300 dark:border-neutral-600'
+                      } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                    />
+                    {errors.due_date && (
+                      <p className="mt-2 text-sm text-red-600">{errors.due_date}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* JIRA Integration */}
+              {hasJiraIntegration && (
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                      <Link className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                     </div>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">JIRA Integration</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                          JIRA Project
+                        </label>
+                        <select
+                          value={selectedJiraProject}
+                          onChange={(e) => setSelectedJiraProject(e.target.value)}
+                          className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                        >
+                          {jiraProjectMappings.map(mapping => (
+                            <option key={mapping.id} value={mapping.id}>
+                              {mapping.jira_project_name} ({mapping.jira_project_key})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                          Ticket Type
+                        </label>
+                        <div className="flex space-x-4">
+                          <label className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              value="existing"
+                              checked={jiraTicketType === 'existing'}
+                              onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-neutral-700 dark:text-neutral-300">Link Existing</span>
+                          </label>
+                          <label className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              value="new"
+                              checked={jiraTicketType === 'new'}
+                              onChange={(e) => setJiraTicketType(e.target.value as 'new' | 'existing')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-neutral-700 dark:text-neutral-300">Create New</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {jiraTicketType === 'existing' ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="text"
+                            value={formData.jira_ticket_key || ''}
+                            onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
+                            className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                            placeholder="e.g., PROJ-123"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowJiraSearch(!showJiraSearch)}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                          >
+                            <Search className="h-4 w-4" />
+                            <span>Search</span>
+                          </button>
+                        </div>
+
+                        {showJiraSearch && (
+                          <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700">
+                            <div className="flex space-x-3 mb-4">
+                              <input
+                                type="text"
+                                value={jiraSearchQuery}
+                                onChange={(e) => setJiraSearchQuery(e.target.value)}
+                                placeholder="Search JIRA tickets..."
+                                className="flex-1 px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                              />
+                              <button
+                                type="button"
+                                onClick={searchJiraTickets}
+                                disabled={jiraSearching || !jiraSearchQuery.trim() || !selectedJiraProject}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                              >
+                                {jiraSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                              </button>
+                            </div>
+
+                            {jiraSearchResults.length > 0 && (
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {jiraSearchResults.map((ticket) => (
+                                  <div
+                                    key={ticket.key}
+                                    onClick={() => selectJiraTicket(ticket)}
+                                    className="p-3 border border-neutral-200 dark:border-neutral-600 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 cursor-pointer"
+                                  >
+                                    <div className="font-medium text-sm">{ticket.key}</div>
+                                    <div className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{ticket.fields.summary}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                            Ticket Summary
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.title || ''}
+                            disabled
+                            className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-neutral-50 dark:bg-neutral-600 text-neutral-500 dark:text-neutral-400"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={createJiraTicket}
+                          disabled={isCreatingTicket || !selectedJiraProject || !formData.title.trim()}
+                          className="w-full px-4 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                        >
+                          {isCreatingTicket ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Creating Ticket...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-4 w-4" />
+                              <span>Create JIRA Ticket</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
+            </>
           )}
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-4 pt-8 border-t border-neutral-200 dark:border-neutral-700">
+          {activeTab === 'comments' && (
+            <div className="space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Comments</h3>
+              </div>
+
+              {/* Add Comment */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Add Comment
+                  </label>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                    placeholder="Add a comment to this task..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddComment}
+                  disabled={!newComment.trim() || submittingComment}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {submittingComment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Add Comment</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Comments List */}
+              <div className="space-y-4">
+                <h4 className="text-md font-medium text-neutral-900 dark:text-white">Recent Comments</h4>
+                {loadingComments ? (
+                  <div className="flex items-center space-x-3 text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Loading comments...</span>
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div className="text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">No comments yet</div>
+                ) : (
+                  <div className="space-y-4 max-h-60 overflow-y-auto">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className="p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl bg-neutral-50 dark:bg-neutral-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-neutral-900 dark:text-white">
+                            {comment.user_email}
+                          </span>
+                          <span className="text-xs text-neutral-500">
+                            {new Date(comment.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-neutral-700 dark:text-neutral-300">{comment.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-neutral-200 dark:border-neutral-700">
             <button
               type="button"
               onClick={onClose}
-              className="px-8 py-3 border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors font-medium"
+              className="px-6 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center space-x-2"
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
             >
               {isLoading ? (
                 <>
@@ -936,86 +966,13 @@ export default function EditTaskModal({
                   <span>Updating...</span>
                 </>
               ) : (
-                <span>Update Task</span>
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Update Task</span>
+                </>
               )}
             </button>
           </div>
-            </>
-          )}
-
-          {activeTab === 'comments' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Comments</h3>
-              
-              {/* Add Comment */}
-              <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add a comment..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white resize-none"
-                />
-                <div className="flex justify-end mt-3">
-                  <button
-                    type="button"
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim() || submittingComment}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    {submittingComment ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Adding...</span>
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="h-4 w-4" />
-                        <span>Add Comment</span>
-                      </>
-                    )}
-            </button>
-          </div>
-              </div>
-
-              {/* Comments List */}
-              {loadingComments ? (
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-neutral-400" />
-                  <p className="text-neutral-600 dark:text-neutral-400">Loading comments...</p>
-                </div>
-              ) : comments.length > 0 ? (
-                <div className="space-y-4">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-white dark:bg-neutral-700">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <User className="h-4 w-4 text-neutral-400" />
-                          <span className="font-semibold text-neutral-900 dark:text-white">
-                            {comment.user_email}
-                          </span>
-                        </div>
-                        <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                          {new Date(comment.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="bg-neutral-50 dark:bg-neutral-600 rounded-lg p-3">
-                        <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                          {comment.comment}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg">No comments yet</p>
-                  <p className="text-sm">Be the first to add a comment to this task.</p>
-                </div>
-              )}
-            </div>
-          )}
         </form>
       </div>
     </div>
