@@ -115,6 +115,9 @@ export default function EditTaskModal({
   // Initialize form data and load initial data when modal opens
   useEffect(() => {
     if (isOpen && task) {
+      console.log('Initializing form data with task:', task);
+      console.log('Task assigned_to:', task.assigned_to);
+      
       // Set form data first
       setFormData({
         title: task.title || '',
@@ -160,20 +163,35 @@ export default function EditTaskModal({
     // Load team members
     setIsLoadingTeamMembers(true);
     try {
+      console.log('Loading team members for teamId:', teamId);
       if (teamId) {
+        // Use a more specific query to get team members with user information
         const teamMembersResponse = await supabaseClient.get('team_members', {
+          select: 'id, user_email, users(full_name, email)',
           filters: { team_id: teamId },
           order: { column: 'created_at', ascending: true }
         });
         
+        console.log('Team members response:', teamMembersResponse);
+        
         if (teamMembersResponse.data) {
+          console.log('Loaded team members:', teamMembersResponse.data);
           setTeamMembers(teamMembersResponse.data);
           
           // Ensure assigned_to is properly set if it exists in the task
           if (task.assigned_to && teamMembersResponse.data.some((member: TeamMember) => member.user_email === task.assigned_to)) {
+            console.log('Setting assigned_to to:', task.assigned_to);
             setFormData(prev => ({ ...prev, assigned_to: task.assigned_to }));
+          } else {
+            console.log('Task assigned_to not found in team members or task.assigned_to is empty');
+            console.log('Task assigned_to:', task.assigned_to);
+            console.log('Available team member emails:', teamMembersResponse.data.map((m: TeamMember) => m.user_email));
           }
+        } else {
+          console.log('No team members data returned');
         }
+      } else {
+        console.log('No teamId provided, skipping team members load');
       }
     } catch (error) {
       console.error('Error loading team members:', error);
@@ -661,6 +679,10 @@ export default function EditTaskModal({
                         </option>
                       ))}
                     </select>
+                    {/* Debug info */}
+                    <div className="text-xs text-gray-500 mt-1">
+                      Debug: formData.assigned_to = "{formData.assigned_to}", teamMembers count = {teamMembers.length}
+                    </div>
                   </div>
                 </div>
 
