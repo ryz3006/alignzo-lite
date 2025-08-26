@@ -460,64 +460,92 @@ export async function updateKanbanTask(
   userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
+    // Get the current task to compare changes
+    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
+      filters: { id: taskId }
+    });
+
+    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+    
+    const currentTask = currentTaskResponse.data?.[0];
+    if (!currentTask) throw new Error('Task not found');
+
     const response = await supabaseClient.update('kanban_tasks', taskId, updates);
 
     if (response.error) throw new Error(response.error);
 
-    // Create timeline entries for significant changes
-    if (response.data && response.data[0] && userEmail) {
-      const updatedTask = response.data[0];
-      
-      // Check for specific field changes and create appropriate timeline entries
-      if (updates.assigned_to !== undefined) {
-        await createTaskTimeline(
-          taskId,
-          userEmail,
-          'assigned',
-          {
-            assigned_to: updates.assigned_to,
-            previous_assigned_to: updatedTask.assigned_to
-          }
-        );
-      }
+    const updatedTask = response.data;
 
-      if (updates.status !== undefined) {
-        await createTaskTimeline(
-          taskId,
-          userEmail,
-          'status_changed',
-          {
-            from_status: updatedTask.status,
-            to_status: updates.status
-          }
-        );
-      }
-
-      if (updates.priority !== undefined) {
-        await createTaskTimeline(
-          taskId,
-          userEmail,
-          'priority_changed',
-          {
-            from_priority: updatedTask.priority,
-            to_priority: updates.priority
-          }
-        );
-      }
-
-      if (updates.title !== undefined || updates.description !== undefined) {
+    // Create timeline entries for each change
+    if (userEmail) {
+      // Title/Description changes
+      if (updates.title !== undefined && updates.title !== currentTask.title) {
         await createTaskTimeline(
           taskId,
           userEmail,
           'updated',
           {
-            field: updates.title !== undefined ? 'title' : 'description',
-            new_value: updates.title || updates.description
+            field: 'title',
+            old_value: currentTask.title,
+            new_value: updates.title
           }
         );
       }
 
-      if (updates.jira_ticket_key !== undefined) {
+      if (updates.description !== undefined && updates.description !== currentTask.description) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'updated',
+          {
+            field: 'description',
+            old_value: currentTask.description,
+            new_value: updates.description
+          }
+        );
+      }
+
+      // Priority changes
+      if (updates.priority !== undefined && updates.priority !== currentTask.priority) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'priority_changed',
+          {
+            from_priority: currentTask.priority,
+            to_priority: updates.priority
+          }
+        );
+      }
+
+      // Status changes
+      if (updates.status !== undefined && updates.status !== currentTask.status) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'status_changed',
+          {
+            from_status: currentTask.status,
+            to_status: updates.status
+          }
+        );
+      }
+
+      // Assignment changes
+      if (updates.assigned_to !== undefined && updates.assigned_to !== currentTask.assigned_to) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'assigned',
+          {
+            from_user: currentTask.assigned_to,
+            to_user: updates.assigned_to
+          }
+        );
+      }
+
+      // JIRA ticket linking
+      if (updates.jira_ticket_key !== undefined && updates.jira_ticket_key !== currentTask.jira_ticket_key) {
         await createTaskTimeline(
           taskId,
           userEmail,
@@ -528,14 +556,57 @@ export async function updateKanbanTask(
         );
       }
 
-      if (updates.column_id !== undefined) {
+      // Column movement
+      if (updates.column_id !== undefined && updates.column_id !== currentTask.column_id) {
         await createTaskTimeline(
           taskId,
           userEmail,
           'moved',
           {
-            from_column: updatedTask.column_id,
+            from_column: currentTask.column_id,
             to_column: updates.column_id
+          }
+        );
+      }
+
+      // Due date changes
+      if (updates.due_date !== undefined && updates.due_date !== currentTask.due_date) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'updated',
+          {
+            field: 'due_date',
+            old_value: currentTask.due_date,
+            new_value: updates.due_date
+          }
+        );
+      }
+
+      // Estimated hours changes
+      if (updates.estimated_hours !== undefined && updates.estimated_hours !== currentTask.estimated_hours) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'updated',
+          {
+            field: 'estimated_hours',
+            old_value: currentTask.estimated_hours,
+            new_value: updates.estimated_hours
+          }
+        );
+      }
+
+      // Actual hours changes
+      if (updates.actual_hours !== undefined && updates.actual_hours !== currentTask.actual_hours) {
+        await createTaskTimeline(
+          taskId,
+          userEmail,
+          'updated',
+          {
+            field: 'actual_hours',
+            old_value: currentTask.actual_hours,
+            new_value: updates.actual_hours
           }
         );
       }
@@ -779,26 +850,28 @@ export async function createTaskComment(
   comment: string
 ): Promise<ApiResponse<TaskComment>> {
   try {
-    const response = await supabaseClient.insert('task_comments', {
+    const commentData = {
       task_id: taskId,
       user_email: userEmail,
-      comment
-    });
+      comment: comment.trim()
+    };
+    
+    const response = await supabaseClient.insert('task_comments', commentData);
 
-    if (response.error) throw new Error(response.error);
+    if (response.error) {
+      throw new Error(response.error);
+    }
 
     // Create timeline entry for comment
-    if (response.data && response.data[0]) {
-      await createTaskTimeline(
-        taskId,
-        userEmail,
-        'commented',
-        {
-          comment_id: response.data[0].id,
-          comment_preview: comment.substring(0, 100) + (comment.length > 100 ? '...' : '')
-        }
-      );
-    }
+    await createTaskTimeline(
+      taskId,
+      userEmail,
+      'commented',
+      {
+        comment_id: response.data?.[0]?.id,
+        comment_preview: comment.trim().substring(0, 50) + (comment.trim().length > 50 ? '...' : '')
+      }
+    );
 
     return {
       data: response.data,

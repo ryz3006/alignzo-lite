@@ -88,30 +88,47 @@ export default function EditTaskModal({
   const [loadingComments, setLoadingComments] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
 
+  // Format date for datetime-local input (remove timezone info)
+  const formatDateForInput = (dateString: string | null | undefined) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
+  };
+
   // Initialize form data and load initial data when modal opens
   useEffect(() => {
-    if (isOpen && task && projectData) {
+    if (isOpen && task) {
       // Set form data first
       setFormData({
-        title: task.title,
+        title: task.title || '',
         description: task.description || '',
-        category_id: task.category_id,
+        category_id: task.category_id || '',
         category_option_id: task.category_option_id || '',
-        column_id: task.column_id,
-        priority: task.priority,
+        column_id: task.column_id || '',
+        priority: task.priority || 'medium',
+        status: task.status || 'active',
         estimated_hours: task.estimated_hours || undefined,
         actual_hours: task.actual_hours || undefined,
-        due_date: task.due_date || '',
-        jira_ticket_id: task.jira_ticket_id || '',
+        due_date: formatDateForInput(task.due_date),
         jira_ticket_key: task.jira_ticket_key || '',
-        assigned_to: task.assigned_to || '',
-        status: task.status
+        assigned_to: task.assigned_to || ''
       });
+      setErrors({} as Record<keyof UpdateTaskForm, string | undefined>);
       
       // Then load additional data
       loadInitialData();
     }
-  }, [isOpen, task, projectData]);
+  }, [isOpen, task]);
 
   const loadInitialData = async () => {
     if (!projectData) return;
