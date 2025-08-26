@@ -25,6 +25,7 @@ import {
   Archive
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
+import { getUserWithRole } from '@/lib/user-role';
 import { 
   getKanbanBoardOptimized,
   getUserAccessibleProjectsOptimized,
@@ -110,7 +111,13 @@ export default function KanbanBoardPageOptimized() {
       const currentUser = await getCurrentUser();
       if (!currentUser) return;
       
-      setUser(currentUser);
+      // Get user with role information
+      const userWithRole = await getUserWithRole(currentUser.email!);
+      if (userWithRole) {
+        setUser(userWithRole);
+      } else {
+        setUser(currentUser);
+      }
       
       // Load data in parallel
       await Promise.all([
@@ -148,6 +155,20 @@ export default function KanbanBoardPageOptimized() {
       }
     } catch (error) {
       console.error('Error loading user teams:', error);
+    }
+  };
+
+  const updateUserRoleForTeam = async (teamId: string) => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+      
+      const userWithRole = await getUserWithRole(currentUser.email, teamId);
+      if (userWithRole) {
+        setUser(userWithRole);
+      }
+    } catch (error) {
+      console.error('Error updating user role for team:', error);
     }
   };
 
@@ -537,10 +558,16 @@ export default function KanbanBoardPageOptimized() {
                 <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Team:</label>
                 <select
                   value={selectedTeam}
-                  onChange={(e) => {
-                    setSelectedTeam(e.target.value);
+                  onChange={async (e) => {
+                    const teamId = e.target.value;
+                    setSelectedTeam(teamId);
                     setBoardLoaded(false);
                     clearCache('kanban-');
+                    
+                    // Update user role for the selected team
+                    if (teamId) {
+                      await updateUserRoleForTeam(teamId);
+                    }
                   }}
                   className="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm"
                 >
@@ -697,7 +724,7 @@ export default function KanbanBoardPageOptimized() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 mb-3 cursor-pointer hover:shadow-md transition-all ${
+                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 mb-3 cursor-pointer hover:shadow-md transition-all duration-150 ${
                                       snapshot.isDragging ? 'shadow-lg rotate-2' : ''
                                     }`}
                                     onClick={() => openTaskDetailModal(task)}

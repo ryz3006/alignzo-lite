@@ -24,6 +24,7 @@ import {
   Archive
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
+import { getUserWithRole } from '@/lib/user-role';
 import { 
   getKanbanBoard, 
   getKanbanBoardOptimized,
@@ -103,7 +104,13 @@ export default function KanbanBoardPage() {
       const currentUser = await getCurrentUser();
       if (!currentUser) return;
       
-      setUser(currentUser);
+      // Get user with role information
+      const userWithRole = await getUserWithRole(currentUser.email!);
+      if (userWithRole) {
+        setUser(userWithRole);
+      } else {
+        setUser(currentUser);
+      }
       
       // Get user's accessible projects
       const projectsResponse = await getUserAccessibleProjects(currentUser.email!);
@@ -131,6 +138,20 @@ export default function KanbanBoardPage() {
       }
     } catch (error) {
       console.error('Error loading user teams:', error);
+    }
+  };
+
+  const updateUserRoleForTeam = async (teamId: string) => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+      
+      const userWithRole = await getUserWithRole(currentUser.email, teamId);
+      if (userWithRole) {
+        setUser(userWithRole);
+      }
+    } catch (error) {
+      console.error('Error updating user role for team:', error);
     }
   };
 
@@ -280,7 +301,7 @@ export default function KanbanBoardPage() {
       if (response.success) {
         setShowEditColumnModal(false);
         setEditingColumn(null);
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to get updated column order
       } else {
         console.error('Failed to update column');
       }
@@ -302,7 +323,7 @@ export default function KanbanBoardPage() {
       if (response.success) {
         setShowDeleteConfirmModal(false);
         setColumnToDelete('');
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to get updated column order
       } else {
         console.error(response.error || 'Failed to delete column');
       }
@@ -341,7 +362,7 @@ export default function KanbanBoardPage() {
       });
       if (response.success) {
         setShowCreateColumnModal(false);
-        loadKanbanBoard();
+        loadKanbanBoard(true); // Force refresh to get updated column order
       }
     } catch (error) {
       console.error('Error creating column:', error);
@@ -449,9 +470,15 @@ export default function KanbanBoardPage() {
                 <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Team:</label>
                 <select
                   value={selectedTeam}
-                  onChange={(e) => {
-                    setSelectedTeam(e.target.value);
+                  onChange={async (e) => {
+                    const teamId = e.target.value;
+                    setSelectedTeam(teamId);
                     setBoardLoaded(false);
+                    
+                    // Update user role for the selected team
+                    if (teamId) {
+                      await updateUserRoleForTeam(teamId);
+                    }
                   }}
                   className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
@@ -593,7 +620,7 @@ export default function KanbanBoardPage() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${
+                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-150 ${
                                       snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : ''
                                     }`}
                                     onClick={() => openTaskDetailModal(task)}
