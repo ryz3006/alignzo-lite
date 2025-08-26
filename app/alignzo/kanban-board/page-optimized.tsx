@@ -790,7 +790,22 @@ export default function KanbanBoardPageOptimized() {
           }}
           onSubmit={handleUpdateTask}
           task={editingTask}
-          projectData={null}
+          projectData={selectedProject ? {
+            ...selectedProject,
+            categories: categories,
+            columns: kanbanBoard
+          } : {
+            id: '',
+            name: '',
+            product: '',
+            country: '',
+            created_at: '',
+            updated_at: '',
+            categories: [],
+            columns: []
+          }}
+          userEmail={user?.email || ''}
+          teamId={selectedTeam}
         />
       )}
 

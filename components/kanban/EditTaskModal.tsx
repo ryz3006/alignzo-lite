@@ -14,6 +14,7 @@ interface EditTaskModalProps {
   task: KanbanTaskWithDetails;
   projectData: ProjectWithCategories;
   userEmail: string;
+  teamId?: string;
 }
 
 interface JiraProjectMapping {
@@ -46,7 +47,8 @@ export default function EditTaskModal({
   onSubmit,
   task,
   projectData,
-  userEmail
+  userEmail,
+  teamId
 }: EditTaskModalProps) {
   const [formData, setFormData] = useState<UpdateTaskForm>({
     title: '',
@@ -158,13 +160,15 @@ export default function EditTaskModal({
     // Load team members
     setIsLoadingTeamMembers(true);
     try {
-      const teamMembersResponse = await supabaseClient.get('team_members', {
-        filters: { team_id: projectData.team_id },
-        order: { column: 'created_at', ascending: true }
-      });
-      
-      if (teamMembersResponse.data) {
-        setTeamMembers(teamMembersResponse.data);
+      if (teamId) {
+        const teamMembersResponse = await supabaseClient.get('team_members', {
+          filters: { team_id: teamId },
+          order: { column: 'created_at', ascending: true }
+        });
+        
+        if (teamMembersResponse.data) {
+          setTeamMembers(teamMembersResponse.data);
+        }
       }
     } catch (error) {
       console.error('Error loading team members:', error);
@@ -286,7 +290,7 @@ export default function EditTaskModal({
   };
 
   const createJiraTicket = async () => {
-    if (!selectedJiraProject || !formData.title.trim()) {
+    if (!selectedJiraProject || !formData.title?.trim()) {
       toast.error('Please select a JIRA project and enter task title');
       return;
     }
@@ -319,7 +323,7 @@ export default function EditTaskModal({
         body: JSON.stringify({
           userEmail: currentUser.email,
           projectKey: selectedJiraProject,
-          summary: formData.title,
+          summary: formData.title || '',
           description: description,
           issueType: 'Task',
           priority: formData.priority === 'urgent' ? 'Highest' : 
@@ -364,7 +368,7 @@ export default function EditTaskModal({
   const validateForm = (): boolean => {
     const newErrors: Record<keyof UpdateTaskForm, string | undefined> = {} as Record<keyof UpdateTaskForm, string | undefined>;
 
-    if (!formData.title.trim()) {
+    if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
     }
 
@@ -849,7 +853,7 @@ export default function EditTaskModal({
                         <button
                           type="button"
                           onClick={createJiraTicket}
-                          disabled={isCreatingTicket || !selectedJiraProject || !formData.title.trim()}
+                          disabled={isCreatingTicket || !selectedJiraProject || !formData.title?.trim()}
                           className="w-full px-4 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
                         >
                           {isCreatingTicket ? (

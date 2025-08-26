@@ -722,8 +722,18 @@ export default function KanbanBoardPage() {
             ...selectedProject,
             categories: categories,
             columns: kanbanBoard
-          } : null}
-          userEmail={user?.email}
+          } : {
+            id: '',
+            name: '',
+            product: '',
+            country: '',
+            created_at: '',
+            updated_at: '',
+            categories: [],
+            columns: []
+          }}
+          userEmail={user?.email || ''}
+          teamId={selectedTeam}
         />
       )}
 
