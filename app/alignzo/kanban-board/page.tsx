@@ -260,8 +260,8 @@ export default function KanbanBoardPage() {
     try {
       console.log('Testing timeline for task:', taskId);
       
-      // Test creating a timeline entry
-      const createResponse = await fetch('/api/test-timeline', {
+      // Test creating a timeline entry with debug endpoint
+      const createResponse = await fetch('/api/debug-timeline', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,12 +275,12 @@ export default function KanbanBoardPage() {
       });
       
       const createResult = await createResponse.json();
-      console.log('Timeline creation test result:', createResult);
+      console.log('Timeline creation debug result:', createResult);
       
-      // Test retrieving timeline entries
-      const getResponse = await fetch(`/api/test-timeline?taskId=${taskId}`);
+      // Test retrieving timeline entries with debug endpoint
+      const getResponse = await fetch(`/api/debug-timeline?taskId=${taskId}`);
       const getResult = await getResponse.json();
-      console.log('Timeline retrieval test result:', getResult);
+      console.log('Timeline retrieval debug result:', getResult);
       
     } catch (error) {
       console.error('Timeline test error:', error);

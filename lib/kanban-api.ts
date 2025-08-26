@@ -390,40 +390,52 @@ export async function getKanbanTask(taskId: string): Promise<ApiResponse<KanbanT
 
 export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiResponse<KanbanTask>> {
   try {
+    console.log('=== CREATING KANBAN TASK ===');
+    console.log('Task data:', taskData);
+    
     // Remove team_id from taskData as kanban_tasks table doesn't have this column
     const { team_id, ...taskDataWithoutTeamId } = taskData as any;
     
+    console.log('Task data without team_id:', taskDataWithoutTeamId);
+    
     const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
+
+    console.log('Task creation response:', response);
+    console.log('Response data:', response.data);
+    console.log('Response error:', response.error);
 
     if (response.error) throw new Error(response.error);
 
     // Create timeline entry for task creation
     if (response.data && response.data[0]) {
       const createdTask = response.data[0];
-      console.log('Creating timeline entry for task creation:', {
-        taskId: createdTask.id,
-        userEmail: taskData.created_by || 'system',
-        action: 'created',
-        details: {
-          title: createdTask.title,
-          description: createdTask.description,
-          priority: createdTask.priority,
-          column_id: createdTask.column_id
-        }
-      });
+      console.log('=== CREATING TIMELINE ENTRY ===');
+      console.log('Created task:', createdTask);
+      console.log('Task ID for timeline:', createdTask.id);
+      console.log('User email for timeline:', taskData.created_by || 'system');
+      
+      const timelineDetails = {
+        title: createdTask.title,
+        description: createdTask.description,
+        priority: createdTask.priority,
+        column_id: createdTask.column_id
+      };
+      
+      console.log('Timeline details:', timelineDetails);
       
       try {
+        console.log('About to call createTaskTimeline...');
         const timelineResponse = await createTaskTimeline(
           createdTask.id,
           taskData.created_by || 'system',
           'created',
-          {
-            title: createdTask.title,
-            description: createdTask.description,
-            priority: createdTask.priority,
-            column_id: createdTask.column_id
-          }
+          timelineDetails
         );
+        
+        console.log('Timeline creation response:', timelineResponse);
+        console.log('Timeline success:', timelineResponse.success);
+        console.log('Timeline data:', timelineResponse.data);
+        console.log('Timeline error:', timelineResponse.error);
         
         if (timelineResponse.success) {
           console.log('Timeline entry created successfully:', timelineResponse.data);
@@ -432,7 +444,11 @@ export async function createKanbanTask(taskData: CreateTaskForm): Promise<ApiRes
         }
       } catch (error) {
         console.error('Error creating timeline entry:', error);
+        console.error('Error details:', error);
       }
+    } else {
+      console.log('No task data returned from creation');
+      console.log('Response data is:', response.data);
     }
 
     return {
@@ -655,21 +671,28 @@ export async function createTaskTimeline(
   details?: any
 ): Promise<ApiResponse<TaskTimeline>> {
   try {
-    console.log('Creating timeline entry:', {
+    console.log('=== CREATING TASK TIMELINE ENTRY ===');
+    console.log('Parameters:', {
       taskId,
       userEmail,
       action,
       details
     });
     
-    const response = await supabaseClient.insert('task_timeline', {
+    const timelineData = {
       task_id: taskId,
       user_email: userEmail,
       action,
       details
-    });
+    };
+    
+    console.log('Timeline data to insert:', timelineData);
+    
+    const response = await supabaseClient.insert('task_timeline', timelineData);
 
     console.log('Supabase insert response:', response);
+    console.log('Response data:', response.data);
+    console.log('Response error:', response.error);
 
     if (response.error) {
       console.error('Timeline insert error:', response.error);
@@ -694,18 +717,26 @@ export async function createTaskTimeline(
 
 export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskTimeline[]>> {
   try {
-    console.log('Getting timeline for task ID:', taskId);
+    console.log('=== GETTING TASK TIMELINE ===');
+    console.log('Task ID:', taskId);
     
-    const response = await supabaseClient.get('task_timeline', {
+    const queryOptions = {
       select: '*',
       filters: { task_id: taskId },
       order: {
         column: 'created_at',
         ascending: false
       }
-    });
+    };
+    
+    console.log('Query options:', queryOptions);
+    
+    const response = await supabaseClient.get('task_timeline', queryOptions);
 
     console.log('Supabase timeline response:', response);
+    console.log('Response data:', response.data);
+    console.log('Response error:', response.error);
+    console.log('Data length:', response.data?.length || 0);
 
     if (response.error) {
       console.error('Timeline get error:', response.error);

@@ -69,9 +69,15 @@ export async function POST(request: NextRequest) {
     // Special handling for timeline and comments - use admin client for all operations
     const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments';
     
+    console.log(`=== SUPABASE PROXY DEBUG ===`);
+    console.log(`Table: ${table}`);
+    console.log(`Action: ${action}`);
+    console.log(`Is admin operation: ${isAdmin}`);
+    console.log(`Is timeline/comments: ${isTimelineOrComments}`);
+    console.log(`Service role key available: ${!!supabaseServiceKey}`);
+    
     if (isAdmin || isTimelineOrComments) {
       console.log(`Using admin client for ${action} operation on ${table}`);
-      console.log(`Service role key available: ${!!supabaseServiceKey}`);
       
       // For admin operations and timeline/comments, use service role key if available, otherwise use anon key
       const client = supabaseServiceKey ? supabaseAdmin : supabase;
@@ -90,6 +96,12 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'select':
+        console.log(`=== SELECT OPERATION ===`);
+        console.log(`Table: ${table}`);
+        console.log(`Select: ${select || '*'}`);
+        console.log(`Filters:`, filters);
+        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
+        
         let query = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).select(select || '*');
         
         // Apply filters
@@ -197,10 +209,25 @@ export async function POST(request: NextRequest) {
         }
         
         result = await query;
+        
+        console.log(`Select result:`, result);
+        console.log(`Select success:`, !result.error);
+        console.log(`Select data:`, result.data);
+        console.log(`Select error:`, result.error);
         break;
 
       case 'insert':
+        console.log(`=== INSERT OPERATION ===`);
+        console.log(`Table: ${table}`);
+        console.log(`Data:`, data);
+        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
+        
         result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).insert(data);
+        
+        console.log(`Insert result:`, result);
+        console.log(`Insert success:`, !result.error);
+        console.log(`Insert data:`, result.data);
+        console.log(`Insert error:`, result.error);
         break;
 
       case 'update':
