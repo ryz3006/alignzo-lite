@@ -39,8 +39,8 @@ function isAdminOperation(table: string, action: string): boolean {
     'category_options',
     'subcategory_options',
     'task_timeline', // Add timeline table to admin operations
-    'task_comments',  // Add comments table to admin operations
-    'kanban_tasks'   // Add kanban tasks table to admin operations
+    'task_comments'  // Add comments table to admin operations
+    // Note: kanban_tasks is handled separately to ensure RLS works properly
   ];
   
   const adminActions = ['insert', 'update', 'delete'];
@@ -73,8 +73,9 @@ export async function POST(request: NextRequest) {
     // Determine which client to use based on the operation
     const isAdmin = isAdminOperation(table, action);
     
-    // Special handling for timeline, comments, and kanban tasks - use admin client for all operations
-    const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments' || table === 'kanban_tasks';
+    // Special handling for timeline and comments - use admin client for these operations
+    // Note: kanban_tasks is handled separately to ensure RLS works properly
+    const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments';
     
     console.log(`=== SUPABASE PROXY DEBUG ===`);
     console.log(`Table: ${table}`);
@@ -111,7 +112,13 @@ export async function POST(request: NextRequest) {
         console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
         console.log(`Admin client available: ${!!supabaseServiceKey}`);
         
-        const selectClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let selectClient;
+        if (table === 'kanban_tasks') {
+          selectClient = supabase;
+        } else {
+          selectClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
         console.log(`Using client:`, selectClient === supabaseAdmin ? 'admin' : 'anon');
         
         let query = selectClient.from(table).select(select || '*');
@@ -235,7 +242,14 @@ export async function POST(request: NextRequest) {
         console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
         console.log(`Admin client available: ${!!supabaseServiceKey}`);
         
-        const insertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let insertClient;
+        if (table === 'kanban_tasks') {
+          insertClient = supabase;
+          console.log('Using anon client for kanban_tasks to ensure RLS works properly');
+        } else {
+          insertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
         console.log(`Using client:`, insertClient === supabaseAdmin ? 'admin' : 'anon');
         
         try {
@@ -261,7 +275,13 @@ export async function POST(request: NextRequest) {
         console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
         console.log(`Admin client available: ${!!supabaseServiceKey}`);
         
-        const updateClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let updateClient;
+        if (table === 'kanban_tasks') {
+          updateClient = supabase;
+        } else {
+          updateClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
         console.log(`Using client:`, updateClient === supabaseAdmin ? 'admin' : 'anon');
         
         let updateQuery = updateClient.from(table).update(data);
@@ -284,7 +304,15 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'delete':
-        let deleteQuery = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).delete();
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let deleteClient;
+        if (table === 'kanban_tasks') {
+          deleteClient = supabase;
+        } else {
+          deleteClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
+        
+        let deleteQuery = deleteClient.from(table).delete();
         
         // Apply filters for delete operation
         if (filters) {
@@ -299,13 +327,29 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'upsert':
-        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).upsert(data, { 
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let upsertClient;
+        if (table === 'kanban_tasks') {
+          upsertClient = supabase;
+        } else {
+          upsertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
+        
+        result = await upsertClient.from(table).upsert(data, { 
           onConflict: 'project_id,team_id,user_email,shift_date' 
         });
         break;
 
       case 'rpc':
-        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).rpc(functionName, params || {});
+        // For kanban_tasks, use anon client to ensure RLS works properly
+        let rpcClient;
+        if (table === 'kanban_tasks') {
+          rpcClient = supabase;
+        } else {
+          rpcClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        }
+        
+        result = await rpcClient.rpc(functionName, params || {});
         break;
 
       default:

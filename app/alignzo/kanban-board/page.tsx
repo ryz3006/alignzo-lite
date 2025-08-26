@@ -421,13 +421,13 @@ export default function KanbanBoardPage() {
                 </select>
               </div>
 
-                             <button
-                 onClick={handleRefresh}
-                 disabled={isRefreshing}
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
                  className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
                >
                  <RefreshCw className="h-5 w-5" />
-               </button>
+              </button>
             </div>
           </div>
 

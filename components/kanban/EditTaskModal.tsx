@@ -415,8 +415,8 @@ export default function EditTaskModal({
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
           <div>
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">
-              Edit Task
-            </h2>
+            Edit Task
+          </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
               Update task details and settings
             </p>
@@ -455,34 +455,34 @@ export default function EditTaskModal({
           </div>
           {activeTab === 'details' && (
             <>
-              {/* Basic Information */}
+          {/* Basic Information */}
               <div className="space-y-6">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
                 <Tag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                Basic Information
-              </h3>
+              Basic Information
+            </h3>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Task Title *
-                </label>
-                <input
-                  type="text"
-                  value={formData.title || ''}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Task Title *
+              </label>
+              <input
+                type="text"
+                value={formData.title || ''}
+                onChange={(e) => handleInputChange('title', e.target.value)}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                    errors.title 
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-neutral-300 dark:border-neutral-600'
-                  } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
-                  placeholder="Enter task title"
-                />
-                {errors.title && (
+                  errors.title 
+                    ? 'border-red-300 focus:ring-red-500' 
+                    : 'border-neutral-300 dark:border-neutral-600'
+                } bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white`}
+                placeholder="Enter task title"
+              />
+              {errors.title && (
                   <p className="mt-2 text-sm text-red-600">{errors.title}</p>
                 )}
               </div>
@@ -527,8 +527,8 @@ export default function EditTaskModal({
                 <FolderOpen className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                Categories
-              </h3>
+              Categories
+            </h3>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -585,8 +585,8 @@ export default function EditTaskModal({
                 <Settings className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                Task Details
-              </h3>
+              Task Details
+            </h3>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -690,7 +690,7 @@ export default function EditTaskModal({
                 {errors.actual_hours && (
                   <p className="mt-2 text-sm text-red-600">{errors.actual_hours}</p>
                 )}
-              </div>
+            </div>
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -742,10 +742,10 @@ export default function EditTaskModal({
                         </option>
                       ))}
                     </select>
-                  </div>
+              </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Ticket Type
                     </label>
                     <div className="flex space-x-4">
@@ -758,9 +758,9 @@ export default function EditTaskModal({
                           className="text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-neutral-700 dark:text-neutral-300">Link Existing</span>
-                      </label>
+                </label>
                       <label className="flex items-center space-x-2">
-                        <input
+                <input
                           type="radio"
                           value="new"
                           checked={jiraTicketType === 'new'}
@@ -769,44 +769,44 @@ export default function EditTaskModal({
                         />
                         <span className="text-sm text-neutral-700 dark:text-neutral-300">Create New</span>
                       </label>
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+          </div>
 
                 {jiraTicketType === 'existing' ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="text"
-                        value={formData.jira_ticket_key || ''}
-                        onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
+          <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="text"
+                  value={formData.jira_ticket_key || ''}
+                  onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
                         className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                        placeholder="e.g., PROJ-123"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowJiraSearch(!showJiraSearch)}
+                  placeholder="e.g., PROJ-123"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowJiraSearch(!showJiraSearch)}
                         className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                      >
+                >
                         <Search className="h-4 w-4" />
                         <span>Search</span>
-                      </button>
-                    </div>
+                </button>
+              </div>
 
-                    {showJiraSearch && (
+              {showJiraSearch && (
                       <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700">
                         <div className="flex space-x-3 mb-4">
-                          <input
-                            type="text"
-                            value={jiraSearchQuery}
-                            onChange={(e) => setJiraSearchQuery(e.target.value)}
+                    <input
+                      type="text"
+                      value={jiraSearchQuery}
+                      onChange={(e) => setJiraSearchQuery(e.target.value)}
                             className="flex-1 px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                            placeholder="Search JIRA tickets..."
-                          />
-                          <button
-                            type="button"
-                            onClick={searchJiraTickets}
-                            disabled={jiraSearching}
+                      placeholder="Search JIRA tickets..."
+                    />
+                    <button
+                      type="button"
+                      onClick={searchJiraTickets}
+                      disabled={jiraSearching}
                             className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
                           >
                             {jiraSearching ? (
@@ -820,37 +820,37 @@ export default function EditTaskModal({
                                 <span>Search</span>
                               </>
                             )}
-                          </button>
-                        </div>
+                    </button>
+                  </div>
 
-                        {jiraSearchResults.length > 0 && (
+                  {jiraSearchResults.length > 0 && (
                           <div className="space-y-3">
-                            {jiraSearchResults.map((ticket, index) => (
-                              <div
-                                key={index}
-                                onClick={() => selectJiraTicket(ticket)}
+                      {jiraSearchResults.map((ticket, index) => (
+                        <div
+                          key={index}
+                          onClick={() => selectJiraTicket(ticket)}
                                 className="p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-600 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-500 transition-colors"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-blue-600 dark:text-blue-400">
-                                    {ticket.key}
-                                  </span>
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                              {ticket.key}
+                            </span>
                                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor((ticket.priority?.name || 'medium').toLowerCase())}`}>
                                     {ticket.priority?.name || 'Medium'}
-                                  </span>
-                                </div>
+                            </span>
+                          </div>
                                 <p className="text-sm text-neutral-600 dark:text-neutral-300 mt-2">
-                                  {ticket.summary}
-                                </p>
+                            {ticket.summary}
+                          </p>
                                 <div className="flex items-center space-x-2 mt-2">
                                   <span className="text-xs text-neutral-500 dark:text-neutral-400">
                                     Status: {ticket.status.name}
                                   </span>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                       </div>
                     )}
                   </div>
@@ -893,10 +893,10 @@ export default function EditTaskModal({
                         {ticketCreated ? 'New ticket created' : 'Existing ticket linked'}
                       </p>
                     </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+          </div>
           )}
 
           {/* Form Actions */}
@@ -957,8 +957,8 @@ export default function EditTaskModal({
                         <span>Add Comment</span>
                       </>
                     )}
-                  </button>
-                </div>
+            </button>
+          </div>
               </div>
 
               {/* Comments List */}
