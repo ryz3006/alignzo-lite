@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKanbanBoardWithRedis } from '@/lib/kanban-api-redis';
+import { getKanbanBoardWithRedis, moveTaskWithRedis, createKanbanTaskWithRedis } from '@/lib/kanban-api-redis';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, data } = body;
 
-    // Import Supabase client for POST operations
+    // Import Supabase client for authentication
     const { createRouteHandlerClient } = await import('@supabase/auth-helpers-nextjs');
     const { cookies } = await import('next/headers');
     
@@ -46,52 +46,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get project and team IDs from query parameters or request body
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId') || data.projectId;
+    const teamId = searchParams.get('teamId') || data.teamId;
+
+    if (!projectId) {
+      return NextResponse.json(
+        { success: false, error: 'Project ID is required' },
+        { status: 400 }
+      );
+    }
+
     switch (action) {
       case 'move_task':
         const { taskId, columnId, sortOrder } = data;
-        const { data: moveResult, error: moveError } = await supabase.rpc(
-          'move_kanban_task_optimized',
-          {
-            task_uuid: taskId,
-            new_column_uuid: columnId,
-            new_sort_order: sortOrder,
-            user_email_param: user.email
-          }
-        );
-
-        if (moveError) {
-          console.error('Error moving task:', moveError);
+        
+        console.log('🔄 API: Moving task with Redis', { taskId, columnId, sortOrder, projectId, teamId });
+        
+        const moveResult = await moveTaskWithRedis(taskId, columnId, sortOrder, projectId, teamId);
+        
+        if (!moveResult.success) {
+          console.error('Error moving task:', moveResult.error);
           return NextResponse.json(
-            { success: false, error: 'Failed to move task' },
+            { success: false, error: moveResult.error || 'Failed to move task' },
             { status: 500 }
           );
         }
 
+        console.log('🟢 API: Task moved successfully');
         return NextResponse.json({
           success: true,
-          data: moveResult
+          data: moveResult.data,
+          source: moveResult.source
         });
 
       case 'create_task':
-        const { data: createResult, error: createError } = await supabase.rpc(
-          'create_kanban_task_optimized',
-          {
-            task_data: JSON.stringify(data),
-            user_email_param: user.email
-          }
-        );
-
-        if (createError) {
-          console.error('Error creating task:', createError);
+        console.log('🔄 API: Creating task with Redis', { taskData: data, projectId, teamId });
+        
+        const createResult = await createKanbanTaskWithRedis(data, projectId, teamId);
+        
+        if (!createResult.success) {
+          console.error('Error creating task:', createResult.error);
           return NextResponse.json(
-            { success: false, error: 'Failed to create task' },
+            { success: false, error: createResult.error || 'Failed to create task' },
             { status: 500 }
           );
         }
 
+        console.log('🟢 API: Task created successfully');
         return NextResponse.json({
           success: true,
-          data: createResult
+          data: createResult.data,
+          source: createResult.source
         });
 
       default:

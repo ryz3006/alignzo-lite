@@ -487,7 +487,12 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 
 async function createKanbanTaskInDatabase(taskData: CreateTaskForm): Promise<ApiResponse<KanbanTask>> {
   try {
-    const response = await supabaseClient.insert('kanban_tasks', taskData);
+    // Filter out team_id as it doesn't exist in kanban_tasks table
+    const { team_id, ...taskDataWithoutTeamId } = taskData as any;
+    
+    console.log('🔄 Database: Creating task with data:', taskDataWithoutTeamId);
+    
+    const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
     if (response.error) throw new Error(response.error);
     return { data: response.data, success: true };
   } catch (error) {
@@ -502,7 +507,12 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm): Promise<Api
 
 async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskForm): Promise<ApiResponse<KanbanTask>> {
   try {
-    const response = await supabaseClient.update('kanban_tasks', taskId, updates);
+    // Filter out team_id as it doesn't exist in kanban_tasks table
+    const { team_id, ...updatesWithoutTeamId } = updates as any;
+    
+    console.log('🔄 Database: Updating task with data:', updatesWithoutTeamId);
+    
+    const response = await supabaseClient.update('kanban_tasks', taskId, updatesWithoutTeamId);
     if (response.error) throw new Error(response.error);
     return { data: response.data, success: true };
   } catch (error) {

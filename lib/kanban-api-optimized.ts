@@ -336,7 +336,10 @@ export async function updateKanbanTask(
   updates: UpdateTaskForm
 ): Promise<ApiResponse<KanbanTask>> {
   try {
-    const response = await supabaseClient.update('kanban_tasks', taskId, updates);
+    // Filter out team_id as it doesn't exist in kanban_tasks table
+    const { team_id, ...updatesWithoutTeamId } = updates as any;
+    
+    const response = await supabaseClient.update('kanban_tasks', taskId, updatesWithoutTeamId);
 
     if (response.error) throw new Error(response.error);
 
