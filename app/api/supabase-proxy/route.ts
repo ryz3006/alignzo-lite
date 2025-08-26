@@ -39,7 +39,8 @@ function isAdminOperation(table: string, action: string): boolean {
     'category_options',
     'subcategory_options',
     'task_timeline', // Add timeline table to admin operations
-    'task_comments'  // Add comments table to admin operations
+    'task_comments',  // Add comments table to admin operations
+    'kanban_tasks'   // Add kanban tasks table to admin operations
   ];
   
   const adminActions = ['insert', 'update', 'delete'];
@@ -66,8 +67,8 @@ export async function POST(request: NextRequest) {
     // Determine which client to use based on the operation
     const isAdmin = isAdminOperation(table, action);
     
-    // Special handling for timeline and comments - use admin client for all operations
-    const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments';
+    // Special handling for timeline, comments, and kanban tasks - use admin client for all operations
+    const isTimelineOrComments = table === 'task_timeline' || table === 'task_comments' || table === 'kanban_tasks';
     
     console.log(`=== SUPABASE PROXY DEBUG ===`);
     console.log(`Table: ${table}`);
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
     console.log(`Is admin operation: ${isAdmin}`);
     console.log(`Is timeline/comments: ${isTimelineOrComments}`);
     console.log(`Service role key available: ${!!supabaseServiceKey}`);
+    console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
     
     if (isAdmin || isTimelineOrComments) {
       console.log(`Using admin client for ${action} operation on ${table}`);
@@ -101,8 +103,12 @@ export async function POST(request: NextRequest) {
         console.log(`Select: ${select || '*'}`);
         console.log(`Filters:`, filters);
         console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
+        console.log(`Admin client available: ${!!supabaseServiceKey}`);
         
-        let query = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).select(select || '*');
+        const selectClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        console.log(`Using client:`, selectClient === supabaseAdmin ? 'admin' : 'anon');
+        
+        let query = selectClient.from(table).select(select || '*');
         
         // Apply filters
         if (filters) {
@@ -221,8 +227,12 @@ export async function POST(request: NextRequest) {
         console.log(`Table: ${table}`);
         console.log(`Data:`, data);
         console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
+        console.log(`Admin client available: ${!!supabaseServiceKey}`);
         
-        result = await ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).insert(data);
+        const insertClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        console.log(`Using client:`, insertClient === supabaseAdmin ? 'admin' : 'anon');
+        
+        result = await insertClient.from(table).insert(data);
         
         console.log(`Insert result:`, result);
         console.log(`Insert success:`, !result.error);
@@ -231,7 +241,17 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'update':
-        let updateQuery = ((isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase).from(table).update(data);
+        console.log(`=== UPDATE OPERATION ===`);
+        console.log(`Table: ${table}`);
+        console.log(`Data:`, data);
+        console.log(`Filters:`, filters);
+        console.log(`Using admin client: ${(isAdmin || isTimelineOrComments) && supabaseServiceKey}`);
+        console.log(`Admin client available: ${!!supabaseServiceKey}`);
+        
+        const updateClient = (isAdmin || isTimelineOrComments) && supabaseServiceKey ? supabaseAdmin : supabase;
+        console.log(`Using client:`, updateClient === supabaseAdmin ? 'admin' : 'anon');
+        
+        let updateQuery = updateClient.from(table).update(data);
         
         // Apply filters for update operation
         if (filters) {
@@ -243,6 +263,11 @@ export async function POST(request: NextRequest) {
         }
         
         result = await updateQuery;
+        
+        console.log(`Update result:`, result);
+        console.log(`Update success:`, !result.error);
+        console.log(`Update data:`, result.data);
+        console.log(`Update error:`, result.error);
         break;
 
       case 'delete':
