@@ -160,9 +160,11 @@ export default function TaskDetailModal({
       case 'assigned':
         return details?.assigned_to ? `Assigned to ${details.assigned_to}` : 'Assignment changed';
       case 'moved':
-        return details?.from_column && details?.to_column 
-          ? `Moved from ${details.from_column} to ${details.to_column}`
-          : 'Task moved';
+        return details?.from_column_name && details?.to_column_name 
+          ? `Moved from ${details.from_column_name} to ${details.to_column_name}`
+          : details?.from_column && details?.to_column 
+            ? `Moved from ${details.from_column} to ${details.to_column}`
+            : 'Task moved';
       case 'commented':
         return 'Added a comment';
       case 'linked_jira':

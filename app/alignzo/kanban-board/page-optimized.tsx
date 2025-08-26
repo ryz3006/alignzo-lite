@@ -21,7 +21,8 @@ import {
   Grid3X3,
   List,
   RefreshCw,
-  Loader2
+  Loader2,
+  Archive
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { 
@@ -37,6 +38,11 @@ import {
   clearCache
 } from '@/lib/kanban-api-optimized';
 import {
+  updateKanbanColumn,
+  deleteKanbanColumn,
+  permanentlyDeleteTask
+} from '@/lib/kanban-api';
+import {
   KanbanColumnWithTasks,
   KanbanTaskWithDetails,
   CreateTaskForm,
@@ -49,6 +55,10 @@ import CreateTaskModalOptimized from '@/components/kanban/CreateTaskModalOptimiz
 import EditTaskModal from '@/components/kanban/EditTaskModal';
 import TaskDetailModal from '@/components/kanban/TaskDetailModal';
 import CreateColumnModal from '@/components/kanban/CreateColumnModal';
+import ColumnMenu from '@/components/kanban/ColumnMenu';
+import EditColumnModal from '@/components/kanban/EditColumnModal';
+import ConfirmationModal from '@/components/kanban/ConfirmationModal';
+import ArchivedTasksModal from '@/components/kanban/ArchivedTasksModal';
 import toast from 'react-hot-toast';
 
 export default function KanbanBoardPageOptimized() {
@@ -71,6 +81,14 @@ export default function KanbanBoardPageOptimized() {
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
+  const [showEditColumnModal, setShowEditColumnModal] = useState(false);
+  const [showArchivedTasksModal, setShowArchivedTasksModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  
+  // Column management
+  const [editingColumn, setEditingColumn] = useState<any>(null);
+  const [columnToDelete, setColumnToDelete] = useState<string>('');
+  const [taskToDelete, setTaskToDelete] = useState<string>('');
   
   // Selected task for editing/viewing
   const [selectedTask, setSelectedTask] = useState<KanbanTaskWithDetails | null>(null);
@@ -284,7 +302,96 @@ export default function KanbanBoardPageOptimized() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
+  // Column Management Handlers
+  const handleEditColumn = (column: any) => {
+    setEditingColumn(column);
+    setShowEditColumnModal(true);
+  };
+
+  const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string }) => {
+    try {
+      const response = await updateKanbanColumn(columnId, updates);
+      if (response.success) {
+        setShowEditColumnModal(false);
+        setEditingColumn(null);
+        loadKanbanBoard(true);
+        toast.success('Column updated successfully');
+      } else {
+        toast.error('Failed to update column');
+      }
+    } catch (error) {
+      console.error('Error updating column:', error);
+      toast.error('Failed to update column');
+    }
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    setColumnToDelete(columnId);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!columnToDelete) return;
+    
+    try {
+      const response = await deleteKanbanColumn(columnToDelete);
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setColumnToDelete('');
+        loadKanbanBoard(true);
+        toast.success('Column deleted successfully');
+      } else {
+        toast.error(response.error || 'Failed to delete column');
+      }
+    } catch (error) {
+      console.error('Error deleting column:', error);
+      toast.error('Failed to delete column');
+    }
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTaskToDelete(taskId);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete || !user) return;
+    
+    try {
+      const response = await deleteKanbanTask(taskToDelete);
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setTaskToDelete('');
+        loadKanbanBoard(true);
+        toast.success('Task deleted successfully');
+      } else {
+        toast.error('Failed to delete task');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task');
+    }
+  };
+
+  const handlePermanentlyDeleteTask = async (taskId: string) => {
+    try {
+      const response = await permanentlyDeleteTask(taskId);
+      if (response.success) {
+        toast.success('Task permanently deleted');
+        // Refresh archived tasks modal
+        if (showArchivedTasksModal) {
+          // This will be handled by the ArchivedTasksModal component
+        }
+      } else {
+        toast.error('Failed to permanently delete task');
+      }
+    } catch (error) {
+      console.error('Error permanently deleting task:', error);
+      toast.error('Failed to permanently delete task');
+    }
+  };
+
+  const handleDeleteTaskAsync = async (taskId: string) => {
     if (!user) return;
 
     try {
@@ -474,6 +581,15 @@ export default function KanbanBoardPageOptimized() {
           {/* Search and View Mode */}
           <div className="flex items-center justify-between mt-4">
             <div className="flex items-center space-x-4">
+              {/* Archived Tasks Button */}
+              <button
+                onClick={() => setShowArchivedTasksModal(true)}
+                className="flex items-center space-x-2 px-3 py-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
+              >
+                <Archive className="h-4 w-4" />
+                <span className="text-sm font-medium">Archived</span>
+              </button>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
                 <input
@@ -536,12 +652,21 @@ export default function KanbanBoardPageOptimized() {
                               {filteredTasks(column.tasks).length}
                             </span>
                           </div>
-                          <button
-                            onClick={() => openCreateTaskModal(column.id)}
-                            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => openCreateTaskModal(column.id)}
+                              className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            <ColumnMenu
+                              column={column}
+                              taskCount={filteredTasks(column.tasks).length}
+                              onEdit={handleEditColumn}
+                              onDelete={handleDeleteColumn}
+                              isOwner={user?.role === 'owner'}
+                            />
+                          </div>
                         </div>
                         {column.description && (
                           <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
@@ -647,7 +772,7 @@ export default function KanbanBoardPageOptimized() {
                                           >
                                             <Edit3 className="h-3 w-3" />
                                           </button>
-                                          {(task.created_by === user?.email || user?.access_dashboard) && (
+                                          {user?.role === 'owner' && (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -828,6 +953,48 @@ export default function KanbanBoardPageOptimized() {
           onClose={() => setShowCreateColumnModal(false)}
           onSubmit={handleCreateColumn}
           projectId={selectedProject?.id}
+        />
+      )}
+
+      {/* Edit Column Modal */}
+      {showEditColumnModal && (
+        <EditColumnModal
+          isOpen={showEditColumnModal}
+          onClose={() => {
+            setShowEditColumnModal(false);
+            setEditingColumn(null);
+          }}
+          onSubmit={handleUpdateColumn}
+          column={editingColumn}
+        />
+      )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirmModal}
+        onClose={() => {
+          setShowDeleteConfirmModal(false);
+          setColumnToDelete('');
+          setTaskToDelete('');
+        }}
+        onConfirm={columnToDelete ? confirmDeleteColumn : confirmDeleteTask}
+        title={columnToDelete ? "Delete Column" : "Delete Task"}
+        message={
+          columnToDelete 
+            ? "Are you sure you want to delete this column? This action cannot be undone."
+            : "Are you sure you want to delete this task? This action cannot be undone."
+        }
+        confirmText="Delete"
+        type="danger"
+      />
+
+      {/* Archived Tasks Modal */}
+      {showArchivedTasksModal && (
+        <ArchivedTasksModal
+          isOpen={showArchivedTasksModal}
+          onClose={() => setShowArchivedTasksModal(false)}
+          projectId={selectedProject?.id || ''}
+          isOwner={user?.role === 'owner'}
         />
       )}
     </div>

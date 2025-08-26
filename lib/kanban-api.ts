@@ -287,8 +287,8 @@ export async function createKanbanColumn(columnData: CreateColumnForm & { projec
 }
 
 export async function updateKanbanColumn(
-  columnId: string, 
-  updates: Partial<CreateColumnForm>
+  columnId: string,
+  updates: { name: string; description?: string; color: string }
 ): Promise<ApiResponse<KanbanColumn>> {
   try {
     const response = await supabaseClient.update('kanban_columns', columnId, updates);
@@ -311,7 +311,20 @@ export async function updateKanbanColumn(
 
 export async function deleteKanbanColumn(columnId: string): Promise<ApiResponse<boolean>> {
   try {
-    const response = await supabaseClient.update('kanban_columns', columnId, { is_active: false });
+    // First check if there are any tasks in this column
+    const tasksResponse = await supabaseClient.get('kanban_tasks', {
+      select: 'id',
+      filters: { column_id: columnId, status: 'active' }
+    });
+
+    if (tasksResponse.error) throw new Error(tasksResponse.error);
+
+    if (tasksResponse.data && tasksResponse.data.length > 0) {
+      throw new Error(`Cannot delete column because it contains ${tasksResponse.data.length} active task(s). Please move or delete all tasks first.`);
+    }
+
+    // Delete the column
+    const response = await supabaseClient.delete('kanban_columns', columnId);
 
     if (response.error) throw new Error(response.error);
 
@@ -569,13 +582,26 @@ export async function updateKanbanTask(
 
       // Column movement
       if (updates.column_id !== undefined && updates.column_id !== currentTask.column_id) {
+        // Get column names for better timeline display
+        const fromColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: currentTask.column_id }
+        });
+        const toColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: updates.column_id }
+        });
+        
+        const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
+        const toColumnName = toColumnResponse.data?.[0]?.name || updates.column_id;
+        
         await createTaskTimeline(
           taskId,
           userEmail,
           'moved',
           {
             from_column: currentTask.column_id,
-            to_column: updates.column_id
+            to_column: updates.column_id,
+            from_column_name: fromColumnName,
+            to_column_name: toColumnName
           }
         );
       }
@@ -695,6 +721,17 @@ export async function moveTask(
 
     // Create timeline entry for task move
     if (userEmail && currentTask.column_id !== columnId) {
+      // Get column names for better timeline display
+      const fromColumnResponse = await supabaseClient.get('kanban_columns', {
+        filters: { id: currentTask.column_id }
+      });
+      const toColumnResponse = await supabaseClient.get('kanban_columns', {
+        filters: { id: columnId }
+      });
+      
+      const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
+      const toColumnName = toColumnResponse.data?.[0]?.name || columnId;
+      
       await createTaskTimeline(
         taskId,
         userEmail,
@@ -702,6 +739,8 @@ export async function moveTask(
         {
           from_column: currentTask.column_id,
           to_column: columnId,
+          from_column_name: fromColumnName,
+          to_column_name: toColumnName,
           sort_order: sortOrder
         }
       );
@@ -1389,6 +1428,26 @@ export async function getProjectWithCategories(projectId: string): Promise<ApiRe
     console.error('Error fetching project with categories:', error);
     return {
       data: {} as ProjectWithCategories,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export async function permanentlyDeleteTask(taskId: string): Promise<ApiResponse<boolean>> {
+  try {
+    const response = await supabaseClient.delete('kanban_tasks', taskId);
+
+    if (response.error) throw new Error(response.error);
+
+    return {
+      data: true,
+      success: true
+    };
+  } catch (error) {
+    console.error('Error permanently deleting task:', error);
+    return {
+      data: false,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
