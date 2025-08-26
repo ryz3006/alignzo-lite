@@ -236,10 +236,11 @@ export interface TaskSearchParams {
 
 // API response interfaces
 export interface ApiResponse<T> {
-  data: T;
+  data: T | null;
   success: boolean;
   message?: string;
   error?: string;
+  source?: 'redis' | 'database' | 'unknown';
 }
 
 export interface PaginatedResponse<T> {

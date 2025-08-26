@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { getKanbanBoardWithRedis } from '@/lib/kanban-api-redis';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,51 +9,18 @@ export async function GET(request: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json(
-        { success: false, error: 'Project ID is required' },
+        { error: 'Project ID is required' },
         { status: 400 }
       );
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Use the optimized function to get kanban board data
-    const { data: boardData, error: boardError } = await supabase.rpc(
-      'get_kanban_board_optimized',
-      {
-        project_uuid: projectId,
-        team_uuid: teamId || null
-      }
-    );
-
-    if (boardError) {
-      console.error('Error fetching kanban board:', boardError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch kanban board data' },
-        { status: 500 }
-      );
-    }
-
-    // Parse the JSON result
-    const parsedData = boardData ? JSON.parse(boardData) : { columns: [], categories: [] };
-
-    return NextResponse.json({
-      success: true,
-      data: parsedData
-    });
-
+    const result = await getKanbanBoardWithRedis(projectId, teamId || undefined);
+    
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in kanban board API:', error);
+    console.error('Error fetching Kanban board:', error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { error: 'Failed to fetch Kanban board' },
       { status: 500 }
     );
   }
@@ -65,6 +31,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, data } = body;
 
+    // Import Supabase client for POST operations
+    const { createRouteHandlerClient } = await import('@supabase/auth-helpers-nextjs');
+    const { cookies } = await import('next/headers');
+    
     const supabase = createRouteHandlerClient({ cookies });
 
     // Get the current user

@@ -59,6 +59,13 @@ SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ```
 
+### **Redis Configuration (Server-side)**
+```bash
+# These MUST be set in Vercel as secrets for Redis caching
+STORAGE_REDIS_URL=your-redis-connection-url
+STORAGE_URL=your-redis-connection-url-alternative
+```
+
 ---
 
 ## 🚀 **Vercel Configuration Steps**
@@ -103,6 +110,17 @@ Environments: ☑ Production ☑ Preview ☑ Development
 
 Name: SUPABASE_ANON_KEY
 Value: eyJ0eXAiOiJKV1QiLCJhbGc...
+Environments: ☑ Production ☑ Preview ☑ Development
+```
+
+### **Step 5: Add Redis Variables**
+```bash
+Name: STORAGE_REDIS_URL
+Value: redis://username:password@host:port
+Environments: ☑ Production ☑ Preview ☑ Development
+
+Name: STORAGE_URL
+Value: redis://username:password@host:port
 Environments: ☑ Production ☑ Preview ☑ Development
 ```
 
@@ -171,6 +189,8 @@ After setting all variables:
 - [ ] `SUPABASE_URL`
 - [ ] `SUPABASE_ANON_KEY`
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `STORAGE_REDIS_URL`
+- [ ] `STORAGE_URL`
 
 ### **Optional Variables**
 - [ ] `NEXTAUTH_SECRET`

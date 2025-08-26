@@ -38,6 +38,18 @@ import {
   deleteKanbanColumn,
   permanentlyDeleteTask
 } from '@/lib/kanban-api';
+import { 
+  getKanbanBoardWithRedis,
+  createKanbanTaskWithRedis,
+  updateKanbanTaskWithRedis,
+  deleteKanbanTaskWithRedis,
+  moveTaskWithRedis,
+  createKanbanColumnWithRedis,
+  updateKanbanColumnWithRedis,
+  deleteKanbanColumnWithRedis,
+  getProjectCategoriesWithRedis,
+  getRedisStatus
+} from '@/lib/kanban-client-api';
 import {
   KanbanColumnWithTasks,
   KanbanTaskWithDetails,
@@ -94,6 +106,9 @@ export default function KanbanBoardPage() {
   // Search
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  
+  // Redis status
+  const [redisStatus, setRedisStatus] = useState<{ status: string; message: string } | null>(null);
 
   useEffect(() => {
     initializePage();
@@ -114,7 +129,7 @@ export default function KanbanBoardPage() {
       
       // Get user's accessible projects
       const projectsResponse = await getUserAccessibleProjects(currentUser.email!);
-      if (projectsResponse.success && projectsResponse.data.length > 0) {
+      if (projectsResponse.success && projectsResponse.data && projectsResponse.data.length > 0) {
         setProjects(projectsResponse.data);
         setSelectedProject(projectsResponse.data[0] as ProjectWithCategories);
       }
@@ -122,10 +137,24 @@ export default function KanbanBoardPage() {
       // Load user's teams
       await loadUserTeams(currentUser.email!);
       
+      // Check Redis status
+      await checkRedisStatus();
+      
       setLoading(false);
     } catch (error) {
       console.error('Error initializing page:', error);
       setLoading(false);
+    }
+  };
+
+  const checkRedisStatus = async () => {
+    try {
+      const status = await getRedisStatus();
+      setRedisStatus(status);
+      console.log('🔄 Redis: Status check completed:', status);
+    } catch (error) {
+      console.error('🔴 Redis: Status check failed:', error);
+      setRedisStatus({ status: 'error', message: 'Status check failed' });
     }
   };
 
@@ -178,24 +207,32 @@ export default function KanbanBoardPage() {
       setLoading(true);
       setIsRefreshing(true);
       
-      console.log('Fetching fresh kanban board data...');
-      const response = await getKanbanBoardOptimized(selectedProject.id, selectedTeam);
-      if (response.success) {
-        setKanbanBoard(response.data.columns);
-        setCategories(response.data.categories);
+      console.log('🔄 Kanban: Fetching board data with Redis enhancement...');
+      
+      // Use Redis-enhanced API with fallback
+      const response = await getKanbanBoardWithRedis(selectedProject.id, selectedTeam);
+      
+      if (response.success && response.data) {
+        setKanbanBoard(response.data);
+        setCategories([]); // Categories will be loaded separately if needed
         
         // Update selectedProject with the fetched data
         setSelectedProject({
           ...selectedProject,
-          categories: response.data.categories,
-          columns: response.data.columns
+          categories: [],
+          columns: response.data
         });
         
         setBoardLoaded(true);
         setLastFetchTime(now);
+        
+        // Log the data source
+        console.log(`🟢 Kanban: Board loaded successfully (source: ${response.source || 'unknown'})`);
+      } else {
+        console.error('🔴 Kanban: Failed to load board data:', response.error);
       }
     } catch (error) {
-      console.error('Error loading kanban board:', error);
+      console.error('🔴 Kanban: Error loading kanban board:', error);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -207,7 +244,7 @@ export default function KanbanBoardPage() {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || !user) return;
+    if (!result.destination || !user || !selectedProject || !selectedTeam) return;
 
     const { draggableId, destination } = result;
     const taskId = draggableId;
@@ -215,8 +252,14 @@ export default function KanbanBoardPage() {
     const newSortOrder = destination.index;
 
     try {
-      const response = await moveTask(taskId, newColumnId, newSortOrder, user.email);
+      console.log('🔄 Task: Moving task with Redis enhancement...');
+      
+      const response = await moveTaskWithRedis(taskId, newColumnId, newSortOrder, selectedProject.id, selectedTeam);
+      
       if (response.success) {
+        console.log('🟢 Task: Task moved successfully');
+        
+        // Optimistic UI update
         setKanbanBoard(prevBoard => {
           const newBoard = [...prevBoard];
           let taskToMove: KanbanTaskWithDetails | null = null;
@@ -237,9 +280,11 @@ export default function KanbanBoardPage() {
 
           return newBoard;
         });
+      } else {
+        console.error('🔴 Task: Failed to move task:', response.error);
       }
     } catch (error) {
-      console.error('Error moving task:', error);
+      console.error('🔴 Task: Error moving task:', error);
     }
   };
 
@@ -247,45 +292,63 @@ export default function KanbanBoardPage() {
     if (!user || !selectedProject || !selectedTeam) return;
 
     try {
-      const response = await createKanbanTask({
+      console.log('🔄 Task: Creating task with Redis enhancement...');
+      
+      const response = await createKanbanTaskWithRedis({
         ...taskData,
         project_id: selectedProject.id,
         created_by: user.email
-      });
+      }, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowCreateTaskModal(false);
+        console.log('🟢 Task: Task created successfully');
         loadKanbanBoard();
+      } else {
+        console.error('🔴 Task: Failed to create task:', response.error);
       }
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error('🔴 Task: Error creating task:', error);
     }
   };
 
   const handleUpdateTask = async (taskId: string, updates: UpdateTaskForm) => {
-    if (!user) return;
+    if (!user || !selectedProject || !selectedTeam) return;
 
     try {
-      const response = await updateKanbanTask(taskId, updates, user.email);
+      console.log('🔄 Task: Updating task with Redis enhancement...');
+      
+      const response = await updateKanbanTaskWithRedis(taskId, updates, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowEditTaskModal(false);
         setEditingTask(null);
+        console.log('🟢 Task: Task updated successfully');
         loadKanbanBoard();
+      } else {
+        console.error('🔴 Task: Failed to update task:', response.error);
       }
     } catch (error) {
-      console.error('Error updating task:', error);
+      console.error('🔴 Task: Error updating task:', error);
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!user) return;
+    if (!user || !selectedProject || !selectedTeam) return;
 
     try {
-      const response = await deleteKanbanTask(taskId, user.email);
+      console.log('🔄 Task: Deleting task with Redis enhancement...');
+      
+      const response = await deleteKanbanTaskWithRedis(taskId, selectedProject.id, selectedTeam);
+      
       if (response.success) {
+        console.log('🟢 Task: Task deleted successfully');
         loadKanbanBoard();
+      } else {
+        console.error('🔴 Task: Failed to delete task:', response.error);
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error('🔴 Task: Error deleting task:', error);
     }
   };
 
@@ -296,17 +359,23 @@ export default function KanbanBoardPage() {
   };
 
   const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string; sort_order?: number }) => {
+    if (!selectedProject || !selectedTeam) return;
+    
     try {
-      const response = await updateKanbanColumn(columnId, updates);
+      console.log('🔄 Column: Updating column with Redis enhancement...');
+      
+      const response = await updateKanbanColumnWithRedis(columnId, updates, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowEditColumnModal(false);
         setEditingColumn(null);
+        console.log('🟢 Column: Column updated successfully');
         loadKanbanBoard(true); // Force refresh to get updated column order
       } else {
-        console.error('Failed to update column');
+        console.error('🔴 Column: Failed to update column:', response.error);
       }
     } catch (error) {
-      console.error('Error updating column:', error);
+      console.error('🔴 Column: Error updating column:', error);
     }
   };
 
@@ -316,36 +385,44 @@ export default function KanbanBoardPage() {
   };
 
   const confirmDeleteColumn = async () => {
-    if (!columnToDelete) return;
+    if (!columnToDelete || !selectedProject || !selectedTeam) return;
     
     try {
-      const response = await deleteKanbanColumn(columnToDelete);
+      console.log('🔄 Column: Deleting column with Redis enhancement...');
+      
+      const response = await deleteKanbanColumnWithRedis(columnToDelete, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowDeleteConfirmModal(false);
         setColumnToDelete('');
+        console.log('🟢 Column: Column deleted successfully');
         loadKanbanBoard(true); // Force refresh to get updated column order
       } else {
-        console.error(response.error || 'Failed to delete column');
+        console.error('🔴 Column: Failed to delete column:', response.error);
       }
     } catch (error) {
-      console.error('Error deleting column:', error);
+      console.error('🔴 Column: Error deleting column:', error);
     }
   };
 
   const confirmDeleteTask = async () => {
-    if (!taskToDelete || !user) return;
+    if (!taskToDelete || !user || !selectedProject || !selectedTeam) return;
     
     try {
-      const response = await deleteKanbanTask(taskToDelete, user.email);
+      console.log('🔄 Task: Deleting task with Redis enhancement...');
+      
+      const response = await deleteKanbanTaskWithRedis(taskToDelete, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowDeleteConfirmModal(false);
         setTaskToDelete('');
+        console.log('🟢 Task: Task deleted successfully');
         loadKanbanBoard();
       } else {
-        console.error('Failed to delete task');
+        console.error('🔴 Task: Failed to delete task:', response.error);
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error('🔴 Task: Error deleting task:', error);
     }
   };
 
@@ -355,17 +432,19 @@ export default function KanbanBoardPage() {
     if (!selectedProject || !selectedTeam) return;
 
     try {
-      const response = await createKanbanColumn({
-        ...columnData,
-        project_id: selectedProject.id,
-        team_id: selectedTeam
-      });
+      console.log('🔄 Column: Creating column with Redis enhancement...');
+      
+      const response = await createKanbanColumnWithRedis(columnData, selectedProject.id, selectedTeam);
+      
       if (response.success) {
         setShowCreateColumnModal(false);
+        console.log('🟢 Column: Column created successfully');
         loadKanbanBoard(true); // Force refresh to get updated column order
+      } else {
+        console.error('🔴 Column: Failed to create column:', response.error);
       }
     } catch (error) {
-      console.error('Error creating column:', error);
+      console.error('🔴 Column: Error creating column:', error);
     }
   };
 
@@ -434,10 +513,28 @@ export default function KanbanBoardPage() {
       <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
         <div className="px-6 py-4">
                       <div className="mb-6">
-              <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
-              <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                Visual workflow management for your team
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
+                  <p className="text-neutral-600 dark:text-neutral-400 mt-2">
+                    Visual workflow management for your team
+                  </p>
+                </div>
+                
+                {/* Redis Status Indicator */}
+                {redisStatus && (
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      redisStatus.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className={`text-sm font-medium ${
+                      redisStatus.status === 'healthy' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+                    }`}>
+                      Redis: {redisStatus.status === 'healthy' ? 'Connected' : 'Fallback'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
           {/* Project and Team Selector */}

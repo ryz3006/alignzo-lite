@@ -133,7 +133,7 @@ export default function KanbanBoardPageOptimized() {
       if (currentUser?.email) {
         // Get user projects
         const projectsResponse = await getUserAccessibleProjectsOptimized(currentUser.email);
-        if (projectsResponse.success) {
+        if (projectsResponse.success && projectsResponse.data) {
           setProjects(projectsResponse.data);
         }
 

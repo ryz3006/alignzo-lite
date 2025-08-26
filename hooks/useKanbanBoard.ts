@@ -129,10 +129,14 @@ export const useKanbanBoard = (projectId: string, teamId?: string) => {
     queryKey: ['kanban-board', projectId, teamId],
     queryFn: async () => {
       const response = await getKanbanBoardOptimized(projectId, teamId);
-      if (response.success) {
+      if (response.success && response.data) {
         return response.data;
       }
-      throw new Error(response.error || 'Failed to fetch board data');
+      // Return empty data structure if response.data is null
+      return {
+        columns: [],
+        categories: []
+      };
     },
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes

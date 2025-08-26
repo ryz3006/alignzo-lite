@@ -2,7 +2,7 @@
 const nextConfig = {
   // Use SSR for Vercel deployment
   experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
+    serverComponentsExternalPackages: ['@supabase/supabase-js', 'redis']
   },
   
   webpack: (config, { isServer }) => {
@@ -21,6 +21,9 @@ const nextConfig = {
         assert: false,
         os: false,
         path: false,
+        events: false,
+        timers: false,
+        'timers/promises': false,
       };
     }
     

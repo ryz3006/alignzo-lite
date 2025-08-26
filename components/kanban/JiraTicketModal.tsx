@@ -28,7 +28,7 @@ export default function JiraTicketModal({
     setSearching(true);
     try {
       const response = await searchJiraTickets(searchQuery, projectKey);
-      if (response.success) {
+      if (response.success && response.data) {
         setSearchResults(response.data);
       }
     } catch (error) {

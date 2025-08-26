@@ -72,6 +72,10 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Redis Configuration (Optional - for caching)
+STORAGE_REDIS_URL=redis://username:password@host:port
+STORAGE_URL=redis://username:password@host:port
 ```
 
 ### 4. Firebase Setup
