@@ -305,9 +305,14 @@ export async function moveTaskWithRedis(
     const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder);
     
     if (dbResult.success) {
-      // Invalidate related caches
-      await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Task: Task moved and caches invalidated');
+      // Temporarily disable cache invalidation to test
+      try {
+        await invalidateKanbanCaches(projectId, teamId);
+        console.log('🟢 Task: Task moved and caches invalidated');
+      } catch (cacheError) {
+        console.error('🔴 Task: Cache invalidation failed, but task move succeeded:', cacheError);
+        // Don't fail the operation if cache invalidation fails
+      }
     }
     
     return dbResult;
@@ -542,14 +547,25 @@ async function deleteKanbanTaskFromDatabase(taskId: string): Promise<ApiResponse
 
 async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOrder: number): Promise<ApiResponse<boolean>> {
   try {
+    console.log('🔄 Database: Moving task with params:', { taskId, newColumnId, newSortOrder });
+    
     const response = await supabaseClient.update('kanban_tasks', taskId, {
       column_id: newColumnId,
       sort_order: newSortOrder
     });
-    if (response.error) throw new Error(response.error);
+    
+    console.log('🔄 Database: Update response:', response);
+    
+    if (response.error) {
+      console.error('🔴 Database: Supabase error:', response.error);
+      throw new Error(response.error);
+    }
+    
+    console.log('🟢 Database: Task moved successfully');
     return { data: true, success: true };
   } catch (error) {
     console.error('🔴 Database: Error moving task:', error);
+    console.error('🔴 Database: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return {
       data: false,
       success: false,
