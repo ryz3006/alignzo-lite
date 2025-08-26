@@ -20,9 +20,10 @@ interface TaskCardProps {
   index: number;
   onClick: () => void;
   viewMode: 'kanban' | 'list';
+  isMoving?: boolean;
 }
 
-const TaskCard = memo(({ task, index, onClick, viewMode }: TaskCardProps) => {
+const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardProps) => {
   // Memoized priority colors
   const getPriorityColor = useCallback((priority: string) => {
     const colors = {
@@ -167,10 +168,21 @@ const TaskCard = memo(({ task, index, onClick, viewMode }: TaskCardProps) => {
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={onClick}
-          className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 mb-3 cursor-pointer transition-all ${
+          className={`bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 mb-3 cursor-pointer transition-all relative ${
             snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'
-          }`}
+          } ${isMoving ? 'opacity-50' : ''}`}
         >
+          {/* Loading Overlay for Moving Task */}
+          {isMoving && (
+            <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center z-10">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  Moving...
+                </span>
+              </div>
+            </div>
+          )}
           {/* Task Header */}
           <div className="flex items-start justify-between mb-2">
             <h4 className="font-medium text-neutral-900 dark:text-white text-sm leading-tight flex-1 mr-2">

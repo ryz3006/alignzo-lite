@@ -65,6 +65,9 @@ export default function KanbanBoardPageOptimized() {
   // Search and view
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  
+  // Task movement loading state
+  const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
 
   // Performance monitoring
   const performanceTimer = useMemo(() => 
@@ -112,6 +115,13 @@ export default function KanbanBoardPageOptimized() {
     };
   }, [performanceTimer]);
 
+  // Clear moving task ID when movement is complete
+  useEffect(() => {
+    if (!isMoving && movingTaskId) {
+      setMovingTaskId(null);
+    }
+  }, [isMoving, movingTaskId]);
+
   const initializePage = async () => {
     try {
       const stopTimer = performanceMonitor.startTimer('page-initialization');
@@ -157,6 +167,9 @@ export default function KanbanBoardPageOptimized() {
     const taskId = draggableId;
     const columnId = destination.droppableId;
     const sortOrder = destination.index;
+
+    // Set moving task ID for loading overlay
+    setMovingTaskId(taskId);
 
     // Optimistic update handled by the hook
     moveTask({ taskId, columnId, sortOrder });
@@ -389,7 +402,7 @@ export default function KanbanBoardPageOptimized() {
       </div>
 
       {/* Board Content */}
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6 relative">
         {boardError ? (
           <div className="text-center py-12">
             <p className="text-red-600 dark:text-red-400 mb-4">Error loading board: {boardError?.message || 'Unknown error'}</p>
@@ -418,6 +431,7 @@ export default function KanbanBoardPageOptimized() {
                      onColumnMenu={handleColumnMenu}
                      searchQuery={searchQuery}
                      viewMode={viewMode}
+                     movingTaskId={movingTaskId}
                    />
                  ))}
                 
@@ -459,6 +473,25 @@ export default function KanbanBoardPageOptimized() {
                </div>
             )}
           </DragDropContext>
+        )}
+
+        {/* Task Movement Loading Overlay */}
+        {movingTaskId && (
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+            <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 shadow-2xl border border-neutral-200 dark:border-neutral-700">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <div>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">
+                    Moving task...
+                  </p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Please wait while we update the board
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

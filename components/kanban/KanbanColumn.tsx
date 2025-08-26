@@ -15,6 +15,7 @@ interface KanbanColumnProps {
   onColumnMenu: (column: KanbanColumnWithTasks, event: React.MouseEvent) => void;
   searchQuery: string;
   viewMode: 'kanban' | 'list';
+  movingTaskId?: string | null;
 }
 
 const KanbanColumn = memo(({ 
@@ -23,7 +24,8 @@ const KanbanColumn = memo(({
   onAddTask, 
   onColumnMenu,
   searchQuery,
-  viewMode 
+  viewMode,
+  movingTaskId 
 }: KanbanColumnProps) => {
   // Memoized filtered tasks
   const filteredTasks = useMemo(() => {
@@ -106,6 +108,7 @@ const KanbanColumn = memo(({
                 index={index}
                 onClick={() => onTaskClick(task)}
                 viewMode={viewMode}
+                isMoving={movingTaskId === task.id}
               />
             ))}
             {provided.placeholder}
