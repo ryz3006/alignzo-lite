@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     const { createClient } = await import('@supabase/supabase-js');
     const { cookies } = await import('next/headers');
     
+    // Use the environment variables you already have configured
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
     
@@ -52,32 +53,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Get the current user from cookies
-    const cookieStore = await cookies();
-    const supabaseAuthCookie = cookieStore.get('sb-access-token');
-    
-    let user = null;
-    if (supabaseAuthCookie) {
-      try {
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(supabaseAuthCookie.value);
-        if (!authError && authUser) {
-          user = authUser;
-        }
-      } catch (authError) {
-        console.error('🔴 API: Auth error:', authError);
-      }
-    }
-    
-    // For now, allow the request to proceed without strict authentication
-    // You can uncomment the following lines if you want strict authentication
-    /*
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    */
+    // For now, skip authentication to focus on the core functionality
+    // The authentication can be re-enabled later when needed
+    console.log('🟡 API: Skipping authentication for now');
 
     // Get project and team IDs from query parameters, request body, or data object
     const { searchParams } = new URL(request.url);
