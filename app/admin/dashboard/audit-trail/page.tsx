@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Search, Download, Filter, RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { Calendar, Search, Download, Filter, RefreshCw, Eye, Trash2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabaseClient } from '@/lib/supabase-client';
 
@@ -46,6 +46,10 @@ export default function AuditTrailPage() {
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'audit' | 'alerts'>('audit');
+  
+  // Modal state for viewing audit entry details
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -223,6 +227,16 @@ export default function AuditTrailPage() {
     } catch (error) {
       toast.error('Failed to resolve alert');
     }
+  };
+
+  const handleViewEntry = (entry: AuditEntry) => {
+    setSelectedEntry(entry);
+    setShowViewModal(true);
+  };
+
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    setSelectedEntry(null);
   };
 
   const exportData = async () => {
@@ -500,7 +514,11 @@ export default function AuditTrailPage() {
                           </Badge>
                         </td>
                         <td className="p-2">
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleViewEntry(entry)}
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                         </td>
@@ -600,6 +618,160 @@ export default function AuditTrailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Modal for Audit Entry Details */}
+      {showViewModal && selectedEntry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Audit Entry Details</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeViewModal}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Basic Information</h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Timestamp</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {new Date(selectedEntry.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">User Email</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {selectedEntry.user_email}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                    <Badge className={getEventTypeColor(selectedEntry.event_type)}>
+                      {selectedEntry.event_type}
+                    </Badge>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Table Name</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {selectedEntry.table_name}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Record ID</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {selectedEntry.record_id || 'N/A'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <Badge className={selectedEntry.success ? 'bg-green-500' : 'bg-red-500'}>
+                      {selectedEntry.success ? 'Success' : 'Failed'}
+                    </Badge>
+                  </div>
+                </div>
+                
+                {/* Request Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Request Information</h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">HTTP Method</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {selectedEntry.method}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Endpoint</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded break-all">
+                      {selectedEntry.endpoint}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">IP Address</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">
+                      {selectedEntry.ip_address}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">User Agent</label>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded break-all">
+                      {selectedEntry.user_agent}
+                    </p>
+                  </div>
+                  
+                  {selectedEntry.error_message && (
+                    <div>
+                      <label className="block text-sm font-medium text-red-700 mb-1">Error Message</label>
+                      <p className="text-sm text-red-900 bg-red-50 p-2 rounded">
+                        {selectedEntry.error_message}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Data Changes */}
+              {(selectedEntry.old_values || selectedEntry.new_values || selectedEntry.metadata) && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2 mb-4">Data Changes</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {selectedEntry.old_values && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Previous Values</label>
+                        <pre className="text-xs text-gray-900 bg-gray-50 p-3 rounded border overflow-x-auto">
+                          {JSON.stringify(selectedEntry.old_values, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                    
+                    {selectedEntry.new_values && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">New Values</label>
+                        <pre className="text-xs text-gray-900 bg-gray-50 p-3 rounded border overflow-x-auto">
+                          {JSON.stringify(selectedEntry.new_values, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {selectedEntry.metadata && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Additional Metadata</label>
+                      <pre className="text-xs text-gray-900 bg-gray-50 p-3 rounded border overflow-x-auto">
+                        {JSON.stringify(selectedEntry.metadata, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="mt-6 flex justify-end">
+                <Button onClick={closeViewModal} variant="outline">
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
