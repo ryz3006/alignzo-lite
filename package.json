@@ -11,6 +11,7 @@
     "setup-db": "node scripts/create-team-project-table.js",
     "setup-jira-mapping": "node scripts/create-jira-user-mapping-table.js",
     "setup-jira-project-mapping": "node scripts/create-jira-project-mapping-table.js",
+    "setup-google-drive": "node scripts/setup-google-drive.js",
     "install:retry": "node scripts/install-with-retry.js"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "dotenv": "^17.2.1",
     "express-rate-limit": "^8.0.1",
     "firebase": "^9.22.0",
+    "googleapis": "^158.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.1",
