@@ -14,15 +14,51 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // First, check if the task exists and user has access
+    const { data: taskData, error: taskError } = await supabaseClient.get('kanban_tasks', {
+      select: 'id, title, project_id',
+      filters: { id: taskId }
+    });
+
+    if (taskError || !taskData || taskData.length === 0) {
+      console.error('Error checking task access:', taskError);
+      return NextResponse.json(
+        { error: 'Task not found or access denied', details: taskError || 'Task not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('Task found:', taskData);
+
+    // First, try the debug function to see what's happening
+    console.log('Calling debug function with taskId:', taskId);
+    const { data: debugData, error: debugError } = await supabaseClient.rpc('debug_task_categories', {
+      p_task_id: taskId
+    });
+    
+    console.log('Debug response:', { debugData, debugError });
+
+    // Try the simple function first
+    console.log('Calling simple RPC function with taskId:', taskId);
+    const { data: simpleData, error: simpleError } = await supabaseClient.rpc('get_task_categories_simple', {
+      p_task_id: taskId
+    });
+    
+    console.log('Simple RPC response:', { simpleData, simpleError });
+
     // Use the database function to get task categories with options
+    console.log('Calling RPC function with taskId:', taskId);
+    
     const { data, error } = await supabaseClient.rpc('get_task_categories_with_options', {
       p_task_id: taskId
     });
 
+    console.log('RPC response:', { data, error });
+
     if (error) {
       console.error('Error fetching task categories:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch task categories' },
+        { error: 'Failed to fetch task categories', details: error },
         { status: 500 }
       );
     }
@@ -74,7 +110,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error updating task categories:', error);
       return NextResponse.json(
-        { error: 'Failed to update task categories' },
+        { error: 'Failed to update task categories', details: error },
         { status: 500 }
       );
     }
@@ -126,7 +162,7 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       console.error('Error deleting task categories:', error);
       return NextResponse.json(
-        { error: 'Failed to delete task categories' },
+        { error: 'Failed to delete task categories', details: error },
         { status: 500 }
       );
     }
