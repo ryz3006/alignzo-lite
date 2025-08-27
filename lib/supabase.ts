@@ -127,7 +127,16 @@ export interface ProjectCategory {
   id: string;
   project_id: string;
   name: string;
-  options?: string[]; // Optional for kanban schema
+  options?: Array<{
+    id: string;
+    category_id: string;
+    option_name: string;
+    option_value: string;
+    sort_order: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  }>; // Updated for new category_options table structure
   description?: string; // For kanban schema
   color?: string; // For kanban schema
   sort_order?: number; // For kanban schema
