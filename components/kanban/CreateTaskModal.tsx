@@ -530,6 +530,13 @@ export default function CreateTaskModal({
         due_date: formData.due_date || null
       };
       
+      console.log('📝 CreateTaskModal - Submitting form data:', {
+        formData: formData,
+        categorySelections: categorySelections,
+        categories: categories,
+        formDataToSubmit: formDataToSubmit
+      });
+      
       onSubmit(formDataToSubmit);
     } catch (error) {
       console.error('Error submitting form:', error);

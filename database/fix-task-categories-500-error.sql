@@ -339,3 +339,37 @@ GRANT EXECUTE ON FUNCTION update_task_categories(UUID, JSON, TEXT) TO authentica
 -- SELECT debug_task_categories('your-task-id-here');
 -- SELECT get_task_categories_simple('your-task-id-here');
 -- SELECT get_task_categories_with_options('your-task-id-here');
+
+-- Test the update_task_categories function with sample data
+-- Replace 'your-task-id-here' with an actual task ID from your database
+-- SELECT update_task_categories(
+--   'your-task-id-here'::UUID,
+--   '[{"category_id": "your-category-id-here", "category_option_id": "your-option-id-here", "is_primary": false, "sort_order": 0}]'::JSON,
+--   'test@example.com'
+-- );
+
+-- 15. Create a test function to verify task category creation
+CREATE OR REPLACE FUNCTION test_task_category_creation(p_task_id UUID, p_category_id UUID, p_option_id UUID)
+RETURNS JSON AS $$
+DECLARE
+    v_result JSON;
+    v_test_categories JSON;
+BEGIN
+    -- Create test categories array
+    v_test_categories := json_build_array(
+        json_build_object(
+            'category_id', p_category_id::TEXT,
+            'category_option_id', p_option_id::TEXT,
+            'is_primary', false,
+            'sort_order', 0
+        )
+    );
+    
+    -- Test the update function
+    SELECT update_task_categories(p_task_id, v_test_categories, 'test@example.com') INTO v_result;
+    
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION test_task_category_creation(UUID, UUID, UUID) TO authenticated;

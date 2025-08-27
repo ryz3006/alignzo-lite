@@ -494,8 +494,19 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
     }
 
     // Handle multiple categories if provided
+    console.log('🔍 Task creation - Categories data:', {
+      hasCreatedTask: !!createdTask,
+      hasCategories: !!categories,
+      isArray: Array.isArray(categories),
+      categoriesLength: categories?.length,
+      categories: categories
+    });
+
     if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
       try {
+        console.log('📝 Saving categories for task:', createdTask.id);
+        console.log('📝 Categories to save:', JSON.stringify(categories, null, 2));
+        
         // Call the database function directly to save the categories
         const { error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
           p_task_id: createdTask.id,
@@ -504,12 +515,16 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
         });
 
         if (categoriesError) {
-          console.warn('Failed to save task categories:', categoriesError);
+          console.error('❌ Failed to save task categories:', categoriesError);
+        } else {
+          console.log('✅ Task categories saved successfully');
         }
       } catch (error) {
-        console.warn('Error saving task categories:', error);
+        console.error('❌ Error saving task categories:', error);
         // Don't fail the task creation if category saving fails
       }
+    } else {
+      console.log('⚠️ No categories to save or invalid data');
     }
 
     // Create timeline entry for task creation
