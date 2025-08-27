@@ -135,26 +135,50 @@ export async function POST(request: NextRequest) {
       // Get category names directly from the database
       for (const cat of newCategories) {
         try {
-          // Get category name
-          const categoryResponse = await supabaseClient.query({
-            table: 'project_categories',
-            action: 'select',
-            select: 'name',
-            filters: { id: cat.category_id }
-          });
+          // Use direct Supabase client for better reliability
+          const { createClient } = require('@supabase/supabase-js');
+          const supabaseUrl = process.env.SUPABASE_URL;
+          const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
           
-          const categoryName = categoryResponse.data?.[0]?.name || cat.category_id;
+          if (!supabaseUrl || !supabaseAnonKey) {
+            console.warn('Supabase environment variables not available for category resolution');
+            categoryDetails.push({
+              categoryName: cat.category_id,
+              optionName: cat.category_option_id,
+              displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
+            });
+            continue;
+          }
+          
+          const supabase = createClient(supabaseUrl, supabaseAnonKey);
+          
+          // Get category name
+          const { data: categoryData, error: categoryError } = await supabase
+            .from('project_categories')
+            .select('name')
+            .eq('id', cat.category_id)
+            .single();
+          
+          if (categoryError) {
+            console.warn(`Error fetching category name for ${cat.category_id}:`, categoryError);
+          }
+          
+          const categoryName = categoryData?.name || cat.category_id;
           
           // Get option name if category_option_id is provided
           let optionName = null;
           if (cat.category_option_id) {
-            const optionResponse = await supabaseClient.query({
-              table: 'category_options',
-              action: 'select',
-              select: 'option_name',
-              filters: { id: cat.category_option_id }
-            });
-            optionName = optionResponse.data?.[0]?.option_name || cat.category_option_id;
+            const { data: optionData, error: optionError } = await supabase
+              .from('category_options')
+              .select('option_name')
+              .eq('id', cat.category_option_id)
+              .single();
+            
+            if (optionError) {
+              console.warn(`Error fetching option name for ${cat.category_option_id}:`, optionError);
+            }
+            
+            optionName = optionData?.option_name || cat.category_option_id;
           }
           
           categoryDetails.push({
