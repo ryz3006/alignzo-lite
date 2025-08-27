@@ -499,32 +499,53 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
       hasCategories: !!categories,
       isArray: Array.isArray(categories),
       categoriesLength: categories?.length,
-      categories: categories
+      categories: categories,
+      taskDataKeys: Object.keys(taskData),
+      taskDataCategories: (taskData as any).categories
     });
 
     if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
       try {
         console.log('📝 Saving categories for task:', createdTask.id);
         console.log('📝 Categories to save:', JSON.stringify(categories, null, 2));
+        console.log('📝 User email:', userEmail || taskData.created_by || 'system');
         
         // Call the database function directly to save the categories
-        const { error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
+        const categoriesJson = JSON.stringify(categories);
+        console.log('📝 Categories JSON string:', categoriesJson);
+        
+        const { data: rpcData, error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
           p_task_id: createdTask.id,
-          p_categories: JSON.stringify(categories),
+          p_categories: categoriesJson,
           p_user_email: userEmail || taskData.created_by || 'system'
         });
+
+        console.log('📝 RPC response:', { rpcData, categoriesError });
 
         if (categoriesError) {
           console.error('❌ Failed to save task categories:', categoriesError);
         } else {
           console.log('✅ Task categories saved successfully');
+          
+          // Verify the categories were actually saved
+          const { data: verifyData, error: verifyError } = await supabaseClient.get('task_category_mappings', {
+            select: '*',
+            filters: { task_id: createdTask.id }
+          });
+          
+          console.log('🔍 Verification - Categories in DB:', { verifyData, verifyError, count: verifyData?.length || 0 });
         }
       } catch (error) {
         console.error('❌ Error saving task categories:', error);
         // Don't fail the task creation if category saving fails
       }
     } else {
-      console.log('⚠️ No categories to save or invalid data');
+      console.log('⚠️ No categories to save or invalid data:', {
+        hasCreatedTask: !!createdTask,
+        hasCategories: !!categories,
+        categoriesType: typeof categories,
+        categoriesLength: categories?.length
+      });
     }
 
     // Create timeline entry for task creation

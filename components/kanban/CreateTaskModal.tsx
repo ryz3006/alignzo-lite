@@ -534,7 +534,20 @@ export default function CreateTaskModal({
         formData: formData,
         categorySelections: categorySelections,
         categories: categories,
-        formDataToSubmit: formDataToSubmit
+        formDataToSubmit: formDataToSubmit,
+        categoriesLength: categories.length,
+        categoriesType: typeof categories,
+        isArray: Array.isArray(categories)
+      });
+      
+      // Log each category in detail
+      categories.forEach((cat, index) => {
+        console.log(`📝 Category ${index + 1}:`, {
+          category_id: cat.category_id,
+          category_option_id: cat.category_option_id,
+          is_primary: cat.is_primary,
+          sort_order: cat.sort_order
+        });
       });
       
       onSubmit(formDataToSubmit);

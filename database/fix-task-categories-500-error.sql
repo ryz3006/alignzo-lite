@@ -146,11 +146,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 9. Create the main function to get task categories with options
 CREATE OR REPLACE FUNCTION get_task_categories_with_options(p_task_id UUID)
 RETURNS TABLE (
-    mapping_id UUID,
+    id UUID,
     category_id UUID,
-    category_name TEXT,
-    category_description TEXT,
-    category_color TEXT,
+    name TEXT,
+    description TEXT,
+    color TEXT,
     category_option_id UUID,
     option_name TEXT,
     option_value TEXT,
