@@ -135,13 +135,17 @@ export async function POST(request: NextRequest) {
       // Get category names directly from the database
       for (const cat of newCategories) {
         try {
+          console.log(`[DEBUG] Processing category for timeline: category_id=${cat.category_id}, option_id=${cat.category_option_id}`);
+          
           // Use direct Supabase client for better reliability
           const { createClient } = require('@supabase/supabase-js');
           const supabaseUrl = process.env.SUPABASE_URL;
           const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
           
+          console.log(`[DEBUG] Supabase environment check - URL: ${!!supabaseUrl}, Key: ${!!supabaseAnonKey}`);
+          
           if (!supabaseUrl || !supabaseAnonKey) {
-            console.warn('Supabase environment variables not available for category resolution');
+            console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
             categoryDetails.push({
               categoryName: cat.category_id,
               optionName: cat.category_option_id,
@@ -153,6 +157,7 @@ export async function POST(request: NextRequest) {
           const supabase = createClient(supabaseUrl, supabaseAnonKey);
           
           // Get category name
+          console.log(`[DEBUG] Fetching category name from project_categories for ID: ${cat.category_id}`);
           const { data: categoryData, error: categoryError } = await supabase
             .from('project_categories')
             .select('name')
@@ -160,7 +165,9 @@ export async function POST(request: NextRequest) {
             .single();
           
           if (categoryError) {
-            console.warn(`Error fetching category name for ${cat.category_id}:`, categoryError);
+            console.warn(`[DEBUG] Error fetching category name for ${cat.category_id}:`, categoryError);
+          } else {
+            console.log(`[DEBUG] Category name fetched successfully: ${categoryData?.name || 'NOT_FOUND'}`);
           }
           
           const categoryName = categoryData?.name || cat.category_id;
@@ -168,6 +175,7 @@ export async function POST(request: NextRequest) {
           // Get option name if category_option_id is provided
           let optionName = null;
           if (cat.category_option_id) {
+            console.log(`[DEBUG] Fetching option name from category_options for ID: ${cat.category_option_id}`);
             const { data: optionData, error: optionError } = await supabase
               .from('category_options')
               .select('option_name')
@@ -175,19 +183,31 @@ export async function POST(request: NextRequest) {
               .single();
             
             if (optionError) {
-              console.warn(`Error fetching option name for ${cat.category_option_id}:`, optionError);
+              console.warn(`[DEBUG] Error fetching option name for ${cat.category_option_id}:`, optionError);
+            } else {
+              console.log(`[DEBUG] Option name fetched successfully: ${optionData?.option_name || 'NOT_FOUND'}`);
             }
             
             optionName = optionData?.option_name || cat.category_option_id;
           }
           
-          categoryDetails.push({
+          const categoryDetail = {
             categoryName,
             optionName,
             displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
+          };
+          
+          console.log(`[DEBUG] Final category detail for timeline:`, {
+            originalCategoryId: cat.category_id,
+            resolvedCategoryName: categoryDetail.categoryName,
+            originalOptionId: cat.category_option_id,
+            resolvedOptionName: categoryDetail.optionName,
+            displayText: categoryDetail.displayText
           });
+          
+          categoryDetails.push(categoryDetail);
         } catch (error) {
-          console.warn(`Error getting names for category ${cat.category_id}:`, error);
+          console.warn(`[DEBUG] Error getting names for category ${cat.category_id}:`, error);
           // Fallback to ID if name lookup fails
           categoryDetails.push({
             categoryName: cat.category_id,

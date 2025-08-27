@@ -834,6 +834,8 @@ export async function createTaskTimeline(
 
 export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskTimeline[]>> {
   try {
+    console.log(`[DEBUG] getTaskTimeline called with taskId: ${taskId}`);
+    
     const queryOptions = {
       select: '*',
       filters: { task_id: taskId },
@@ -843,35 +845,51 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
       }
     };
     
+    console.log(`[DEBUG] Fetching timeline data with options:`, JSON.stringify(queryOptions));
+    
     const response = await supabaseClient.get('task_timeline', queryOptions);
 
     if (response.error) {
+      console.error(`[DEBUG] Error fetching timeline data:`, response.error);
       throw new Error(response.error);
     }
+
+    console.log(`[DEBUG] Raw timeline data fetched, count: ${response.data?.length || 0}`);
 
     const timelineData = response.data || [];
 
     // Process timeline entries to resolve category names
+    console.log(`[DEBUG] Starting category resolution for ${timelineData.length} timeline entries`);
+    
     const processedTimeline = await Promise.all(
-      timelineData.map(async (entry: any) => {
+      timelineData.map(async (entry: any, index: number) => {
+        console.log(`[DEBUG] Processing entry ${index + 1}/${timelineData.length}: action=${entry.action}`);
+        
         // If this is a categories_updated action and has category_details, resolve the names
         if (entry.action === 'categories_updated' && entry.details?.category_details) {
+          console.log(`[DEBUG] Found categories_updated entry with ${entry.details.category_details.length} category details`);
+          
           const resolvedCategoryDetails = await Promise.all(
-            entry.details.category_details.map(async (catDetail: any) => {
+            entry.details.category_details.map(async (catDetail: any, catIndex: number) => {
+              console.log(`[DEBUG] Resolving category detail ${catIndex + 1}: categoryName=${catDetail.categoryName}, optionName=${catDetail.optionName}`);
+              
               try {
                 // Use direct Supabase client for better reliability
                 const { createClient } = require('@supabase/supabase-js');
                 const supabaseUrl = process.env.SUPABASE_URL;
                 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
                 
+                console.log(`[DEBUG] Supabase URL available: ${!!supabaseUrl}, Anon Key available: ${!!supabaseAnonKey}`);
+                
                 if (!supabaseUrl || !supabaseAnonKey) {
-                  console.warn('Supabase environment variables not available for category resolution');
+                  console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
                   return catDetail;
                 }
                 
                 const supabase = createClient(supabaseUrl, supabaseAnonKey);
                 
                 // Resolve category name
+                console.log(`[DEBUG] Fetching category name for ID: ${catDetail.categoryName}`);
                 const { data: categoryData, error: categoryError } = await supabase
                   .from('project_categories')
                   .select('name')
@@ -879,7 +897,9 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                   .single();
                 
                 if (categoryError) {
-                  console.warn(`Error fetching category name for ${catDetail.categoryName}:`, categoryError);
+                  console.warn(`[DEBUG] Error fetching category name for ${catDetail.categoryName}:`, categoryError);
+                } else {
+                  console.log(`[DEBUG] Category name resolved: ${categoryData?.name || 'NOT_FOUND'}`);
                 }
                 
                 const resolvedCategoryName = categoryData?.name || catDetail.categoryName;
@@ -887,6 +907,7 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                 // Resolve option name if it exists and is different from category name
                 let resolvedOptionName = catDetail.optionName;
                 if (catDetail.optionName && catDetail.optionName !== catDetail.categoryName) {
+                  console.log(`[DEBUG] Fetching option name for ID: ${catDetail.optionName}`);
                   const { data: optionData, error: optionError } = await supabase
                     .from('category_options')
                     .select('option_name')
@@ -894,44 +915,62 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                     .single();
                   
                   if (optionError) {
-                    console.warn(`Error fetching option name for ${catDetail.optionName}:`, optionError);
+                    console.warn(`[DEBUG] Error fetching option name for ${catDetail.optionName}:`, optionError);
+                  } else {
+                    console.log(`[DEBUG] Option name resolved: ${optionData?.option_name || 'NOT_FOUND'}`);
                   }
                   
                   resolvedOptionName = optionData?.option_name || catDetail.optionName;
                 }
                 
-                return {
+                const result = {
                   ...catDetail,
                   categoryName: resolvedCategoryName,
                   optionName: resolvedOptionName,
                   displayText: resolvedOptionName ? `${resolvedCategoryName}: ${resolvedOptionName}` : resolvedCategoryName
                 };
+                
+                console.log(`[DEBUG] Final resolved category detail:`, {
+                  originalCategoryName: catDetail.categoryName,
+                  resolvedCategoryName: result.categoryName,
+                  originalOptionName: catDetail.optionName,
+                  resolvedOptionName: result.optionName,
+                  displayText: result.displayText
+                });
+                
+                return result;
               } catch (error) {
-                console.warn(`Error resolving category names for timeline entry ${entry.id}:`, error);
+                console.warn(`[DEBUG] Error resolving category names for timeline entry ${entry.id}:`, error);
                 return catDetail; // Return original if resolution fails
               }
             })
           );
           
-          return {
+          const result = {
             ...entry,
             details: {
               ...entry.details,
               category_details: resolvedCategoryDetails
             }
           };
+          
+          console.log(`[DEBUG] Final processed entry with ${resolvedCategoryDetails.length} resolved categories`);
+          return result;
         }
         
+        console.log(`[DEBUG] Entry ${index + 1} is not a categories_updated action, returning as-is`);
         return entry;
       })
     );
+
+    console.log(`[DEBUG] Timeline processing complete, returning ${processedTimeline.length} entries`);
 
     return {
       data: processedTimeline,
       success: true
     };
   } catch (error) {
-    console.error('Error fetching task timeline:', error);
+    console.error(`[DEBUG] Error in getTaskTimeline:`, error);
     return {
       data: [],
       success: false,
