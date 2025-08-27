@@ -32,7 +32,8 @@ export const GET = withAudit(
     const filters: any = {};
     if (sourceId) filters.source_id = sourceId;
 
-    const response = await supabaseClient.getTicketMasterMappings({
+    const response = await supabaseClient.get('ticket_master_mappings', {
+      select: '*',
       filters,
       order: { column: 'created_at', ascending: false },
       limit: pageSize,
