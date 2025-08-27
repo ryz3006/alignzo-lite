@@ -46,44 +46,35 @@ export async function getKanbanBoardWithRedis(
 ): Promise<ApiResponse<KanbanColumnWithTasks[]>> {
   const cacheKey = generateCacheKey(KEY_PREFIXES.KANBAN_BOARD, projectId, teamId || 'no-team');
   
-  try {
-    console.log('🔄 Kanban: Attempting to fetch board data...');
-    
-    // First, try to get from Redis cache
-    const cachedData = await getCacheData<KanbanColumnWithTasks[]>(cacheKey);
-    if (cachedData) {
-      console.log('🟢 Kanban: Data fetched from Redis cache');
-      return {
-        data: cachedData,
-        success: true,
-        source: 'redis'
-      };
-    }
-
-    console.log('🟡 Kanban: Cache miss, fetching from database...');
+     try {
+     // First, try to get from Redis cache
+     const cachedData = await getCacheData<KanbanColumnWithTasks[]>(cacheKey);
+     if (cachedData) {
+       return {
+         data: cachedData,
+         success: true,
+         source: 'redis'
+       };
+     }
     
     // Fallback to database
     const dbResult = await getKanbanBoardFromDatabase(projectId, teamId);
     
-    if (dbResult.success && dbResult.data) {
-      // Cache the result for future requests
-      await setCacheData(cacheKey, dbResult.data, CACHE_TTL.KANBAN_BOARD);
-      console.log('🟢 Kanban: Data cached in Redis for future requests');
-      
-      return {
-        ...dbResult,
-        source: 'database'
-      };
-    }
+         if (dbResult.success && dbResult.data) {
+       // Cache the result for future requests
+       await setCacheData(cacheKey, dbResult.data, CACHE_TTL.KANBAN_BOARD);
+       
+       return {
+         ...dbResult,
+         source: 'database'
+       };
+     }
 
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Kanban: Error in getKanbanBoardWithRedis:', error);
-    
-    // Final fallback to database
-    console.log('🟡 Kanban: Falling back to database due to error...');
-    return await getKanbanBoardFromDatabase(projectId, teamId);
-  }
+     } catch (error) {
+     // Final fallback to database
+     return await getKanbanBoardFromDatabase(projectId, teamId);
+   }
 }
 
 // Database fallback function
@@ -91,8 +82,7 @@ async function getKanbanBoardFromDatabase(
   projectId: string, 
   teamId?: string
 ): Promise<ApiResponse<KanbanColumnWithTasks[]>> {
-  try {
-    console.log('🔄 Database: Fetching kanban board data...');
+     try {
     
     // Get columns for the project and team
     const columnFilters: any = {
@@ -159,26 +149,22 @@ async function getKanbanBoardFromDatabase(
       tasks: (tasksResponse.data || []).filter((task: KanbanTask) => task.column_id === column.id) || []
     }));
 
-    console.log('🟢 Database: Successfully fetched kanban board data');
-    
-    return {
-      data: columnsWithTasks,
-      success: true
-    };
-  } catch (error) {
-    console.error('🔴 Database: Error fetching kanban board:', error);
-    return {
-      data: [],
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+         return {
+       data: columnsWithTasks,
+       success: true
+     };
+   } catch (error) {
+     return {
+       data: [],
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 // Create default columns
 async function createDefaultColumns(projectId: string, teamId: string): Promise<void> {
-  try {
-    console.log('🔄 Database: Creating default columns...');
+     try {
     
     const defaultColumns = [
       { name: 'To Do', description: 'Tasks that need to be started', color: '#6B7280', sort_order: 1 },
@@ -196,10 +182,10 @@ async function createDefaultColumns(projectId: string, teamId: string): Promise<
       });
     }
 
-    console.log('🟢 Database: Default columns created successfully');
-  } catch (error) {
-    console.error('🔴 Database: Error creating default columns:', error);
-  }
+         // Default columns created
+   } catch (error) {
+     // Handle error silently
+   }
 }
 
 // =====================================================
@@ -212,27 +198,23 @@ export async function createKanbanTaskWithRedis(
   teamId?: string,
   userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
-  try {
-    console.log('🔄 Task: Creating new task...');
-    
-    // Create task in database
-    const dbResult = await createKanbanTaskInDatabase(taskData, userEmail);
-    
-    if (dbResult.success) {
-      // Invalidate related caches
-      await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Task: Task created and caches invalidated');
-    }
+     try {
+     // Create task in database
+     const dbResult = await createKanbanTaskInDatabase(taskData, userEmail);
+     
+     if (dbResult.success) {
+       // Invalidate related caches
+       await invalidateKanbanCaches(projectId, teamId);
+     }
     
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Task: Error creating task:', error);
-    return {
-      data: {} as KanbanTask,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+     } catch (error) {
+     return {
+       data: {} as KanbanTask,
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 export async function updateKanbanTaskWithRedis(
@@ -242,27 +224,23 @@ export async function updateKanbanTaskWithRedis(
   teamId?: string,
   userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
-  try {
-    console.log('🔄 Task: Updating task...');
-    
-    // Update task in database
-    const dbResult = await updateKanbanTaskInDatabase(taskId, updates, userEmail);
-    
-    if (dbResult.success) {
-      // Invalidate related caches
-      await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Task: Task updated and caches invalidated');
-    }
+     try {
+     // Update task in database
+     const dbResult = await updateKanbanTaskInDatabase(taskId, updates, userEmail);
+     
+     if (dbResult.success) {
+       // Invalidate related caches
+       await invalidateKanbanCaches(projectId, teamId);
+     }
     
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Task: Error updating task:', error);
-    return {
-      data: {} as KanbanTask,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+     } catch (error) {
+     return {
+       data: {} as KanbanTask,
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 export async function deleteKanbanTaskWithRedis(
@@ -271,27 +249,23 @@ export async function deleteKanbanTaskWithRedis(
   teamId?: string,
   userEmail?: string
 ): Promise<ApiResponse<boolean>> {
-  try {
-    console.log('🔄 Task: Deleting task...');
-    
-    // Delete task from database
-    const dbResult = await deleteKanbanTaskFromDatabase(taskId, userEmail);
-    
-    if (dbResult.success) {
-      // Invalidate related caches
-      await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Task: Task deleted and caches invalidated');
-    }
+     try {
+     // Delete task from database
+     const dbResult = await deleteKanbanTaskFromDatabase(taskId, userEmail);
+     
+     if (dbResult.success) {
+       // Invalidate related caches
+       await invalidateKanbanCaches(projectId, teamId);
+     }
     
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Task: Error deleting task:', error);
-    return {
-      data: false,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+     } catch (error) {
+     return {
+       data: false,
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 export async function moveTaskWithRedis(
@@ -302,32 +276,27 @@ export async function moveTaskWithRedis(
   teamId?: string,
   userEmail?: string
 ): Promise<ApiResponse<boolean>> {
-  try {
-    console.log('🔄 Task: Moving task...');
-    
-    // Move task in database
-    const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
-    
-    if (dbResult.success) {
-      // Temporarily disable cache invalidation to test
-      try {
-        await invalidateKanbanCaches(projectId, teamId);
-        console.log('🟢 Task: Task moved and caches invalidated');
-      } catch (cacheError) {
-        console.error('🔴 Task: Cache invalidation failed, but task move succeeded:', cacheError);
-        // Don't fail the operation if cache invalidation fails
-      }
-    }
+     try {
+     // Move task in database
+     const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
+     
+     if (dbResult.success) {
+       // Temporarily disable cache invalidation to test
+       try {
+         await invalidateKanbanCaches(projectId, teamId);
+       } catch (cacheError) {
+         // Don't fail the operation if cache invalidation fails
+       }
+     }
     
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Task: Error moving task:', error);
-    return {
-      data: false,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+     } catch (error) {
+     return {
+       data: false,
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 // =====================================================
@@ -339,27 +308,23 @@ export async function createKanbanColumnWithRedis(
   projectId: string,
   teamId?: string
 ): Promise<ApiResponse<KanbanColumn>> {
-  try {
-    console.log('🔄 Column: Creating new column...');
-    
-    // Create column in database
-    const dbResult = await createKanbanColumnInDatabase(columnData, projectId, teamId);
-    
-    if (dbResult.success) {
-      // Invalidate related caches
-      await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Column: Column created and caches invalidated');
-    }
+     try {
+     // Create column in database
+     const dbResult = await createKanbanColumnInDatabase(columnData, projectId, teamId);
+     
+     if (dbResult.success) {
+       // Invalidate related caches
+       await invalidateKanbanCaches(projectId, teamId);
+     }
     
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Column: Error creating column:', error);
-    return {
-      data: {} as KanbanColumn,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
+     } catch (error) {
+     return {
+       data: {} as KanbanColumn,
+       success: false,
+       error: error instanceof Error ? error.message : 'Unknown error'
+     };
+   }
 }
 
 export async function updateKanbanColumnWithRedis(
@@ -369,20 +334,16 @@ export async function updateKanbanColumnWithRedis(
   teamId?: string
 ): Promise<ApiResponse<KanbanColumn>> {
   try {
-    console.log('🔄 Column: Updating column...');
-    
     // Update column in database
     const dbResult = await updateKanbanColumnInDatabase(columnId, updates);
     
     if (dbResult.success) {
       // Invalidate related caches
       await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Column: Column updated and caches invalidated');
     }
     
     return dbResult;
   } catch (error) {
-    console.error('🔴 Column: Error updating column:', error);
     return {
       data: {} as KanbanColumn,
       success: false,
@@ -397,20 +358,16 @@ export async function deleteKanbanColumnWithRedis(
   teamId?: string
 ): Promise<ApiResponse<boolean>> {
   try {
-    console.log('🔄 Column: Deleting column...');
-    
     // Delete column from database
     const dbResult = await deleteKanbanColumnFromDatabase(columnId);
     
     if (dbResult.success) {
       // Invalidate related caches
       await invalidateKanbanCaches(projectId, teamId);
-      console.log('🟢 Column: Column deleted and caches invalidated');
     }
     
     return dbResult;
   } catch (error) {
-    console.error('🔴 Column: Error deleting column:', error);
     return {
       data: false,
       success: false,
@@ -428,44 +385,35 @@ export async function getProjectCategoriesWithRedis(
 ): Promise<ApiResponse<ProjectCategory[]>> {
   const cacheKey = generateCacheKey(KEY_PREFIXES.PROJECT_CATEGORIES, projectId);
   
-  try {
-    console.log('🔄 Categories: Attempting to fetch categories...');
-    
-    // First, try to get from Redis cache
-    const cachedData = await getCacheData<ProjectCategory[]>(cacheKey);
-    if (cachedData) {
-      console.log('🟢 Categories: Data fetched from Redis cache');
-      return {
-        data: cachedData,
-        success: true,
-        source: 'redis'
-      };
-    }
-
-    console.log('🟡 Categories: Cache miss, fetching from database...');
+     try {
+     // First, try to get from Redis cache
+     const cachedData = await getCacheData<ProjectCategory[]>(cacheKey);
+     if (cachedData) {
+       return {
+         data: cachedData,
+         success: true,
+         source: 'redis'
+       };
+     }
     
     // Fallback to database
     const dbResult = await getProjectCategoriesFromDatabase(projectId);
     
-    if (dbResult.success && dbResult.data) {
-      // Cache the result for future requests
-      await setCacheData(cacheKey, dbResult.data, CACHE_TTL.PROJECT_CATEGORIES);
-      console.log('🟢 Categories: Data cached in Redis for future requests');
-      
-      return {
-        ...dbResult,
-        source: 'database'
-      };
-    }
+         if (dbResult.success && dbResult.data) {
+       // Cache the result for future requests
+       await setCacheData(cacheKey, dbResult.data, CACHE_TTL.PROJECT_CATEGORIES);
+       
+       return {
+         ...dbResult,
+         source: 'database'
+       };
+     }
 
     return dbResult;
-  } catch (error) {
-    console.error('🔴 Categories: Error in getProjectCategoriesWithRedis:', error);
-    
-    // Final fallback to database
-    console.log('🟡 Categories: Falling back to database due to error...');
-    return await getProjectCategoriesFromDatabase(projectId);
-  }
+     } catch (error) {
+     // Final fallback to database
+     return await getProjectCategoriesFromDatabase(projectId);
+   }
 }
 
 // =====================================================
@@ -473,21 +421,17 @@ export async function getProjectCategoriesWithRedis(
 // =====================================================
 
 async function invalidateKanbanCaches(projectId: string, teamId?: string): Promise<void> {
-  try {
-    console.log('🔄 Cache: Invalidating kanban caches...');
-    
-    // Invalidate board cache
-    const boardPattern = generateCacheKey(KEY_PREFIXES.KANBAN_BOARD, projectId, '*');
-    await invalidateCachePattern(boardPattern);
-    
-    // Invalidate categories cache
-    const categoriesPattern = generateCacheKey(KEY_PREFIXES.PROJECT_CATEGORIES, projectId);
-    await deleteCacheData(categoriesPattern);
-    
-    console.log('🟢 Cache: Kanban caches invalidated successfully');
-  } catch (error) {
-    console.error('🔴 Cache: Error invalidating caches:', error);
-  }
+     try {
+     // Invalidate board cache
+     const boardPattern = generateCacheKey(KEY_PREFIXES.KANBAN_BOARD, projectId, '*');
+     await invalidateCachePattern(boardPattern);
+     
+     // Invalidate categories cache
+     const categoriesPattern = generateCacheKey(KEY_PREFIXES.PROJECT_CATEGORIES, projectId);
+     await deleteCacheData(categoriesPattern);
+   } catch (error) {
+     // Handle error silently
+   }
 }
 
 // =====================================================
@@ -496,12 +440,12 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 
 async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
-    // Filter out team_id as it doesn't exist in kanban_tasks table
-    const { team_id, ...taskDataWithoutTeamId } = taskData as any;
+    // Filter out team_id and user_email as they don't exist in kanban_tasks table
+    const { team_id, user_email, ...taskDataWithoutExtraFields } = taskData as any;
     
-    console.log('🔄 Database: Creating task with data:', taskDataWithoutTeamId);
+    // Creating task with data
     
-    const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
+    const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutExtraFields);
     if (response.error) throw new Error(response.error);
 
     // If the insert was successful but no data returned, try to fetch the created task
@@ -544,11 +488,10 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
           'created',
           timelineDetails
         );
-        console.log('🟢 Timeline: Task creation timeline entry created');
-      } catch (error) {
-        console.warn('⚠️ Timeline: Failed to create timeline entry for task creation:', error);
-        // Don't fail the task creation if timeline creation fails
-      }
+                 // Timeline entry created
+       } catch (error) {
+         // Don't fail the task creation if timeline creation fails
+       }
     }
 
     return {
@@ -556,7 +499,6 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
       success: true
     };
   } catch (error) {
-    console.error('🔴 Database: Error creating task:', error);
     return {
       data: {} as KanbanTask,
       success: false,
@@ -567,10 +509,10 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
 
 async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskForm, userEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
-    // Filter out team_id as it doesn't exist in kanban_tasks table
-    const { team_id, ...updatesWithoutTeamId } = updates as any;
+    // Filter out team_id and user_email as they don't exist in kanban_tasks table
+    const { team_id, user_email, ...updatesWithoutExtraFields } = updates as any;
     
-    console.log('🔄 Database: Updating task with data:', updatesWithoutTeamId);
+    // Updating task with data
     
     // Get the current task to compare changes
     const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
@@ -583,7 +525,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
     if (!currentTask) throw new Error('Task not found');
 
     // Clean the updates object to handle empty strings for date fields
-    const cleanedUpdates = { ...updatesWithoutTeamId };
+    const cleanedUpdates = { ...updatesWithoutExtraFields };
     if (cleanedUpdates.due_date === '') {
       cleanedUpdates.due_date = null;
     }
@@ -702,11 +644,10 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
         );
       }
 
-      console.log('🟢 Timeline: Task update timeline entries created');
-    } catch (error) {
-      console.warn('⚠️ Timeline: Failed to create timeline entries for task update:', error);
-      // Don't fail the task update if timeline creation fails
-    }
+             // Timeline entries created
+     } catch (error) {
+       // Don't fail the task update if timeline creation fails
+     }
 
     return { data: updatedTask, success: true };
   } catch (error) {
@@ -746,11 +687,10 @@ async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string):
             column_id: taskToDelete.column_id
           }
         );
-      console.log('🟢 Timeline: Task deletion timeline entry created');
-    } catch (error) {
-      console.warn('⚠️ Timeline: Failed to create timeline entry for task deletion:', error);
-      // Don't fail the task deletion if timeline creation fails
-    }
+               // Timeline entry created
+       } catch (error) {
+         // Don't fail the task deletion if timeline creation fails
+       }
 
     const response = await supabaseClient.delete('kanban_tasks', taskId);
     if (response.error) throw new Error(response.error);
@@ -767,7 +707,7 @@ async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string):
 
 async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOrder: number, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
-    console.log('🔄 Database: Moving task with params:', { taskId, newColumnId, newSortOrder });
+         // Moving task with params
     
     // Get the current task to compare changes
     const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
@@ -784,12 +724,9 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
       sort_order: newSortOrder
     });
     
-    console.log('🔄 Database: Update response:', response);
-    
-    if (response.error) {
-      console.error('🔴 Database: Supabase error:', response.error);
-      throw new Error(response.error);
-    }
+         if (response.error) {
+       throw new Error(response.error);
+     }
 
     // Create timeline entry for task movement
     try {
@@ -819,17 +756,12 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
             sort_order: newSortOrder
           }
         );
-      console.log('🟢 Timeline: Task movement timeline entry created');
+      // Timeline entry created
     } catch (error) {
-      console.warn('⚠️ Timeline: Failed to create timeline entry for task movement:', error);
       // Don't fail the task movement if timeline creation fails
     }
-    
-    console.log('🟢 Database: Task moved successfully');
     return { data: true, success: true };
   } catch (error) {
-    console.error('🔴 Database: Error moving task:', error);
-    console.error('🔴 Database: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return {
       data: false,
       success: false,
@@ -848,7 +780,6 @@ async function createKanbanColumnInDatabase(columnData: CreateColumnForm, projec
     if (response.error) throw new Error(response.error);
     return { data: response.data, success: true };
   } catch (error) {
-    console.error('🔴 Database: Error creating column:', error);
     return {
       data: {} as KanbanColumn,
       success: false,
@@ -863,7 +794,6 @@ async function updateKanbanColumnInDatabase(columnId: string, updates: Partial<C
     if (response.error) throw new Error(response.error);
     return { data: response.data, success: true };
   } catch (error) {
-    console.error('🔴 Database: Error updating column:', error);
     return {
       data: {} as KanbanColumn,
       success: false,
@@ -878,7 +808,6 @@ async function deleteKanbanColumnFromDatabase(columnId: string): Promise<ApiResp
     if (response.error) throw new Error(response.error);
     return { data: true, success: true };
   } catch (error) {
-    console.error('🔴 Database: Error deleting column:', error);
     return {
       data: false,
       success: false,
@@ -908,7 +837,6 @@ async function getProjectCategoriesFromDatabase(projectId: string): Promise<ApiR
       success: true
     };
   } catch (error) {
-    console.error('🔴 Database: Error fetching project categories:', error);
     return {
       data: [],
       success: false,
