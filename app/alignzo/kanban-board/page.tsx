@@ -413,24 +413,7 @@ export default function KanbanBoardPage() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (!user || !selectedProject || !selectedTeam) return;
-
-    try {
-      console.log('🔄 Task: Deleting task with Redis enhancement...');
-      
-      const response = await deleteKanbanTaskWithRedis(taskId, selectedProject.id, selectedTeam, user.email);
-      
-      if (response.success) {
-        console.log('🟢 Task: Task deleted successfully');
-        loadKanbanBoard(true); // Force refresh to show task removed
-      } else {
-        console.error('🔴 Task: Failed to delete task:', response.error);
-      }
-    } catch (error) {
-      console.error('🔴 Task: Error deleting task:', error);
-    }
-  };
+  
 
   // Column Management Handlers
   const handleEditColumn = (column: any) => {
@@ -485,26 +468,29 @@ export default function KanbanBoardPage() {
     }
   };
 
-  const confirmDeleteTask = async () => {
-    if (!taskToDelete || !user || !selectedProject || !selectedTeam) return;
-    
-    try {
-      console.log('🔄 Task: Deleting task with Redis enhancement...');
-      
-      const response = await deleteKanbanTaskWithRedis(taskToDelete, selectedProject.id, selectedTeam);
-      
-      if (response.success) {
-        setShowDeleteConfirmModal(false);
-        setTaskToDelete('');
-        console.log('🟢 Task: Task deleted successfully');
-        loadKanbanBoard();
-      } else {
-        console.error('🔴 Task: Failed to delete task:', response.error);
-      }
-    } catch (error) {
-      console.error('🔴 Task: Error deleting task:', error);
-    }
-  };
+     const confirmDeleteTask = async () => {
+     if (!taskToDelete || !user || !selectedProject || !selectedTeam) return;
+     
+     try {
+       console.log('🔄 Task: Deleting task with Redis enhancement...');
+       
+       const response = await deleteKanbanTaskWithRedis(taskToDelete, selectedProject.id, selectedTeam, user.email);
+       
+       if (response.success) {
+         setShowDeleteConfirmModal(false);
+         setTaskToDelete('');
+         console.log('🟢 Task: Task deleted successfully');
+         loadKanbanBoard(true); // Force refresh to show task removed
+         setToast({ type: 'success', message: 'Task deleted successfully!' });
+       } else {
+         console.error('🔴 Task: Failed to delete task:', response.error);
+         setToast({ type: 'error', message: `Failed to delete task: ${response.error}` });
+       }
+     } catch (error) {
+       console.error('🔴 Task: Error deleting task:', error);
+       setToast({ type: 'error', message: 'An error occurred while deleting the task' });
+     }
+   };
 
 
 
@@ -912,17 +898,18 @@ export default function KanbanBoardPage() {
                                           >
                                             <Edit3 className="h-3.5 w-3.5" />
                                           </button>
-                                          {user?.role === 'owner' && (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteTask(task.id);
-                                              }}
-                                              className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                            >
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                          )}
+                                                                                     {user?.email === task.created_by && (
+                                             <button
+                                               onClick={(e) => {
+                                                 e.stopPropagation();
+                                                 setTaskToDelete(task.id);
+                                                 setShowDeleteConfirmModal(true);
+                                               }}
+                                               className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                             >
+                                               <Trash2 className="h-3.5 w-3.5" />
+                                             </button>
+                                           )}
                                         </div>
                                       </div>
                                     </div>
@@ -984,21 +971,31 @@ export default function KanbanBoardPage() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => openTaskDetailModal(task)}
-                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => openEditTaskModal(task)}
-                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-
-                          </div>
+                                                     <div className="flex items-center space-x-2">
+                             <button
+                               onClick={() => openTaskDetailModal(task)}
+                               className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
+                             >
+                               <Eye className="h-4 w-4" />
+                             </button>
+                             <button
+                               onClick={() => openEditTaskModal(task)}
+                               className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
+                             >
+                               <Edit3 className="h-4 w-4" />
+                             </button>
+                             {user?.email === task.created_by && (
+                               <button
+                                 onClick={() => {
+                                   setTaskToDelete(task.id);
+                                   setShowDeleteConfirmModal(true);
+                                 }}
+                                 className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
+                               >
+                                 <Trash2 className="h-4 w-4" />
+                               </button>
+                             )}
+                           </div>
                         </div>
                       ))
                     )}
