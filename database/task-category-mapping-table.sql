@@ -137,6 +137,16 @@ BEGIN
         -- Delete existing mappings for this task
         DELETE FROM task_category_mappings WHERE task_id = p_task_id;
         
+        -- Check if p_categories is an array
+        IF json_typeof(p_categories) != 'array' THEN
+            v_result := json_build_object(
+                'success', false,
+                'error', 'Categories must be an array',
+                'task_id', p_task_id
+            );
+            RETURN v_result;
+        END IF;
+        
         -- Insert new mappings
         FOR v_category IN SELECT * FROM json_array_elements(p_categories)
         LOOP

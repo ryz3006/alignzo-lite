@@ -428,28 +428,15 @@ export default function TaskDetailModal({
                         {taskCategories.map((taskCategory) => (
                           <div 
                             key={taskCategory.mapping_id} 
-                            className={`border rounded-xl p-4 transition-all ${
-                              taskCategory.is_primary
-                                ? 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20' 
-                                : 'border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/50'
-                            }`}
+                            className="border border-neutral-300 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50"
                           >
                             <div className="flex items-center space-x-3 mb-3">
                               <div 
                                 className="w-4 h-4 rounded-full"
                                 style={{ backgroundColor: taskCategory.category_color || '#3B82F6' }}
                               ></div>
-                              <h5 className={`font-semibold ${
-                                taskCategory.is_primary
-                                  ? 'text-purple-900 dark:text-purple-100' 
-                                  : 'text-neutral-900 dark:text-white'
-                              }`}>
+                              <h5 className="font-semibold text-neutral-900 dark:text-white">
                                 {taskCategory.category_name}
-                                {taskCategory.is_primary && (
-                                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                    Primary
-                                  </span>
-                                )}
                               </h5>
                             </div>
                             

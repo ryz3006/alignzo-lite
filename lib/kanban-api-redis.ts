@@ -465,10 +465,9 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
     // Filter out team_id and user_email as they don't exist in kanban_tasks table
-    const { team_id, user_email, ...taskDataWithoutExtraFields } = taskData as any;
+    const { team_id, user_email, categories, ...taskDataWithoutExtraFields } = taskData as any;
     
     // Creating task with data
-    
     const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutExtraFields);
     if (response.error) throw new Error(response.error);
 
@@ -491,6 +490,25 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
       
       if (fetchResponse.data && fetchResponse.data.length > 0) {
         createdTask = fetchResponse.data[0];
+      }
+    }
+
+    // Handle multiple categories if provided
+    if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
+      try {
+        // Call the database function directly to save the categories
+        const { error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
+          p_task_id: createdTask.id,
+          p_categories: JSON.stringify(categories),
+          p_user_email: userEmail || taskData.created_by || 'system'
+        });
+
+        if (categoriesError) {
+          console.warn('Failed to save task categories:', categoriesError);
+        }
+      } catch (error) {
+        console.warn('Error saving task categories:', error);
+        // Don't fail the task creation if category saving fails
       }
     }
 

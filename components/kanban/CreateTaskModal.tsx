@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings } from 'lucide-react';
-import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn } from '@/lib/kanban-types';
+import { CreateTaskForm, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskCategorySelection } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -482,10 +482,14 @@ export default function CreateTaskModal({
       newErrors.project_id = 'Project is required';
     }
 
-    // Check if at least one category has been selected
-    const hasCategorySelection = Object.values(categorySelections).some(optionId => optionId && optionId.trim() !== '');
-    if (!hasCategorySelection) {
-      newErrors.category_id = 'At least one category option is required';
+    // Check if ALL categories have been selected (mandatory)
+    const availableCategoryIds = availableCategories.map(cat => cat.id);
+    const selectedCategoryIds = Object.keys(categorySelections).filter(catId => 
+      categorySelections[catId] && categorySelections[catId].trim() !== ''
+    );
+    
+    if (selectedCategoryIds.length !== availableCategoryIds.length) {
+      newErrors.category_id = 'All categories are mandatory and must be selected';
     }
 
     if (!formData.column_id) {
@@ -502,6 +506,16 @@ export default function CreateTaskModal({
     if (!validateForm()) return;
 
     try {
+      // Convert category selections to the new format
+      const categories: TaskCategorySelection[] = Object.entries(categorySelections)
+        .filter(([categoryId, optionId]) => optionId && optionId.trim() !== '')
+        .map(([categoryId, optionId], index) => ({
+          category_id: categoryId,
+          category_option_id: optionId,
+          is_primary: false, // No primary concept
+          sort_order: index
+        }));
+
       // Get the first selected category and option for backward compatibility
       const selectedCategoryEntry = Object.entries(categorySelections).find(([categoryId, optionId]) => optionId && optionId.trim() !== '');
       const selectedCategoryId = selectedCategoryEntry ? selectedCategoryEntry[0] : '';
@@ -512,6 +526,7 @@ export default function CreateTaskModal({
         ...formData,
         category_id: selectedCategoryId,
         category_option_id: selectedOptionId,
+        categories: categories, // Add the new categories array
         due_date: formData.due_date || null
       };
       
@@ -687,7 +702,7 @@ export default function CreateTaskModal({
             {/* Categories */}
             <div>
               <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
-                Categories *
+                Categories * (All Required)
               </label>
               <div className="space-y-4">
                 {isLoadingCategories ? (
@@ -701,7 +716,7 @@ export default function CreateTaskModal({
                   availableCategories.map((category) => (
                     <div key={category.id} className="border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
                       <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                        {category.name}
+                        {category.name} *
                       </label>
                       <select
                         value={categorySelections[category.id] || ''}
@@ -710,8 +725,9 @@ export default function CreateTaskModal({
                           [category.id]: e.target.value
                         }))}
                         className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                        required
                       >
-                        <option value="">Select an option (optional)</option>
+                        <option value="">Select an option (required)</option>
                         {(category.options || []).map((option) => (
                           <option key={option.id} value={option.id}>
                             {option.option_name}

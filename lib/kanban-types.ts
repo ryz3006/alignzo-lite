@@ -195,8 +195,8 @@ export interface CreateTaskForm {
   title: string;
   description?: string;
   project_id: string;
-  category_id: string;
-  category_option_id?: string;
+  category_id: string; // Legacy single category field
+  category_option_id?: string; // Legacy single category option field
   column_id: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimated_hours?: number;
@@ -206,6 +206,8 @@ export interface CreateTaskForm {
   scope: 'personal' | 'project';
   assigned_to?: string;
   created_by?: string;
+  // New multiple categories support
+  categories?: TaskCategorySelection[];
 }
 
 export interface UpdateTaskForm {

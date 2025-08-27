@@ -510,6 +510,14 @@ export default function EditTaskModal({
       newErrors.column_id = 'Column is required';
     }
 
+    // Check if ALL categories have been selected (mandatory)
+    const availableCategoryIds = availableCategories.map(cat => cat.id);
+    const selectedCategoryIds = selectedCategories.map(sc => sc.category_id);
+    
+    if (selectedCategoryIds.length !== availableCategoryIds.length) {
+      newErrors.category_id = 'All categories are mandatory and must be selected';
+    }
+
     setErrors(newErrors);
     return Object.values(newErrors).every(error => !error);
   };
@@ -720,7 +728,7 @@ export default function EditTaskModal({
                 {/* Categories */}
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
-                    Categories
+                    Categories * (All Required)
                   </label>
                   <div className="space-y-4">
                     {isLoadingCategories ? (
@@ -733,96 +741,59 @@ export default function EditTaskModal({
                     ) : (
                       <div className="space-y-4">
                         {availableCategories.map((category) => {
-                          const isSelected = selectedCategories.some(sc => sc.category_id === category.id);
                           const selectedCategory = selectedCategories.find(sc => sc.category_id === category.id);
                           
                           return (
-                            <div key={category.id} className={`border rounded-lg p-4 transition-all ${
-                              isSelected 
-                                ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20' 
-                                : 'border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-700'
-                            }`}>
-                              <div className="flex items-center justify-between mb-3">
-                                <label className="flex items-center space-x-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        // Add category
-                                        setSelectedCategories(prev => [
-                                          ...prev,
-                                          {
-                                            category_id: category.id,
-                                            category_option_id: undefined,
-                                            is_primary: prev.length === 0, // First selected becomes primary
-                                            sort_order: prev.length
-                                          }
-                                        ]);
-                                      } else {
-                                        // Remove category
-                                        setSelectedCategories(prev => prev.filter(sc => sc.category_id !== category.id));
-                                      }
-                                    }}
-                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                  />
-                                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                                    {category.name}
-                                  </span>
-                                </label>
-                                
-                                {isSelected && (
-                                  <div className="flex items-center space-x-2">
-                                    <label className="flex items-center space-x-1 text-xs">
-                                      <input
-                                        type="radio"
-                                        name="primary-category"
-                                        checked={selectedCategory?.is_primary || false}
-                                        onChange={() => {
-                                          setSelectedCategories(prev => prev.map(sc => ({
-                                            ...sc,
-                                            is_primary: sc.category_id === category.id
-                                          })));
-                                        }}
-                                        className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                      />
-                                      <span className="text-neutral-500 dark:text-neutral-400">Primary</span>
-                                    </label>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {isSelected && category.options && category.options.length > 0 && (
-                                <div className="space-y-2">
-                                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                                    Select Option:
-                                  </label>
-                                  <select
-                                    value={selectedCategory?.category_option_id || ''}
-                                    onChange={(e) => {
-                                      setSelectedCategories(prev => prev.map(sc => 
+                            <div key={category.id} className="border border-neutral-200 dark:border-neutral-600 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-700/50">
+                              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                                {category.name} *
+                              </label>
+                              <select
+                                value={selectedCategory?.category_option_id || ''}
+                                onChange={(e) => {
+                                  const optionId = e.target.value || undefined;
+                                  setSelectedCategories(prev => {
+                                    const existing = prev.find(sc => sc.category_id === category.id);
+                                    if (existing) {
+                                      // Update existing selection
+                                      return prev.map(sc => 
                                         sc.category_id === category.id 
-                                          ? { ...sc, category_option_id: e.target.value || undefined }
+                                          ? { ...sc, category_option_id: optionId }
                                           : sc
-                                      ));
-                                    }}
-                                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                                  >
-                                    <option value="">No option selected</option>
-                                    {category.options.map((option) => (
-                                      <option key={option.id} value={option.id}>
-                                        {option.option_name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              )}
+                                      );
+                                    } else {
+                                      // Add new selection
+                                      return [
+                                        ...prev,
+                                        {
+                                          category_id: category.id,
+                                          category_option_id: optionId,
+                                          is_primary: false, // No primary concept
+                                          sort_order: prev.length
+                                        }
+                                      ];
+                                    }
+                                  });
+                                }}
+                                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                                required
+                              >
+                                <option value="">Select an option (required)</option>
+                                {(category.options || []).map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.option_name}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           );
                         })}
                       </div>
                     )}
                   </div>
+                  {errors.category_id && (
+                    <p className="mt-2 text-sm text-red-600">{errors.category_id}</p>
+                  )}
                 </div>
               </div>
 
