@@ -132,39 +132,58 @@ export async function POST(request: NextRequest) {
       // Get category and option names for better timeline display
       const categoryDetails = [];
       
-      for (const cat of newCategories) {
+      // Use the database function to get category names for the new categories
+      const categoryIds = newCategories.map(cat => cat.category_id);
+      const optionIds = newCategories.map(cat => cat.category_option_id).filter(id => id);
+      
+      // Get all category names in one query
+      let categoryNamesMap = new Map();
+      if (categoryIds.length > 0) {
         try {
-          // Get category name
-          const categoryResponse = await supabaseClient.get('project_categories', {
-            select: 'name',
-            filters: { id: cat.category_id }
+          const categoriesResponse = await supabaseClient.get('project_categories', {
+            select: 'id, name',
+            filters: { id: { _in: categoryIds } }
           });
           
-          const categoryName = categoryResponse.data?.[0]?.name || cat.category_id;
-          
-          // Get option name if category_option_id is provided
-          let optionName = null;
-          if (cat.category_option_id) {
-            const optionResponse = await supabaseClient.get('category_options', {
-              select: 'option_name',
-              filters: { id: cat.category_option_id }
+          if (categoriesResponse.data) {
+            categoriesResponse.data.forEach((cat: any) => {
+              categoryNamesMap.set(cat.id, cat.name);
             });
-            optionName = optionResponse.data?.[0]?.option_name || cat.category_option_id;
           }
-          
-          categoryDetails.push({
-            categoryName,
-            optionName,
-            displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
-          });
         } catch (error) {
-          // Fallback to ID if name lookup fails
-          categoryDetails.push({
-            categoryName: cat.category_id,
-            optionName: cat.category_option_id,
-            displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
-          });
+          console.warn('Failed to fetch category names:', error);
         }
+      }
+      
+      // Get all option names in one query
+      let optionNamesMap = new Map();
+      if (optionIds.length > 0) {
+        try {
+          const optionsResponse = await supabaseClient.get('category_options', {
+            select: 'id, option_name',
+            filters: { id: { _in: optionIds } }
+          });
+          
+          if (optionsResponse.data) {
+            optionsResponse.data.forEach((opt: any) => {
+              optionNamesMap.set(opt.id, opt.option_name);
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to fetch option names:', error);
+        }
+      }
+      
+      // Build category details using the maps
+      for (const cat of newCategories) {
+        const categoryName = categoryNamesMap.get(cat.category_id) || cat.category_id;
+        const optionName = cat.category_option_id ? (optionNamesMap.get(cat.category_option_id) || cat.category_option_id) : null;
+        
+        categoryDetails.push({
+          categoryName,
+          optionName,
+          displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
+        });
       }
       
       const categoryNames = categoryDetails.map(cat => cat.displayText).join(', ');
