@@ -28,67 +28,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Task found:', taskData);
-
-    // First, try the debug function to see what's happening
-    console.log('Calling debug function with taskId:', taskId);
-    const { data: debugData, error: debugError } = await supabaseClient.rpc('debug_task_categories', {
-      p_task_id: taskId
-    });
-    
-    console.log('Debug response:', { debugData, debugError });
-
-    // Try the simple function first
-    console.log('Calling simple RPC function with taskId:', taskId);
-    const { data: simpleData, error: simpleError } = await supabaseClient.rpc('get_task_categories_simple', {
-      p_task_id: taskId
-    });
-    
-    console.log('Simple RPC response:', { simpleData, simpleError });
-
     // Use the database function to get task categories with options
-    console.log('Calling RPC function with taskId:', taskId);
-    
     let { data, error } = await supabaseClient.rpc('get_task_categories_with_options', {
       p_task_id: taskId
     });
 
-    console.log('RPC response:', { data, error });
-
     // If the TABLE function fails, try the JSON function as fallback
     if (error) {
-      console.log('TABLE function failed, trying JSON function...');
       const jsonResult = await supabaseClient.rpc('get_task_categories_with_options_json', {
         p_task_id: taskId
       });
       
-      console.log('JSON function response:', jsonResult);
-      
       if (jsonResult.error) {
-        console.log('Complex JSON function failed, trying simple JSON function...');
         const simpleJsonResult = await supabaseClient.rpc('get_task_categories_simple_json', {
           p_task_id: taskId
         });
         
-        console.log('Simple JSON function response:', simpleJsonResult);
-        
         if (simpleJsonResult.error) {
-          console.error('All functions failed:', { 
-            tableError: error, 
-            jsonError: jsonResult.error, 
-            simpleJsonError: simpleJsonResult.error 
-          });
+          console.error('All functions failed:', { tableError: error, jsonError: jsonResult.error, simpleJsonError: simpleJsonResult.error });
           return NextResponse.json(
             { error: 'Failed to fetch task categories', details: `Table function: ${error}, JSON function: ${jsonResult.error}, Simple JSON function: ${simpleJsonResult.error}` },
             { status: 500 }
           );
         }
-        
-        // Use the simple JSON function result
         data = simpleJsonResult.data;
         error = simpleJsonResult.error;
       } else {
-        // Use the complex JSON function result
+        // Use the JSON function result
         data = jsonResult.data;
         error = jsonResult.error;
       }
@@ -153,6 +119,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create timeline entry for category changes
+    try {
+      // Get current categories for comparison
+      const currentCategoriesResponse = await supabaseClient.rpc('get_task_categories_with_options_json', {
+        p_task_id: taskId
+      });
+      
+      const currentCategories = currentCategoriesResponse.data || [];
+      const newCategories = categories;
+      
+      // Compare categories to create meaningful timeline entry
+      const categoryNames = newCategories.map((cat: any) => {
+        // Try to get category name from the categories array
+        const categoryName = cat.category_name || cat.category_id;
+        const optionName = cat.option_name || cat.category_option_id;
+        return optionName ? `${categoryName}: ${optionName}` : categoryName;
+      }).join(', ');
+      
+      // Import the createTaskTimeline function
+      const { createTaskTimeline } = await import('@/lib/kanban-api');
+      
+      await createTaskTimeline(
+        taskId,
+        userEmail || 'system',
+        'categories_updated',
+        {
+          categories: categoryNames,
+          count: newCategories.length,
+          previous_count: currentCategories.length
+        }
+      );
+    } catch (timelineError) {
+      console.warn('Failed to create timeline entry for category changes:', timelineError);
+      // Don't fail the operation if timeline creation fails
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Task categories updated successfully',
@@ -196,6 +198,24 @@ export async function DELETE(request: NextRequest) {
         { error: 'Failed to delete task categories', details: error },
         { status: 500 }
       );
+    }
+
+    // Create timeline entry for category removal
+    try {
+      // Import the createTaskTimeline function
+      const { createTaskTimeline } = await import('@/lib/kanban-api');
+      
+      await createTaskTimeline(
+        taskId,
+        'system',
+        'categories_removed',
+        {
+          action: 'All categories removed from task'
+        }
+      );
+    } catch (timelineError) {
+      console.warn('Failed to create timeline entry for category removal:', timelineError);
+      // Don't fail the operation if timeline creation fails
     }
 
     return NextResponse.json({

@@ -25,30 +25,32 @@ ALTER TABLE task_category_mappings ENABLE ROW LEVEL SECURITY;
 
 -- 4. Drop existing policies if they exist (to avoid conflicts)
 DROP POLICY IF EXISTS "Users can view task-category mappings for accessible tasks" ON task_category_mappings;
-DROP POLICY IF EXISTS "Users can insert task-category mappings for editable tasks" ON task_category_mappings;
+DROP POLICY IF EXISTS "Users can insert task-category mappings for accessible tasks" ON task_category_mappings;
 DROP POLICY IF EXISTS "Users can update task-category mappings for editable tasks" ON task_category_mappings;
 DROP POLICY IF EXISTS "Users can delete task-category mappings for editable tasks" ON task_category_mappings;
 
--- 5. Create RLS policies with correct table references
+-- 5. Create RLS policies for task_category_mappings
 CREATE POLICY "Users can view task-category mappings for accessible tasks" ON task_category_mappings
     FOR SELECT USING (
         EXISTS (
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
+            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND tm.user_id = (SELECT id FROM auth.users WHERE email = current_setting('request.jwt.claims', true)::json->>'email')
+            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
-CREATE POLICY "Users can insert task-category mappings for editable tasks" ON task_category_mappings
+CREATE POLICY "Users can insert task-category mappings for accessible tasks" ON task_category_mappings
     FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
+            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND tm.user_id = (SELECT id FROM auth.users WHERE email = current_setting('request.jwt.claims', true)::json->>'email')
+            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -58,8 +60,9 @@ CREATE POLICY "Users can update task-category mappings for editable tasks" ON ta
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
+            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND tm.user_id = (SELECT id FROM auth.users WHERE email = current_setting('request.jwt.claims', true)::json->>'email')
+            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -69,8 +72,9 @@ CREATE POLICY "Users can delete task-category mappings for editable tasks" ON ta
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
+            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND tm.user_id = (SELECT id FROM auth.users WHERE email = current_setting('request.jwt.claims', true)::json->>'email')
+            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -183,75 +187,84 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 10. Create function to update task categories
 CREATE OR REPLACE FUNCTION update_task_categories(
     p_task_id UUID,
-    p_categories JSON,
-    p_user_email TEXT DEFAULT 'system'
+    p_categories TEXT, -- Changed from JSON to TEXT to handle JSON strings
+    p_user_email TEXT
 )
 RETURNS JSON AS $$
 DECLARE
+    v_categories JSON;
     v_category JSON;
-    v_mapping_id UUID;
     v_result JSON;
 BEGIN
-    -- Start transaction
+    -- Parse the JSON string into a JSON object
     BEGIN
-        -- Delete existing mappings for this task
-        DELETE FROM task_category_mappings WHERE task_id = p_task_id;
-        
-        -- Check if p_categories is an array
-        IF json_typeof(p_categories) != 'array' THEN
-            v_result := json_build_object(
-                'success', false,
-                'error', 'Categories must be an array',
-                'task_id', p_task_id
-            );
-            RETURN v_result;
-        END IF;
-        
-        -- Insert new mappings
-        FOR v_category IN SELECT * FROM json_array_elements(p_categories)
-        LOOP
-            INSERT INTO task_category_mappings (
-                task_id,
-                category_id,
-                category_option_id,
-                is_primary,
-                sort_order,
-                created_by,
-                updated_by
-            ) VALUES (
-                p_task_id,
-                (v_category->>'category_id')::UUID,
-                CASE 
-                    WHEN v_category->>'category_option_id' IS NOT NULL 
-                    THEN (v_category->>'category_option_id')::UUID 
-                    ELSE NULL 
-                END,
-                COALESCE((v_category->>'is_primary')::BOOLEAN, false),
-                COALESCE((v_category->>'sort_order')::INTEGER, 0),
-                p_user_email,
-                p_user_email
-            );
-        END LOOP;
-        
-        -- Return success
-        v_result := json_build_object(
-            'success', true,
-            'message', 'Task categories updated successfully',
-            'task_id', p_task_id
-        );
-        
-        RETURN v_result;
-        
+        v_categories := p_categories::JSON;
     EXCEPTION WHEN OTHERS THEN
-        -- Return error
         v_result := json_build_object(
             'success', false,
-            'error', SQLERRM,
+            'error', 'Invalid JSON format: ' || SQLERRM,
             'task_id', p_task_id
         );
-        
         RETURN v_result;
     END;
+    
+    -- Check if v_categories is an array
+    IF json_typeof(v_categories) != 'array' THEN
+        v_result := json_build_object(
+            'success', false,
+            'error', 'Categories must be an array',
+            'task_id', p_task_id
+        );
+        RETURN v_result;
+    END IF;
+    
+    -- Delete existing mappings for this task
+    DELETE FROM task_category_mappings WHERE task_id = p_task_id;
+    
+    -- Insert new mappings
+    FOR v_category IN SELECT * FROM json_array_elements(v_categories)
+    LOOP
+        INSERT INTO task_category_mappings (
+            task_id,
+            category_id,
+            category_option_id,
+            is_primary,
+            sort_order,
+            created_by,
+            updated_by
+        ) VALUES (
+            p_task_id,
+            (v_category->>'category_id')::UUID,
+            CASE 
+                WHEN v_category->>'category_option_id' IS NOT NULL 
+                THEN (v_category->>'category_option_id')::UUID 
+                ELSE NULL 
+            END,
+            COALESCE((v_category->>'is_primary')::BOOLEAN, false),
+            COALESCE((v_category->>'sort_order')::INTEGER, 0),
+            p_user_email,
+            p_user_email
+        );
+    END LOOP;
+    
+    -- Return success
+    v_result := json_build_object(
+        'success', true,
+        'message', 'Task categories updated successfully',
+        'task_id', p_task_id
+    );
+    
+    RETURN v_result;
+    
+EXCEPTION WHEN OTHERS THEN
+    -- Return error
+    v_result := json_build_object(
+        'success', false,
+        'error', SQLERRM,
+        'task_id', p_task_id
+    );
+    
+    RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -333,7 +346,7 @@ GRANT EXECUTE ON FUNCTION get_task_categories_simple(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_with_options(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_with_options_json(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_simple_json(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION update_task_categories(UUID, JSON, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_task_categories(UUID, TEXT, TEXT) TO authenticated;
 
 -- 13. Test the functions (optional - remove these lines after testing)
 -- SELECT debug_task_categories('your-task-id-here');
@@ -366,7 +379,7 @@ BEGIN
     );
     
     -- Test the update function
-    SELECT update_task_categories(p_task_id, v_test_categories, 'test@example.com') INTO v_result;
+    SELECT update_task_categories(p_task_id, v_test_categories::TEXT, 'test@example.com') INTO v_result;
     
     RETURN v_result;
 END;

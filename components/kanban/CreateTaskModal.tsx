@@ -506,51 +506,22 @@ export default function CreateTaskModal({
     if (!validateForm()) return;
 
     try {
-      // Convert category selections to the new format
-      const categories: TaskCategorySelection[] = Object.entries(categorySelections)
-        .filter(([categoryId, optionId]) => optionId && optionId.trim() !== '')
-        .map(([categoryId, optionId], index) => ({
-          category_id: categoryId,
-          category_option_id: optionId,
-          is_primary: false, // No primary concept
-          sort_order: index
-        }));
+      // Transform categorySelections into the format expected by the API
+      const categories: TaskCategorySelection[] = Object.entries(categorySelections).map(([categoryId, optionId], index) => ({
+        category_id: categoryId,
+        category_option_id: optionId,
+        is_primary: false,
+        sort_order: index
+      }));
 
-      // Get the first selected category and option for backward compatibility
-      const selectedCategoryEntry = Object.entries(categorySelections).find(([categoryId, optionId]) => optionId && optionId.trim() !== '');
-      const selectedCategoryId = selectedCategoryEntry ? selectedCategoryEntry[0] : '';
-      const selectedOptionId = selectedCategoryEntry ? selectedCategoryEntry[1] : '';
-
-      // Fix timestamp issue: convert empty string to null for due_date
-      const formDataToSubmit = {
+      // Prepare the form data to submit
+      const formDataToSubmit: CreateTaskForm = {
         ...formData,
-        category_id: selectedCategoryId,
-        category_option_id: selectedOptionId,
-        categories: categories, // Add the new categories array
-        due_date: formData.due_date || null
+        categories
       };
-      
-      console.log('📝 CreateTaskModal - Submitting form data:', {
-        formData: formData,
-        categorySelections: categorySelections,
-        categories: categories,
-        formDataToSubmit: formDataToSubmit,
-        categoriesLength: categories.length,
-        categoriesType: typeof categories,
-        isArray: Array.isArray(categories)
-      });
-      
-      // Log each category in detail
-      categories.forEach((cat, index) => {
-        console.log(`📝 Category ${index + 1}:`, {
-          category_id: cat.category_id,
-          category_option_id: cat.category_option_id,
-          is_primary: cat.is_primary,
-          sort_order: cat.sort_order
-        });
-      });
-      
-      onSubmit(formDataToSubmit);
+
+      // Call the onSubmit callback with the form data
+      await onSubmit(formDataToSubmit);
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Failed to create task. Please try again.');

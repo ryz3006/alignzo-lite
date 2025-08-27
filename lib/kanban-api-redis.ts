@@ -494,25 +494,10 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
     }
 
     // Handle multiple categories if provided
-    console.log('🔍 Task creation - Categories data:', {
-      hasCreatedTask: !!createdTask,
-      hasCategories: !!categories,
-      isArray: Array.isArray(categories),
-      categoriesLength: categories?.length,
-      categories: categories,
-      taskDataKeys: Object.keys(taskData),
-      taskDataCategories: (taskData as any).categories
-    });
-
     if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
       try {
-        console.log('📝 Saving categories for task:', createdTask.id);
-        console.log('📝 Categories to save:', JSON.stringify(categories, null, 2));
-        console.log('📝 User email:', userEmail || taskData.created_by || 'system');
-        
         // Call the database function directly to save the categories
         const categoriesJson = JSON.stringify(categories);
-        console.log('📝 Categories JSON string:', categoriesJson);
         
         const { data: rpcData, error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
           p_task_id: createdTask.id,
@@ -520,32 +505,13 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
           p_user_email: userEmail || taskData.created_by || 'system'
         });
 
-        console.log('📝 RPC response:', { rpcData, categoriesError });
-
         if (categoriesError) {
           console.error('❌ Failed to save task categories:', categoriesError);
-        } else {
-          console.log('✅ Task categories saved successfully');
-          
-          // Verify the categories were actually saved
-          const { data: verifyData, error: verifyError } = await supabaseClient.get('task_category_mappings', {
-            select: '*',
-            filters: { task_id: createdTask.id }
-          });
-          
-          console.log('🔍 Verification - Categories in DB:', { verifyData, verifyError, count: verifyData?.length || 0 });
         }
       } catch (error) {
         console.error('❌ Error saving task categories:', error);
         // Don't fail the task creation if category saving fails
       }
-    } else {
-      console.log('⚠️ No categories to save or invalid data:', {
-        hasCreatedTask: !!createdTask,
-        hasCategories: !!categories,
-        categoriesType: typeof categories,
-        categoriesLength: categories?.length
-      });
     }
 
     // Create timeline entry for task creation
@@ -718,6 +684,72 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             to_column: toColumnName,
             from_column_id: currentTask.column_id,
             to_column_id: updates.column_id
+          }
+        );
+      }
+
+      // Category changes (legacy single category)
+      if (updates.category_id !== undefined && updates.category_id !== currentTask.category_id) {
+        // Get category names for better timeline display
+        const fromCategoryResponse = await supabaseClient.get('project_categories', {
+          filters: { id: currentTask.category_id }
+        });
+        const toCategoryResponse = await supabaseClient.get('project_categories', {
+          filters: { id: updates.category_id }
+        });
+        
+        const fromCategoryName = fromCategoryResponse.data?.[0]?.name || currentTask.category_id;
+        const toCategoryName = toCategoryResponse.data?.[0]?.name || updates.category_id;
+        
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'category_changed',
+          {
+            from_category: fromCategoryName,
+            to_category: toCategoryName,
+            from_category_id: currentTask.category_id,
+            to_category_id: updates.category_id
+          }
+        );
+      }
+
+      // Category option changes (legacy single category option)
+      if (updates.category_option_id !== undefined && updates.category_option_id !== currentTask.category_option_id) {
+        // Get category option names for better timeline display
+        const fromOptionResponse = await supabaseClient.get('category_options', {
+          filters: { id: currentTask.category_option_id }
+        });
+        const toOptionResponse = await supabaseClient.get('category_options', {
+          filters: { id: updates.category_option_id }
+        });
+        
+        const fromOptionName = fromOptionResponse.data?.[0]?.option_name || currentTask.category_option_id;
+        const toOptionName = toOptionResponse.data?.[0]?.option_name || updates.category_option_id;
+        
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'category_option_changed',
+          {
+            from_option: fromOptionName,
+            to_option: toOptionName,
+            from_option_id: currentTask.category_option_id,
+            to_option_id: updates.category_option_id
+          }
+        );
+      }
+
+      // Due date changes
+      if (updates.due_date !== undefined && updates.due_date !== currentTask.due_date) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'updated',
+          {
+            field: 'due_date',
+            old_value: currentTask.due_date,
+            new_value: updates.due_date
           }
         );
       }
