@@ -44,11 +44,9 @@ export default function GoogleDrivePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
-  const [configData, setConfigData] = useState({
-    clientId: '',
-    clientSecret: ''
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isOAuthInProgress, setIsOAuthInProgress] = useState(false);
+
   const [breadcrumbs, setBreadcrumbs] = useState<Array<{id: string, name: string}>>([
     { id: 'root', name: 'My Drive' }
   ]);
@@ -57,6 +55,20 @@ export default function GoogleDrivePage() {
 
   useEffect(() => {
     checkConfiguration();
+    
+    // Check for OAuth callback success
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('success') === 'true') {
+      toast.success('Google Drive connected successfully!');
+      // Clear the URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Reload drive content
+      loadDriveContent();
+    } else if (urlParams.get('error')) {
+      toast.error('Failed to connect Google Drive: ' + urlParams.get('error'));
+      // Clear the URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   const checkConfiguration = async () => {
@@ -66,7 +78,8 @@ export default function GoogleDrivePage() {
       
       if (data.configured) {
         setIsConfigured(true);
-        loadDriveContent();
+        // Try to load drive content to check if authentication is needed
+        await loadDriveContent();
       } else {
         setIsConfigured(false);
         setLoading(false);
@@ -88,6 +101,7 @@ export default function GoogleDrivePage() {
         setFiles(data.files || []);
         setFolders(data.folders || []);
         setCurrentFolder(folderId);
+        setIsAuthenticated(true);
         
         // Update breadcrumbs
         if (folderId !== 'root') {
@@ -100,7 +114,13 @@ export default function GoogleDrivePage() {
           setBreadcrumbs([{ id: 'root', name: 'My Drive' }]);
         }
       } else {
-        toast.error('Failed to load drive content');
+        // Check if it's an authentication error
+        if (data.error && data.error.includes('No stored tokens found')) {
+          setIsAuthenticated(false);
+          // Don't auto-redirect, let the UI handle it
+        } else {
+          toast.error('Failed to load drive content');
+        }
       }
     } catch (error) {
       console.error('Error loading drive content:', error);
@@ -110,36 +130,27 @@ export default function GoogleDrivePage() {
     }
   };
 
-  const saveConfiguration = async () => {
-    if (!configData.clientId || !configData.clientSecret) {
-      toast.error('Please provide both Client ID and Client Secret');
-      return;
-    }
-
+  const initiateOAuthFlow = async () => {
     try {
-      const response = await fetch('/api/google-drive/config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(configData),
-      });
-
+      setIsOAuthInProgress(true);
+      const response = await fetch('/api/google-drive/auth');
       const data = await response.json();
       
-      if (data.success) {
-        toast.success('Configuration saved successfully');
-        setIsConfigured(true);
-        setShowConfig(false);
-        loadDriveContent();
+      if (data.success && data.authUrl) {
+        // Redirect to Google OAuth
+        window.location.href = data.authUrl;
       } else {
-        toast.error(data.error || 'Failed to save configuration');
+        toast.error('Failed to initiate Google Drive authentication');
+        setIsOAuthInProgress(false);
       }
     } catch (error) {
-      console.error('Error saving configuration:', error);
-      toast.error('Error saving configuration');
+      console.error('Error initiating OAuth flow:', error);
+      toast.error('Error initiating authentication');
+      setIsOAuthInProgress(false);
     }
   };
+
+
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -351,6 +362,80 @@ export default function GoogleDrivePage() {
     );
   }
 
+  // Show authentication required state
+  if (isConfigured && !isAuthenticated && !loading) {
+    return (
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8">
+            <div className="flex items-center mb-6">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg mr-4">
+                <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Google Drive Authentication Required</h1>
+                <p className="text-neutral-600 dark:text-neutral-400">Connect your Google Drive account to access files</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Authentication Required
+                  </h3>
+                  <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                    <p>
+                      To access Google Drive, you need to authenticate with your Google account. 
+                      This will allow the application to securely access your Drive files.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={initiateOAuthFlow}
+                disabled={isOAuthInProgress}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+              >
+                {isOAuthInProgress ? (
+                  <>
+                    <RefreshCw className="h-5 w-5 animate-spin" />
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="h-5 w-5" />
+                    <span>Connect Google Drive</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="mt-6 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                What happens when you connect:
+              </h3>
+              <ul className="text-sm text-neutral-700 dark:text-neutral-300 space-y-1">
+                <li>• You'll be redirected to Google's secure authentication page</li>
+                <li>• Google will ask for permission to access your Drive files</li>
+                <li>• You can revoke access at any time from your Google Account settings</li>
+                <li>• Your files remain secure and private</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -367,13 +452,6 @@ export default function GoogleDrivePage() {
         
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setShowConfig(!showConfig)}
-            className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            title="Configuration"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
-          <button
             onClick={() => loadDriveContent(currentFolder)}
             className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"
             title="Refresh"
@@ -383,50 +461,7 @@ export default function GoogleDrivePage() {
         </div>
       </div>
 
-      {/* Configuration Panel */}
-      {showConfig && (
-        <div className="mb-6 bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Configuration</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Client ID
-              </label>
-              <input
-                type="text"
-                value={configData.clientId}
-                onChange={(e) => setConfigData(prev => ({ ...prev, clientId: e.target.value }))}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Client Secret
-              </label>
-              <input
-                type="password"
-                value={configData.clientSecret}
-                onChange={(e) => setConfigData(prev => ({ ...prev, clientSecret: e.target.value }))}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="flex space-x-2 mt-4">
-            <button
-              onClick={saveConfiguration}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
-            >
-              Save Changes
-            </button>
-            <button
-              onClick={() => setShowConfig(false)}
-              className="bg-neutral-300 dark:bg-neutral-600 hover:bg-neutral-400 dark:hover:bg-neutral-500 text-neutral-700 dark:text-neutral-200 font-medium py-2 px-4 rounded-md transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Breadcrumbs */}
       <div className="flex items-center space-x-2 mb-4 text-sm">

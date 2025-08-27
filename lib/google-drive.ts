@@ -29,6 +29,7 @@ export class GoogleDriveService {
 
   async initialize() {
     try {
+      console.log('🔧 [GoogleDrive] Initializing Google Drive service...');
       const supabase = getSupabaseClient();
       // Get configuration from database
       const { data: config, error } = await supabase
@@ -37,8 +38,11 @@ export class GoogleDriveService {
         .single();
 
       if (error || !config) {
+        console.log('❌ [GoogleDrive] Configuration not found in database');
         throw new Error('Google Drive configuration not found');
       }
+
+      console.log('✅ [GoogleDrive] Configuration loaded from database');
 
       // Set up OAuth2 client
       this.oauth2Client.setCredentials({
@@ -49,10 +53,11 @@ export class GoogleDriveService {
 
       // Initialize Drive API
       this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
+      console.log('✅ [GoogleDrive] OAuth2 client and Drive API initialized');
 
       return true;
     } catch (error) {
-      console.error('Error initializing Google Drive service:', error);
+      console.error('❌ [GoogleDrive] Error initializing Google Drive service:', error);
       throw error;
     }
   }
@@ -87,6 +92,7 @@ export class GoogleDriveService {
 
   private async storeTokens(tokens: any) {
     try {
+      console.log('💾 [GoogleDrive] Storing tokens in database...');
       const supabase = getSupabaseClient();
       const { error } = await supabase
         .from('google_drive_tokens')
@@ -98,64 +104,83 @@ export class GoogleDriveService {
         });
 
       if (error) {
-        console.error('Error storing tokens:', error);
+        console.error('❌ [GoogleDrive] Error storing tokens:', error);
+      } else {
+        console.log('✅ [GoogleDrive] Tokens stored successfully');
       }
     } catch (error) {
-      console.error('Error storing tokens:', error);
+      console.error('❌ [GoogleDrive] Error storing tokens:', error);
     }
   }
 
   async loadStoredTokens() {
     try {
+      console.log('🔍 [GoogleDrive] Loading stored tokens from database...');
       const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('google_drive_tokens')
         .select('*')
         .single();
 
-      if (error || !data) {
+      if (error) {
+        console.log('❌ [GoogleDrive] Database error loading tokens:', error);
         return null;
       }
 
+      if (!data) {
+        console.log('❌ [GoogleDrive] No tokens found in database');
+        return null;
+      }
+
+      console.log('✅ [GoogleDrive] Tokens loaded successfully');
       return {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expiry_date: data.expiry_date
       };
     } catch (error) {
-      console.error('Error loading stored tokens:', error);
+      console.error('❌ [GoogleDrive] Error loading stored tokens:', error);
       return null;
     }
   }
 
   async ensureAuthenticated() {
     try {
+      console.log('🔐 [GoogleDrive] Starting authentication check...');
       const tokens = await this.loadStoredTokens();
       
       if (!tokens) {
+        console.log('❌ [GoogleDrive] No stored tokens found in database');
         throw new Error('No stored tokens found');
       }
 
+      console.log('✅ [GoogleDrive] Tokens found, setting credentials...');
       this.oauth2Client.setCredentials(tokens);
 
       // Check if token is expired and refresh if needed
       if (tokens.expiry_date && Date.now() >= tokens.expiry_date) {
+        console.log('🔄 [GoogleDrive] Token expired, refreshing...');
         const { credentials } = await this.oauth2Client.refreshAccessToken();
         await this.storeTokens(credentials);
         this.oauth2Client.setCredentials(credentials);
+        console.log('✅ [GoogleDrive] Token refreshed successfully');
+      } else {
+        console.log('✅ [GoogleDrive] Token is still valid');
       }
 
       return true;
     } catch (error) {
-      console.error('Error ensuring authentication:', error);
+      console.error('❌ [GoogleDrive] Error ensuring authentication:', error);
       throw error;
     }
   }
 
   async listFiles(folderId: string = 'root') {
     try {
+      console.log(`📁 [GoogleDrive] Listing files for folder: ${folderId}`);
       await this.ensureAuthenticated();
 
+      console.log(`🔍 [GoogleDrive] Making API request to list files...`);
       const response = await this.drive.files.list({
         q: `'${folderId}' in parents and trashed=false`,
         fields: 'files(id,name,mimeType,size,modifiedTime,parents,webViewLink)',
@@ -163,17 +188,19 @@ export class GoogleDriveService {
       });
 
       const files = response.data.files || [];
+      console.log(`📊 [GoogleDrive] Found ${files.length} total items`);
       
       // Separate folders and files
       const folders = files.filter((file: any) => file.mimeType === 'application/vnd.google-apps.folder');
       const regularFiles = files.filter((file: any) => file.mimeType !== 'application/vnd.google-apps.folder');
 
+      console.log(`📁 [GoogleDrive] Returning ${folders.length} folders and ${regularFiles.length} files`);
       return {
         folders,
         files: regularFiles
       };
     } catch (error) {
-      console.error('Error listing files:', error);
+      console.error('❌ [GoogleDrive] Error listing files:', error);
       throw error;
     }
   }
