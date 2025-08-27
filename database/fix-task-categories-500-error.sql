@@ -160,12 +160,12 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     SELECT 
-        tcm.id as mapping_id,
-        pc.id as category_id,
-        pc.name as category_name,
-        pc.description as category_description,
-        pc.color as category_color,
-        co.id as category_option_id,
+        tcm.id,
+        pc.id,
+        pc.name,
+        pc.description,
+        pc.color,
+        co.id,
         co.option_name,
         co.option_value,
         tcm.is_primary,
@@ -271,11 +271,44 @@ CREATE TRIGGER trigger_update_task_category_mappings_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_task_category_mappings_updated_at();
 
--- 12. Grant necessary permissions
+-- 12. Create alternative JSON function for better compatibility
+CREATE OR REPLACE FUNCTION get_task_categories_with_options_json(p_task_id UUID)
+RETURNS JSON AS $$
+DECLARE
+    v_result JSON;
+BEGIN
+    SELECT json_agg(
+        json_build_object(
+            'mapping_id', tcm.id,
+            'category_id', pc.id,
+            'category_name', pc.name,
+            'category_description', pc.description,
+            'category_color', pc.color,
+            'category_option_id', co.id,
+            'option_name', co.option_name,
+            'option_value', co.option_value,
+            'is_primary', tcm.is_primary,
+            'sort_order', tcm.sort_order
+        )
+    ) INTO v_result
+    FROM task_category_mappings tcm
+    JOIN project_categories pc ON tcm.category_id = pc.id
+    LEFT JOIN category_options co ON tcm.category_option_id = co.id
+    WHERE tcm.task_id = p_task_id
+    AND pc.is_active = true
+    AND (co.id IS NULL OR co.is_active = true)
+    ORDER BY tcm.is_primary DESC, tcm.sort_order ASC, pc.name ASC;
+    
+    RETURN COALESCE(v_result, '[]'::json);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 13. Grant necessary permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON task_category_mappings TO authenticated;
 GRANT EXECUTE ON FUNCTION debug_task_categories(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_simple(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_with_options(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_task_categories_with_options_json(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_task_categories(UUID, JSON, TEXT) TO authenticated;
 
 -- 13. Test the functions (optional - remove these lines after testing)

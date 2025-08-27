@@ -49,18 +49,32 @@ export async function GET(request: NextRequest) {
     // Use the database function to get task categories with options
     console.log('Calling RPC function with taskId:', taskId);
     
-    const { data, error } = await supabaseClient.rpc('get_task_categories_with_options', {
+    let { data, error } = await supabaseClient.rpc('get_task_categories_with_options', {
       p_task_id: taskId
     });
 
     console.log('RPC response:', { data, error });
 
+    // If the TABLE function fails, try the JSON function as fallback
     if (error) {
-      console.error('Error fetching task categories:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch task categories', details: error },
-        { status: 500 }
-      );
+      console.log('TABLE function failed, trying JSON function...');
+      const jsonResult = await supabaseClient.rpc('get_task_categories_with_options_json', {
+        p_task_id: taskId
+      });
+      
+      console.log('JSON function response:', jsonResult);
+      
+      if (jsonResult.error) {
+        console.error('Both functions failed:', { tableError: error, jsonError: jsonResult.error });
+        return NextResponse.json(
+          { error: 'Failed to fetch task categories', details: `Table function: ${error}, JSON function: ${jsonResult.error}` },
+          { status: 500 }
+        );
+      }
+      
+      // Use the JSON function result
+      data = jsonResult.data;
+      error = jsonResult.error;
     }
 
     return NextResponse.json({
