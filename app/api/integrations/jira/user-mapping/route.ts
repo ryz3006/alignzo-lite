@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 import { supabaseClient } from '@/lib/supabase-client';
 
 export async function GET(request: NextRequest) {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleDriveService } from '@/lib/google-drive';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await googleDriveService.initialize();

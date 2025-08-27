@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 import { getKanbanBoardWithRedis, moveTaskWithRedis, createKanbanTaskWithRedis } from '@/lib/kanban-api-redis';
 
 export async function GET(request: NextRequest) {

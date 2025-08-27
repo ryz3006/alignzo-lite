@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleDriveService } from '@/lib/google-drive';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(request: NextRequest) {
   try {
     const { fileIds } = await request.json();

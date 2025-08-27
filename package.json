@@ -12,6 +12,7 @@
     "setup-jira-mapping": "node scripts/create-jira-user-mapping-table.js",
     "setup-jira-project-mapping": "node scripts/create-jira-project-mapping-table.js",
     "setup-google-drive": "node scripts/setup-google-drive.js",
+    "fix-dynamic-exports": "node scripts/fix-dynamic-exports.js",
     "install:retry": "node scripts/install-with-retry.js"
   },
   "dependencies": {

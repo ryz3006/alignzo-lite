@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseClient } from '@/lib/supabase-client';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Get all security alerts
     const response = await supabaseClient.get('security_alerts', {
       select: '*',
-      order: { column: 'created_at', ascending: false }
+      order: { column: 'id', ascending: false }
     });
 
     if (response.error) {

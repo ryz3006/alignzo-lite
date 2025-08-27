@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 import { supabase } from '@/lib/supabase';
 import { jiraIntegrationSchema } from '@/lib/validation';
 import { z } from 'zod';

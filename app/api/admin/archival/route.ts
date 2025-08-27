@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 import { archivalManager, triggerManualCleanup, getCleanupStats } from '@/lib/archival-manager';
 import { withAdminAudit } from '@/lib/api-audit-wrapper';
 import { AuditEventType } from '@/lib/audit-trail';

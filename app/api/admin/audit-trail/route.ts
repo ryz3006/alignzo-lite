@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 import { auditTrail } from '@/lib/audit-trail';
 import { withAdminAudit } from '@/lib/api-audit-wrapper';
 import { AuditEventType } from '@/lib/audit-trail';
