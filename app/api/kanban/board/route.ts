@@ -88,8 +88,9 @@ export async function POST(request: NextRequest) {
         });
         
         try {
-          console.log('🔄 API: Calling moveTaskWithRedis with params:', { taskId, columnId, sortOrder, projectId, teamId });
-          const moveResult = await moveTaskWithRedis(taskId, columnId, sortOrder, projectId, teamId);
+          const userEmail = data.user_email;
+          console.log('🔄 API: Calling moveTaskWithRedis with params:', { taskId, columnId, sortOrder, projectId, teamId, userEmail });
+          const moveResult = await moveTaskWithRedis(taskId, columnId, sortOrder, projectId, teamId, userEmail);
           
           console.log('🔄 API: moveTaskWithRedis result:', moveResult);
           
@@ -119,7 +120,8 @@ export async function POST(request: NextRequest) {
       case 'create_task':
         console.log('🔄 API: Creating task with Redis', { taskData: data, projectId, teamId });
         
-        const createResult = await createKanbanTaskWithRedis(data, projectId, teamId);
+        const userEmail = data.user_email;
+        const createResult = await createKanbanTaskWithRedis(data, projectId, teamId, userEmail);
         
         if (!createResult.success) {
           console.error('Error creating task:', createResult.error);

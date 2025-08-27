@@ -338,7 +338,7 @@ export default function KanbanBoardPage() {
     try {
       console.log('🔄 Task: Moving task with Redis enhancement...');
       
-      const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam);
+      const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam, user.email);
       
       if (response.success) {
         console.log('🟢 Task: Task moved successfully');
@@ -378,7 +378,7 @@ export default function KanbanBoardPage() {
         ...taskData,
         project_id: selectedProject.id,
         created_by: user.email
-      }, selectedProject.id, selectedTeam);
+      }, selectedProject.id, selectedTeam, user.email);
       
       if (response.success) {
         setShowCreateTaskModal(false);
@@ -398,7 +398,7 @@ export default function KanbanBoardPage() {
     try {
       console.log('🔄 Task: Updating task with Redis enhancement...');
       
-      const response = await updateKanbanTaskWithRedis(taskId, updates, selectedProject.id, selectedTeam);
+      const response = await updateKanbanTaskWithRedis(taskId, updates, selectedProject.id, selectedTeam, user.email);
       
       if (response.success) {
         setShowEditTaskModal(false);
@@ -419,7 +419,7 @@ export default function KanbanBoardPage() {
     try {
       console.log('🔄 Task: Deleting task with Redis enhancement...');
       
-      const response = await deleteKanbanTaskWithRedis(taskId, selectedProject.id, selectedTeam);
+      const response = await deleteKanbanTaskWithRedis(taskId, selectedProject.id, selectedTeam, user.email);
       
       if (response.success) {
         console.log('🟢 Task: Task deleted successfully');

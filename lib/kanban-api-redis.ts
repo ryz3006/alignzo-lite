@@ -209,13 +209,14 @@ async function createDefaultColumns(projectId: string, teamId: string): Promise<
 export async function createKanbanTaskWithRedis(
   taskData: CreateTaskForm,
   projectId: string,
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
     console.log('🔄 Task: Creating new task...');
     
     // Create task in database
-    const dbResult = await createKanbanTaskInDatabase(taskData);
+    const dbResult = await createKanbanTaskInDatabase(taskData, userEmail);
     
     if (dbResult.success) {
       // Invalidate related caches
@@ -238,13 +239,14 @@ export async function updateKanbanTaskWithRedis(
   taskId: string,
   updates: UpdateTaskForm,
   projectId: string,
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
     console.log('🔄 Task: Updating task...');
     
     // Update task in database
-    const dbResult = await updateKanbanTaskInDatabase(taskId, updates);
+    const dbResult = await updateKanbanTaskInDatabase(taskId, updates, userEmail);
     
     if (dbResult.success) {
       // Invalidate related caches
@@ -266,13 +268,14 @@ export async function updateKanbanTaskWithRedis(
 export async function deleteKanbanTaskWithRedis(
   taskId: string,
   projectId: string,
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<boolean>> {
   try {
     console.log('🔄 Task: Deleting task...');
     
     // Delete task from database
-    const dbResult = await deleteKanbanTaskFromDatabase(taskId);
+    const dbResult = await deleteKanbanTaskFromDatabase(taskId, userEmail);
     
     if (dbResult.success) {
       // Invalidate related caches
@@ -296,13 +299,14 @@ export async function moveTaskWithRedis(
   newColumnId: string,
   newSortOrder: number,
   projectId: string,
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<boolean>> {
   try {
     console.log('🔄 Task: Moving task...');
     
     // Move task in database
-    const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder);
+    const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
     
     if (dbResult.success) {
       // Temporarily disable cache invalidation to test
@@ -490,7 +494,7 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 // DATABASE FALLBACK FUNCTIONS
 // =====================================================
 
-async function createKanbanTaskInDatabase(taskData: CreateTaskForm): Promise<ApiResponse<KanbanTask>> {
+async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
     // Filter out team_id as it doesn't exist in kanban_tasks table
     const { team_id, ...taskDataWithoutTeamId } = taskData as any;
@@ -499,7 +503,58 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm): Promise<Api
     
     const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutTeamId);
     if (response.error) throw new Error(response.error);
-    return { data: response.data, success: true };
+
+    // If the insert was successful but no data returned, try to fetch the created task
+    let createdTask: KanbanTask | null = null;
+    
+    if (response.data && response.data[0]) {
+      createdTask = response.data[0];
+    } else {
+      // Try to fetch the most recently created task by this user
+      const fetchResponse = await supabaseClient.get('kanban_tasks', {
+        filters: {
+          created_by: taskData.created_by,
+          title: taskData.title,
+          project_id: taskData.project_id
+        },
+        order: { column: 'created_at', ascending: false },
+        limit: 1
+      });
+      
+      if (fetchResponse.data && fetchResponse.data.length > 0) {
+        createdTask = fetchResponse.data[0];
+      }
+    }
+
+    // Create timeline entry for task creation
+    if (createdTask) {
+      const timelineDetails = {
+        title: createdTask.title,
+        description: createdTask.description,
+        priority: createdTask.priority,
+        column_id: createdTask.column_id
+      };
+      
+      try {
+        // Import the createTaskTimeline function
+        const { createTaskTimeline } = await import('./kanban-api');
+        await createTaskTimeline(
+          createdTask.id,
+          userEmail || taskData.created_by || 'system',
+          'created',
+          timelineDetails
+        );
+        console.log('🟢 Timeline: Task creation timeline entry created');
+      } catch (error) {
+        console.warn('⚠️ Timeline: Failed to create timeline entry for task creation:', error);
+        // Don't fail the task creation if timeline creation fails
+      }
+    }
+
+    return {
+      data: createdTask || {} as KanbanTask,
+      success: true
+    };
   } catch (error) {
     console.error('🔴 Database: Error creating task:', error);
     return {
@@ -510,16 +565,150 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm): Promise<Api
   }
 }
 
-async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskForm): Promise<ApiResponse<KanbanTask>> {
+async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskForm, userEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
     // Filter out team_id as it doesn't exist in kanban_tasks table
     const { team_id, ...updatesWithoutTeamId } = updates as any;
     
     console.log('🔄 Database: Updating task with data:', updatesWithoutTeamId);
     
-    const response = await supabaseClient.update('kanban_tasks', taskId, updatesWithoutTeamId);
+    // Get the current task to compare changes
+    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
+      filters: { id: taskId }
+    });
+
+    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+    
+    const currentTask = currentTaskResponse.data?.[0];
+    if (!currentTask) throw new Error('Task not found');
+
+    // Clean the updates object to handle empty strings for date fields
+    const cleanedUpdates = { ...updatesWithoutTeamId };
+    if (cleanedUpdates.due_date === '') {
+      cleanedUpdates.due_date = null;
+    }
+
+    const response = await supabaseClient.update('kanban_tasks', taskId, cleanedUpdates);
     if (response.error) throw new Error(response.error);
-    return { data: response.data, success: true };
+
+    const updatedTask = response.data;
+
+    // Create timeline entries for each change
+    try {
+      // Import the createTaskTimeline function
+      const { createTaskTimeline } = await import('./kanban-api');
+      
+      // Title/Description changes
+      if (updates.title !== undefined && updates.title !== currentTask.title) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'updated',
+          {
+            field: 'title',
+            old_value: currentTask.title,
+            new_value: updates.title
+          }
+        );
+      }
+
+      if (updates.description !== undefined && updates.description !== currentTask.description) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'updated',
+          {
+            field: 'description',
+            old_value: currentTask.description,
+            new_value: updates.description
+          }
+        );
+      }
+
+      // Priority changes
+      if (updates.priority !== undefined && updates.priority !== currentTask.priority) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'priority_changed',
+          {
+            from_priority: currentTask.priority,
+            to_priority: updates.priority
+          }
+        );
+      }
+
+      // Status changes
+      if (updates.status !== undefined && updates.status !== currentTask.status) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'status_changed',
+          {
+            from_status: currentTask.status,
+            to_status: updates.status
+          }
+        );
+      }
+
+      // Assignment changes
+      if (updates.assigned_to !== undefined && updates.assigned_to !== currentTask.assigned_to) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'assigned',
+          {
+            from_user: currentTask.assigned_to,
+            to_user: updates.assigned_to
+          }
+        );
+      }
+
+      // JIRA ticket linking
+      if (updates.jira_ticket_key !== undefined && updates.jira_ticket_key !== currentTask.jira_ticket_key) {
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'linked_jira',
+          {
+            ticket_key: updates.jira_ticket_key
+          }
+        );
+      }
+
+      // Column movement
+      if (updates.column_id !== undefined && updates.column_id !== currentTask.column_id) {
+        // Get column names for better timeline display
+        const fromColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: currentTask.column_id }
+        });
+        const toColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: updates.column_id }
+        });
+        
+        const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
+        const toColumnName = toColumnResponse.data?.[0]?.name || updates.column_id;
+        
+        await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'moved',
+          {
+            from_column: fromColumnName,
+            to_column: toColumnName,
+            from_column_id: currentTask.column_id,
+            to_column_id: updates.column_id
+          }
+        );
+      }
+
+      console.log('🟢 Timeline: Task update timeline entries created');
+    } catch (error) {
+      console.warn('⚠️ Timeline: Failed to create timeline entries for task update:', error);
+      // Don't fail the task update if timeline creation fails
+    }
+
+    return { data: updatedTask, success: true };
   } catch (error) {
     console.error('🔴 Database: Error updating task:', error);
     return {
@@ -530,8 +719,39 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
   }
 }
 
-async function deleteKanbanTaskFromDatabase(taskId: string): Promise<ApiResponse<boolean>> {
+async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
+    // Get the task details before deletion for timeline
+    const taskResponse = await supabaseClient.get('kanban_tasks', {
+      filters: { id: taskId }
+    });
+
+    if (taskResponse.error) throw new Error(taskResponse.error);
+    
+    const taskToDelete = taskResponse.data?.[0];
+    if (!taskToDelete) throw new Error('Task not found');
+
+    // Create timeline entry for task deletion
+    try {
+      // Import the createTaskTimeline function
+      const { createTaskTimeline } = await import('./kanban-api');
+              await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'deleted',
+          {
+            title: taskToDelete.title,
+            description: taskToDelete.description,
+            priority: taskToDelete.priority,
+            column_id: taskToDelete.column_id
+          }
+        );
+      console.log('🟢 Timeline: Task deletion timeline entry created');
+    } catch (error) {
+      console.warn('⚠️ Timeline: Failed to create timeline entry for task deletion:', error);
+      // Don't fail the task deletion if timeline creation fails
+    }
+
     const response = await supabaseClient.delete('kanban_tasks', taskId);
     if (response.error) throw new Error(response.error);
     return { data: true, success: true };
@@ -545,10 +765,20 @@ async function deleteKanbanTaskFromDatabase(taskId: string): Promise<ApiResponse
   }
 }
 
-async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOrder: number): Promise<ApiResponse<boolean>> {
+async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOrder: number, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
     console.log('🔄 Database: Moving task with params:', { taskId, newColumnId, newSortOrder });
     
+    // Get the current task to compare changes
+    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
+      filters: { id: taskId }
+    });
+
+    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+    
+    const currentTask = currentTaskResponse.data?.[0];
+    if (!currentTask) throw new Error('Task not found');
+
     const response = await supabaseClient.update('kanban_tasks', taskId, {
       column_id: newColumnId,
       sort_order: newSortOrder
@@ -559,6 +789,40 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
     if (response.error) {
       console.error('🔴 Database: Supabase error:', response.error);
       throw new Error(response.error);
+    }
+
+    // Create timeline entry for task movement
+    try {
+      // Import the createTaskTimeline function
+      const { createTaskTimeline } = await import('./kanban-api');
+      
+      // Get column names for better timeline display
+      const fromColumnResponse = await supabaseClient.get('kanban_columns', {
+        filters: { id: currentTask.column_id }
+      });
+      const toColumnResponse = await supabaseClient.get('kanban_columns', {
+        filters: { id: newColumnId }
+      });
+      
+      const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
+      const toColumnName = toColumnResponse.data?.[0]?.name || newColumnId;
+      
+              await createTaskTimeline(
+          taskId,
+          userEmail || 'system',
+          'moved',
+          {
+            from_column: fromColumnName,
+            to_column: toColumnName,
+            from_column_id: currentTask.column_id,
+            to_column_id: newColumnId,
+            sort_order: newSortOrder
+          }
+        );
+      console.log('🟢 Timeline: Task movement timeline entry created');
+    } catch (error) {
+      console.warn('⚠️ Timeline: Failed to create timeline entry for task movement:', error);
+      // Don't fail the task movement if timeline creation fails
     }
     
     console.log('🟢 Database: Task moved successfully');

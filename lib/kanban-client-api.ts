@@ -46,7 +46,8 @@ export async function getKanbanBoardWithRedis(
 export async function createKanbanTaskWithRedis(
   taskData: CreateTaskForm, 
   projectId: string, 
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<any>> {
   try {
     const response = await fetch(`${API_BASE}/tasks`, {
@@ -56,7 +57,7 @@ export async function createKanbanTaskWithRedis(
       },
       body: JSON.stringify({
         action: 'create',
-        data: { ...taskData, project_id: projectId, team_id: teamId }
+        data: { ...taskData, project_id: projectId, team_id: teamId, user_email: userEmail }
       }),
     });
     
@@ -80,7 +81,8 @@ export async function updateKanbanTaskWithRedis(
   taskId: string, 
   updates: UpdateTaskForm, 
   projectId: string, 
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<any>> {
   try {
     const response = await fetch(`${API_BASE}/tasks`, {
@@ -90,7 +92,7 @@ export async function updateKanbanTaskWithRedis(
       },
       body: JSON.stringify({
         action: 'update',
-        data: { id: taskId, ...updates, project_id: projectId, team_id: teamId }
+        data: { id: taskId, ...updates, project_id: projectId, team_id: teamId, user_email: userEmail }
       }),
     });
     
@@ -113,7 +115,8 @@ export async function updateKanbanTaskWithRedis(
 export async function deleteKanbanTaskWithRedis(
   taskId: string, 
   projectId: string, 
-  teamId?: string
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<boolean>> {
   try {
     const response = await fetch(`${API_BASE}/tasks`, {
@@ -123,7 +126,7 @@ export async function deleteKanbanTaskWithRedis(
       },
       body: JSON.stringify({
         action: 'delete',
-        data: { id: taskId, project_id: projectId, team_id: teamId }
+        data: { id: taskId, project_id: projectId, team_id: teamId, user_email: userEmail }
       }),
     });
     
@@ -144,11 +147,12 @@ export async function deleteKanbanTaskWithRedis(
  * Move a task to a different column
  */
 export async function moveTaskWithRedis(
-  taskId: string, 
-  newColumnId: string, 
-  newSortOrder: number, 
-  projectId: string, 
-  teamId?: string
+  taskId: string,
+  newColumnId: string,
+  newSortOrder: number,
+  projectId: string,
+  teamId?: string,
+  userEmail?: string
 ): Promise<ApiResponse<boolean>> {
   try {
     const response = await fetch(`${API_BASE}/board`, {
@@ -158,16 +162,17 @@ export async function moveTaskWithRedis(
       },
       body: JSON.stringify({
         action: 'move_task',
-        data: { 
-          taskId, 
-          columnId: newColumnId, 
+        data: {
+          taskId,
+          columnId: newColumnId,
           sortOrder: newSortOrder,
           projectId,
-          teamId
+          teamId,
+          user_email: userEmail
         }
       }),
     });
-    
+
     const result = await response.json();
     return result;
   } catch (error) {
