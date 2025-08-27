@@ -732,9 +732,9 @@ export default function UserWorkReportsPage() {
                             className="input-modern"
                           >
                             <option value="">Select {category.name}</option>
-                            {category.options?.map((option: string) => (
-                              <option key={option} value={option}>
-                                {option}
+                            {category.options?.map((option: any) => (
+                              <option key={option.id} value={option.option_value}>
+                                {option.option_name}
                               </option>
                             )) || []}
                           </select>

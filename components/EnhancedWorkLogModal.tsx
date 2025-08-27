@@ -224,7 +224,17 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
           name: cat.name,
           description: cat.description,
           project_id: projectId,
-          options: cat.options.map((opt: any) => opt.value)
+          sort_order: cat.sort_order || 0,
+          is_active: cat.is_active !== false,
+          color: cat.color,
+          options: (cat.options || []).map((opt: any) => ({
+            id: opt.id,
+            category_id: cat.id,
+            option_name: opt.option_name,
+            option_value: opt.option_value,
+            sort_order: opt.sort_order || 0,
+            is_active: opt.is_active !== false
+          }))
         }));
         setProjectCategories(categoriesWithOptions);
       } else {
@@ -474,7 +484,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
             const category = projectCategories.find(cat => cat.name === categoryName);
             if (category) {
               // Find the selected option
-              const selectedOption = category.options?.find(opt => opt === selectedValue);
+              const selectedOption = category.options?.find(opt => opt.option_value === selectedValue);
               if (selectedOption) {
                 categorySelections.push({
                   category_id: category.id,
@@ -839,8 +849,8 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
                     >
                       <option value="">Select {category.name}</option>
                       {category.options?.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
+                        <option key={option.id} value={option.option_value}>
+                          {option.option_name}
                         </option>
                       )) || []}
                     </select>

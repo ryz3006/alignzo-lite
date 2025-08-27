@@ -105,7 +105,17 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
           name: cat.name,
           description: cat.description,
           project_id: projectId,
-          options: cat.options.map((opt: any) => opt.value)
+          sort_order: cat.sort_order || 0,
+          is_active: cat.is_active !== false,
+          color: cat.color,
+          options: (cat.options || []).map((opt: any) => ({
+            id: opt.id,
+            category_id: cat.id,
+            option_name: opt.option_name,
+            option_value: opt.option_value,
+            sort_order: opt.sort_order || 0,
+            is_active: opt.is_active !== false
+          }))
         }));
         setProjectCategories(categoriesWithOptions);
       } else {
@@ -266,8 +276,8 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
                     >
                       <option value="">Select {category.name}</option>
                       {category.options?.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
+                        <option key={option.id} value={option.option_value}>
+                          {option.option_name}
                         </option>
                       )) || []}
                     </select>
