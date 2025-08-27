@@ -88,6 +88,7 @@ export default function UserWorkReportsPage() {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -209,6 +210,12 @@ export default function UserWorkReportsPage() {
     if (!editingLog) return;
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const breakDuration = calculateBreakDuration();
       const updateData = {
         id: editingLog.id,
@@ -220,6 +227,7 @@ export default function UserWorkReportsPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
         body: JSON.stringify(updateData),
       });
@@ -245,10 +253,17 @@ export default function UserWorkReportsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch(`/api/work-logs?id=${logId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -274,6 +289,12 @@ export default function UserWorkReportsPage() {
     if (!confirm(`Are you sure you want to delete ${selectedLogs.size} work log(s)?`)) return;
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const logIds = Array.from(selectedLogs);
       // Delete one by one using the API
       for (const logId of logIds) {
@@ -281,6 +302,7 @@ export default function UserWorkReportsPage() {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
+            'x-user-email': currentUser.email,
           },
         });
         

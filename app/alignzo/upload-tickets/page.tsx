@@ -5,6 +5,7 @@ import { Upload, Download, AlertCircle, CheckCircle, FileText, Settings, Trash2,
 import { supabaseClient } from '@/lib/supabase-client';
 import { Project, TicketSource, TicketUploadMapping } from '@/lib/supabase';
 import toast from 'react-hot-toast';
+import { getCurrentUser } from '@/lib/auth';
 
 interface UploadSession {
   id: string;
@@ -107,12 +108,21 @@ export default function UploadTicketsPage() {
 
     setUploading(true);
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('mapping_id', selectedMapping);
 
       const response = await fetch('/api/tickets/upload', {
         method: 'POST',
+        headers: {
+          'x-user-email': currentUser.email,
+        },
         body: formData,
       });
 

@@ -446,7 +446,12 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
             // Get the most recent timer for this user and project
             const currentUser = await getCurrentUser();
             if (currentUser?.email) {
-              const response = await fetch(`/api/timers?userEmail=${currentUser.email}&projectId=${selectedProject}&limit=1`);
+              const response = await fetch(`/api/timers?userEmail=${currentUser.email}&projectId=${selectedProject}&limit=1`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-user-email': currentUser.email,
+                },
+              });
               if (response.ok) {
                 const timers = await response.json();
                 if (timers.length > 0) {
@@ -455,6 +460,7 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
+                      'x-user-email': currentUser.email,
                     },
                     body: JSON.stringify({
                       timer_id: latestTimer.id,

@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabase-client';
 import { UploadedTicket } from '@/lib/supabase';
 import { Eye, Trash2, Search, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getCurrentUser } from '@/lib/auth';
 
 export default function UploadedTicketsPage() {
   const [uploadedTickets, setUploadedTickets] = useState<UploadedTicket[]>([]);
@@ -37,10 +38,17 @@ export default function UploadedTicketsPage() {
   const loadUploadedTickets = async () => {
     try {
       setLoading(true);
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch('/api/uploaded-tickets', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -71,10 +79,17 @@ export default function UploadedTicketsPage() {
     }
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch(`/api/uploaded-tickets?id=${ticketId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -102,12 +117,19 @@ export default function UploadedTicketsPage() {
     }
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       // Delete one by one using the API
       for (const ticketId of selectedTickets) {
         const response = await fetch(`/api/uploaded-tickets?id=${ticketId}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
+            'x-user-email': currentUser.email,
           },
         });
         

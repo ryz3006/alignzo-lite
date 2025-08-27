@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabase-client';
 import { TicketSource, TicketMasterMapping } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Search, RefreshCw, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getCurrentUser } from '@/lib/auth';
 
 export default function MasterMappingsPage() {
   const [sources, setSources] = useState<TicketSource[]>([]);
@@ -62,10 +63,17 @@ export default function MasterMappingsPage() {
 
   const loadMasterMappings = async () => {
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch('/api/master-mappings', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -116,10 +124,17 @@ export default function MasterMappingsPage() {
     }
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch('/api/master-mappings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
         body: JSON.stringify({
           source_id: selectedSource,
@@ -158,10 +173,17 @@ export default function MasterMappingsPage() {
     }
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch('/api/master-mappings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
         body: JSON.stringify({
           id: editingMapping.id,
@@ -193,10 +215,17 @@ export default function MasterMappingsPage() {
     }
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch(`/api/master-mappings?id=${mappingId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
       });
 
@@ -215,10 +244,17 @@ export default function MasterMappingsPage() {
 
   const handleToggleActive = async (mapping: TicketMasterMapping) => {
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        toast.error('Authentication required');
+        return;
+      }
+
       const response = await fetch('/api/master-mappings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-email': currentUser.email,
         },
         body: JSON.stringify({
           id: mapping.id,
