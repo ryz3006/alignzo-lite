@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Search, Download, Filter, RefreshCw, Eye, Trash2, X } from 'lucide-react';
+import { Calendar, Search, Download, Filter, RefreshCw, Eye, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabaseClient } from '@/lib/supabase-client';
 
@@ -51,8 +51,20 @@ export default function AuditTrailPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   
-  // Filters
-  const [filters, setFilters] = useState({
+  // Filter states - separate for display and applied filters
+  const [displayFilters, setDisplayFilters] = useState({
+    userEmail: '',
+    eventType: '',
+    tableName: '',
+    severity: '',
+    dateFrom: '',
+    dateTo: '',
+    success: '',
+    acknowledged: '',
+  });
+
+  // Applied filters - these are the ones actually used for API calls
+  const [appliedFilters, setAppliedFilters] = useState({
     userEmail: '',
     eventType: '',
     tableName: '',
@@ -66,11 +78,13 @@ export default function AuditTrailPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [pageSize, setPageSize] = useState(20);
 
+  // Load data only when applied filters, page, or tab changes
   useEffect(() => {
     fetchData();
-  }, [activeTab, currentPage, pageSize, filters]);
+  }, [activeTab, currentPage, pageSize, appliedFilters]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -81,7 +95,7 @@ export default function AuditTrailPage() {
           page: currentPage.toString(),
           pageSize: pageSize.toString(),
           ...Object.fromEntries(
-            Object.entries(filters).filter(([_, value]) => value !== '')
+            Object.entries(appliedFilters).filter(([_, value]) => value !== '')
           ),
         });
 
@@ -112,13 +126,14 @@ export default function AuditTrailPage() {
         const data = await response.json();
         setAuditEntries(data.entries || []);
         setTotalPages(data.pagination?.totalPages || 1);
+        setTotalCount(data.pagination?.totalCount || 0);
       } else {
         // Use the security alerts API for alerts
         const params = new URLSearchParams({
           page: currentPage.toString(),
           pageSize: pageSize.toString(),
           ...Object.fromEntries(
-            Object.entries(filters).filter(([_, value]) => value !== '')
+            Object.entries(appliedFilters).filter(([_, value]) => value !== '')
           ),
         });
 
@@ -149,6 +164,7 @@ export default function AuditTrailPage() {
         const data = await response.json();
         setSecurityAlerts(data.alerts || []);
         setTotalPages(data.pagination?.totalPages || 1);
+        setTotalCount(data.pagination?.totalCount || 0);
       }
     } catch (error) {
       toast.error('Failed to fetch data');
@@ -158,9 +174,38 @@ export default function AuditTrailPage() {
     }
   };
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setCurrentPage(1); // Reset to first page when filters change
+  const handleDisplayFilterChange = (key: string, value: string) => {
+    setDisplayFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const applyFilters = () => {
+    setAppliedFilters(displayFilters);
+    setCurrentPage(1); // Reset to first page when applying new filters
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      userEmail: '',
+      eventType: '',
+      tableName: '',
+      severity: '',
+      dateFrom: '',
+      dateTo: '',
+      success: '',
+      acknowledged: '',
+    };
+    setDisplayFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const handleAcknowledgeAlert = async (alertId: string) => {
@@ -244,7 +289,7 @@ export default function AuditTrailPage() {
       const params = new URLSearchParams({
         format: 'csv',
         ...Object.fromEntries(
-          Object.entries(filters).filter(([_, value]) => value !== '')
+          Object.entries(appliedFilters).filter(([_, value]) => value !== '')
         ),
       });
 
@@ -309,6 +354,42 @@ export default function AuditTrailPage() {
     }
   };
 
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -359,8 +440,8 @@ export default function AuditTrailPage() {
               <label className="block text-sm font-medium mb-1">User Email</label>
               <Input
                 placeholder="Filter by user email"
-                value={filters.userEmail}
-                onChange={(e) => handleFilterChange('userEmail', e.target.value)}
+                value={displayFilters.userEmail}
+                onChange={(e) => handleDisplayFilterChange('userEmail', e.target.value)}
               />
             </div>
             
@@ -368,7 +449,7 @@ export default function AuditTrailPage() {
               <>
                 <div>
                   <label className="block text-sm font-medium mb-1">Event Type</label>
-                  <Select value={filters.eventType} onValueChange={(value) => handleFilterChange('eventType', value)}>
+                  <Select value={displayFilters.eventType} onValueChange={(value) => handleDisplayFilterChange('eventType', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All events" />
                     </SelectTrigger>
@@ -388,14 +469,14 @@ export default function AuditTrailPage() {
                   <label className="block text-sm font-medium mb-1">Table Name</label>
                   <Input
                     placeholder="Filter by table"
-                    value={filters.tableName}
-                    onChange={(e) => handleFilterChange('tableName', e.target.value)}
+                    value={displayFilters.tableName}
+                    onChange={(e) => handleDisplayFilterChange('tableName', e.target.value)}
                   />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium mb-1">Success Status</label>
-                  <Select value={filters.success} onValueChange={(value) => handleFilterChange('success', value)}>
+                  <Select value={displayFilters.success} onValueChange={(value) => handleDisplayFilterChange('success', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
@@ -411,7 +492,7 @@ export default function AuditTrailPage() {
               <>
                 <div>
                   <label className="block text-sm font-medium mb-1">Severity</label>
-                  <Select value={filters.severity} onValueChange={(value) => handleFilterChange('severity', value)}>
+                  <Select value={displayFilters.severity} onValueChange={(value) => handleDisplayFilterChange('severity', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All severities" />
                     </SelectTrigger>
@@ -427,7 +508,7 @@ export default function AuditTrailPage() {
                 
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
-                  <Select value={filters.acknowledged} onValueChange={(value) => handleFilterChange('acknowledged', value)}>
+                  <Select value={displayFilters.acknowledged} onValueChange={(value) => handleDisplayFilterChange('acknowledged', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All alerts" />
                     </SelectTrigger>
@@ -446,8 +527,8 @@ export default function AuditTrailPage() {
               <label className="block text-sm font-medium mb-1">Date From</label>
               <Input
                 type="date"
-                value={filters.dateFrom}
-                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                value={displayFilters.dateFrom}
+                onChange={(e) => handleDisplayFilterChange('dateFrom', e.target.value)}
               />
             </div>
             
@@ -455,9 +536,28 @@ export default function AuditTrailPage() {
               <label className="block text-sm font-medium mb-1">Date To</label>
               <Input
                 type="date"
-                value={filters.dateTo}
-                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                value={displayFilters.dateTo}
+                onChange={(e) => handleDisplayFilterChange('dateTo', e.target.value)}
               />
+            </div>
+          </div>
+
+          {/* Filter Actions */}
+          <div className="flex justify-between items-center mt-6 pt-4 border-t">
+            <div className="text-sm text-gray-600">
+              {totalCount > 0 && (
+                <span>
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} entries
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={clearFilters} variant="outline" size="sm">
+                Clear Filters
+              </Button>
+              <Button onClick={applyFilters} className="bg-blue-600 hover:bg-blue-700">
+                Apply Filters
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -466,12 +566,31 @@ export default function AuditTrailPage() {
       {/* Data Table */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            {activeTab === 'audit' ? 'Audit Trail Entries' : 'Security Alerts'}
-            <span className="ml-2 text-sm text-gray-500">
-              ({activeTab === 'audit' ? auditEntries.length : securityAlerts.length} entries)
-            </span>
-          </CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>
+              {activeTab === 'audit' ? 'Audit Trail Entries' : 'Security Alerts'}
+              <span className="ml-2 text-sm text-gray-500">
+                ({totalCount} entries)
+              </span>
+            </CardTitle>
+            
+            {/* Page Size Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Show:</label>
+              <Select value={pageSize.toString()} onValueChange={(value) => handlePageSizeChange(parseInt(value))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-600">per page</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -592,26 +711,65 @@ export default function AuditTrailPage() {
             </div>
           )}
 
-          {/* Pagination */}
+          {/* Enhanced Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4">
+            <div className="flex justify-between items-center mt-6 pt-4 border-t">
               <div className="text-sm text-gray-500">
                 Page {currentPage} of {totalPages}
               </div>
-              <div className="flex gap-2">
+              
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  size="sm"
+                  onClick={() => handlePageChange(1)}
                   disabled={currentPage === 1}
                 >
-                  Previous
+                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-4 h-4 -ml-2" />
                 </Button>
+                
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                
+                <div className="flex gap-1">
+                  {getPageNumbers().map((page, index) => (
+                    <Button
+                      key={index}
+                      variant={page === currentPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => typeof page === 'number' ? handlePageChange(page) : null}
+                      disabled={page === '...'}
+                      className={page === '...' ? 'cursor-default' : ''}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                 >
-                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4 -ml-2" />
                 </Button>
               </div>
             </div>
