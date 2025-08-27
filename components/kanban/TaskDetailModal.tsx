@@ -222,6 +222,8 @@ export default function TaskDetailModal({
       case 'linked_jira': return <Link className="h-4 w-4" />;
       case 'status_changed': return <CheckCircle className="h-4 w-4" />;
       case 'priority_changed': return <AlertCircle className="h-4 w-4" />;
+      case 'categories_updated': return <FolderOpen className="h-4 w-4" />;
+      case 'due_date_changed': return <Calendar className="h-4 w-4" />;
       default: return <Tag className="h-4 w-4" />;
     }
   };
@@ -236,6 +238,8 @@ export default function TaskDetailModal({
       case 'linked_jira': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400';
       case 'status_changed': return 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400';
       case 'priority_changed': return 'text-red-600 bg-red-100 dark:bg-red-900/20 dark:text-red-400';
+      case 'categories_updated': return 'text-purple-600 bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400';
+      case 'due_date_changed': return 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/20 dark:text-cyan-400';
       default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/20 dark:text-gray-400';
     }
   };
@@ -266,6 +270,10 @@ export default function TaskDetailModal({
         return details?.from_priority && details?.to_priority
           ? `Priority changed from ${details.from_priority} to ${details.to_priority}`
           : 'Priority changed';
+      case 'categories_updated':
+        return details?.count ? `Updated ${details.count} categories` : 'Categories updated';
+      case 'due_date_changed':
+        return 'Due date changed';
       default:
         return action.replace('_', ' ');
     }
@@ -634,7 +642,28 @@ export default function TaskDetailModal({
                                   {Object.entries(item.details).map(([key, value]) => (
                                     <div key={key} className="flex justify-between">
                                       <span className="font-medium capitalize">{key.replace('_', ' ')}:</span>
-                                      <span>{String(value)}</span>
+                                      <span>
+                                        {key === 'category_details' && Array.isArray(value) ? (
+                                          <div className="space-y-1">
+                                            {value.map((catDetail: any, index: number) => (
+                                              <div key={index} className="text-xs bg-neutral-50 dark:bg-neutral-700 p-2 rounded">
+                                                <div className="font-medium">{catDetail.displayText || `${catDetail.categoryName}: ${catDetail.optionName || 'N/A'}`}</div>
+                                                {catDetail.categoryName && catDetail.optionName && (
+                                                  <div className="text-neutral-500">
+                                                    Category: {catDetail.categoryName} | Option: {catDetail.optionName}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : key === 'categories' ? (
+                                          <span className="text-xs bg-neutral-50 dark:bg-neutral-700 p-2 rounded">
+                                            {String(value)}
+                                          </span>
+                                        ) : (
+                                          String(value)
+                                        )}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
