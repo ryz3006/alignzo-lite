@@ -201,23 +201,27 @@ export async function invalidateCachePattern(pattern: string): Promise<boolean> 
     }
 
     // Use SCAN instead of KEYS for better performance and safety
-    let cursor = 0;
-    const keysToDelete: string[] = [];
-    
-    do {
-      const result = await client.scan(cursor, { match: pattern, count: 100 });
-      cursor = result.cursor;
-      keysToDelete.push(...result.keys);
-    } while (cursor !== 0);
-    
-    if (keysToDelete.length > 0) {
-      // Delete keys in batches to avoid blocking
-      const batchSize = 50;
-      for (let i = 0; i < keysToDelete.length; i += batchSize) {
-        const batch = keysToDelete.slice(i, i + batchSize);
-        await client.del(batch);
+    // Fallback to direct deletion if scan is not available
+    try {
+      const keys = await client.keys(pattern);
+      if (keys.length > 0) {
+        // Delete keys in batches to avoid blocking
+        const batchSize = 50;
+        for (let i = 0; i < keys.length; i += batchSize) {
+          const batch = keys.slice(i, i + batchSize);
+          await client.del(batch);
+        }
+        console.log(`✅ Safely invalidated ${keys.length} cache keys for pattern: ${pattern}`);
       }
-      console.log(`✅ Safely invalidated ${keysToDelete.length} cache keys for pattern: ${pattern}`);
+    } catch (scanError) {
+      console.warn('⚠️ SCAN operation failed, using fallback method:', scanError);
+      // Fallback: try to delete the specific pattern directly
+      try {
+        await client.del(pattern);
+        console.log(`✅ Fallback cache invalidation completed for pattern: ${pattern}`);
+      } catch (fallbackError) {
+        console.error('❌ Fallback cache invalidation also failed:', fallbackError);
+      }
     }
     
     return true;
