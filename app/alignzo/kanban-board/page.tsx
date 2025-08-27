@@ -292,9 +292,9 @@ export default function KanbanBoardPage() {
     setIsDragging(false);
     setMovingTaskId(null);
     
-         if (!result.destination || !user || !selectedProject || !selectedTeam) {
-       return;
-     }
+    if (!result.destination || !user || !selectedProject || !selectedTeam) {
+      return;
+    }
 
     const { draggableId, source, destination } = result;
     const taskId = draggableId;
@@ -302,38 +302,54 @@ export default function KanbanBoardPage() {
     const destinationColumnId = destination.droppableId;
     const newSortOrder = destination.index;
 
-         // Calculate drag duration for UX feedback
-     const dragDuration = Date.now() - dragStartTime;
+    // Calculate drag duration for UX feedback
+    const dragDuration = Date.now() - dragStartTime;
+
+    // SAFETY CHECK: Validate task still exists before moving
+    const taskExists = kanbanBoard.some(column => 
+      column.tasks.some(task => task.id === taskId)
+    );
+    
+    if (!taskExists) {
+      console.error('❌ Task not found during move operation:', taskId);
+      setToast({ type: 'error', message: 'Task not found. Please refresh the board.' });
+      return;
+    }
 
     // Perform optimistic update immediately
     const optimisticBoardData = performOptimisticUpdate(taskId, sourceColumnId, destinationColumnId, newSortOrder);
     setOptimisticBoard(optimisticBoardData);
     setKanbanBoard(optimisticBoardData);
 
-         try {
-       const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam, user.email);
-       
-       if (response.success) {
-         // Clear optimistic state since the server confirmed the move
-         setOptimisticBoard([]);
-         // Show success toast
-         setToast({ type: 'success', message: 'Task moved successfully!' });
-       } else {
-         // Revert optimistic update on failure
-         revertOptimisticUpdate();
-         // Show error toast
-         setToast({ type: 'error', message: `Failed to move task: ${response.error}` });
-         // Refresh board to get the correct state
-         loadKanbanBoard(true);
-       }
-     } catch (error) {
-       // Revert optimistic update on error
-       revertOptimisticUpdate();
-       // Show error toast
-       setToast({ type: 'error', message: 'An error occurred while moving the task' });
-       // Refresh board to get the correct state
-       loadKanbanBoard(true);
-     }
+    try {
+      console.log(`🔄 Moving task ${taskId} from ${sourceColumnId} to ${destinationColumnId}`);
+      
+      const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam, user.email);
+      
+      if (response.success) {
+        // Clear optimistic state since the server confirmed the move
+        setOptimisticBoard([]);
+        // Show success toast
+        setToast({ type: 'success', message: 'Task moved successfully!' });
+        console.log(`✅ Task ${taskId} moved successfully`);
+      } else {
+        // Revert optimistic update on failure
+        revertOptimisticUpdate();
+        // Show error toast
+        setToast({ type: 'error', message: `Failed to move task: ${response.error}` });
+        console.error(`❌ Failed to move task ${taskId}:`, response.error);
+        // Refresh board to get the correct state
+        loadKanbanBoard(true);
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      revertOptimisticUpdate();
+      // Show error toast
+      setToast({ type: 'error', message: 'An error occurred while moving the task' });
+      console.error(`❌ Error moving task ${taskId}:`, error);
+      // Refresh board to get the correct state
+      loadKanbanBoard(true);
+    }
   };
 
   const handleCreateTask = async (taskData: CreateTaskForm) => {
@@ -1006,6 +1022,7 @@ export default function KanbanBoardPage() {
           task={selectedTask}
           onAddComment={() => {}}
           userEmail={user?.email}
+          projectData={selectedProject}
         />
       )}
 

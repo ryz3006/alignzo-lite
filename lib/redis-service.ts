@@ -171,7 +171,7 @@ export async function deleteCacheData(key: string): Promise<boolean> {
   }
 }
 
-// Pattern-based cache invalidation
+// Pattern-based cache invalidation - SAFE VERSION
 export async function invalidateCachePattern(pattern: string): Promise<boolean> {
   try {
     const client = await getRedisClient();
@@ -179,14 +179,50 @@ export async function invalidateCachePattern(pattern: string): Promise<boolean> 
       return false;
     }
 
-    const keys = await client.keys(pattern);
+    // SAFETY CHECK: Only allow specific patterns to prevent accidental data loss
+    const allowedPatterns = [
+      'kanban:board:*',
+      'kanban:categories:*',
+      'kanban:teams:*',
+      'kanban:column:*'
+    ];
     
-    if (keys.length > 0) {
-      await client.del(keys);
+    // Validate pattern is safe
+    const isSafePattern = allowedPatterns.some(allowed => {
+      // Convert wildcards to regex for safe matching
+      const regexPattern = allowed.replace(/\*/g, '.*');
+      return new RegExp(`^${regexPattern}$`).test(pattern);
+    });
+    
+    if (!isSafePattern) {
+      console.error('🚨 SAFETY CHECK FAILED: Attempted to invalidate unsafe pattern:', pattern);
+      console.error('🚨 Only these patterns are allowed:', allowedPatterns);
+      return false;
+    }
+
+    // Use SCAN instead of KEYS for better performance and safety
+    let cursor = 0;
+    const keysToDelete: string[] = [];
+    
+    do {
+      const result = await client.scan(cursor, { match: pattern, count: 100 });
+      cursor = result.cursor;
+      keysToDelete.push(...result.keys);
+    } while (cursor !== 0);
+    
+    if (keysToDelete.length > 0) {
+      // Delete keys in batches to avoid blocking
+      const batchSize = 50;
+      for (let i = 0; i < keysToDelete.length; i += batchSize) {
+        const batch = keysToDelete.slice(i, i + batchSize);
+        await client.del(batch);
+      }
+      console.log(`✅ Safely invalidated ${keysToDelete.length} cache keys for pattern: ${pattern}`);
     }
     
     return true;
   } catch (error) {
+    console.error('❌ Error in invalidateCachePattern:', error);
     return false;
   }
 }

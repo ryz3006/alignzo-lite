@@ -1,5 +1,6 @@
 -- Update RLS policies for kanban_tasks table to include category_option_id
 -- This ensures that INSERT and UPDATE operations work with the new column
+-- FIXED: Use email-based authentication instead of CURRENT_USER
 
 -- 1. Check current RLS policies for kanban_tasks
 SELECT 
@@ -31,6 +32,7 @@ BEGIN
     DROP POLICY IF EXISTS "Allow authenticated users to insert tasks" ON kanban_tasks;
     
     -- Create new INSERT policy that includes category_option_id
+    -- FIXED: Use email-based authentication
     CREATE POLICY "Users can create tasks for projects they have access to" ON kanban_tasks
         FOR INSERT TO authenticated
         WITH CHECK (
@@ -40,11 +42,11 @@ BEGIN
                 JOIN team_members tm ON tpa.team_id = tm.team_id
                 JOIN users u ON tm.user_id = u.id
                 WHERE tpa.project_id = kanban_tasks.project_id 
-                AND u.email = CURRENT_USER
+                AND u.email = kanban_tasks.created_by
             )
         );
     
-    RAISE NOTICE '✅ Created INSERT policy for kanban_tasks';
+    RAISE NOTICE '✅ Created INSERT policy for kanban_tasks with email-based auth';
 END $$;
 
 -- 4. Update or create UPDATE policy
@@ -55,6 +57,7 @@ BEGIN
     DROP POLICY IF EXISTS "Enable update for authenticated users" ON kanban_tasks;
     
     -- Create new UPDATE policy
+    -- FIXED: Use email-based authentication
     CREATE POLICY "Users can update tasks for projects they have access to" ON kanban_tasks
         FOR UPDATE TO authenticated
         USING (
@@ -64,7 +67,7 @@ BEGIN
                 JOIN team_members tm ON tpa.team_id = tm.team_id
                 JOIN users u ON tm.user_id = u.id
                 WHERE tpa.project_id = kanban_tasks.project_id 
-                AND u.email = CURRENT_USER
+                AND u.email = kanban_tasks.created_by
             )
         )
         WITH CHECK (
@@ -74,11 +77,11 @@ BEGIN
                 JOIN team_members tm ON tpa.team_id = tm.team_id
                 JOIN users u ON tm.user_id = u.id
                 WHERE tpa.project_id = kanban_tasks.project_id 
-                AND u.email = CURRENT_USER
+                AND u.email = kanban_tasks.created_by
             )
         );
     
-    RAISE NOTICE '✅ Created UPDATE policy for kanban_tasks';
+    RAISE NOTICE '✅ Created UPDATE policy for kanban_tasks with email-based auth';
 END $$;
 
 -- 5. Update or create SELECT policy
@@ -89,6 +92,7 @@ BEGIN
     DROP POLICY IF EXISTS "Enable select for authenticated users" ON kanban_tasks;
     
     -- Create new SELECT policy
+    -- FIXED: Use email-based authentication
     CREATE POLICY "Users can view tasks for projects they have access to" ON kanban_tasks
         FOR SELECT TO authenticated
         USING (
@@ -100,12 +104,33 @@ BEGIN
                 WHERE tpa.project_id = kanban_tasks.project_id 
                 AND u.email = CURRENT_USER
             )
+            OR
+            -- Allow users to see tasks they created or are assigned to
+            kanban_tasks.created_by = CURRENT_USER
+            OR
+            kanban_tasks.assigned_to = CURRENT_USER
         );
     
-    RAISE NOTICE '✅ Created SELECT policy for kanban_tasks';
+    RAISE NOTICE '✅ Created SELECT policy for kanban_tasks with email-based auth';
 END $$;
 
--- 6. Verify the policies were created
+-- 6. Add DELETE policy for task creators
+DO $$
+BEGIN
+    -- Drop existing DELETE policies if they exist
+    DROP POLICY IF EXISTS "Users can delete tasks they created" ON kanban_tasks;
+    
+    -- Create DELETE policy
+    CREATE POLICY "Users can delete tasks they created" ON kanban_tasks
+        FOR DELETE TO authenticated
+        USING (
+            kanban_tasks.created_by = CURRENT_USER
+        );
+    
+    RAISE NOTICE '✅ Created DELETE policy for kanban_tasks';
+END $$;
+
+-- 7. Verify the policies were created
 SELECT 
     'Updated Policies' as check_type,
     policyname,
@@ -118,7 +143,7 @@ FROM pg_policies
 WHERE tablename = 'kanban_tasks'
 ORDER BY cmd, policyname;
 
--- 7. Test the policies work with category_option_id
+-- 8. Test the policies work with category_option_id
 DO $$
 DECLARE
     test_category_id UUID;

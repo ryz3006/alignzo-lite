@@ -276,27 +276,43 @@ export async function moveTaskWithRedis(
   teamId?: string,
   userEmail?: string
 ): Promise<ApiResponse<boolean>> {
-     try {
-     // Move task in database
-     const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
-     
-     if (dbResult.success) {
-       // Temporarily disable cache invalidation to test
-       try {
-         await invalidateKanbanCaches(projectId, teamId);
-       } catch (cacheError) {
-         // Don't fail the operation if cache invalidation fails
-       }
-     }
+  try {
+    console.log(`🔄 Moving task ${taskId} to column ${newColumnId} with sort order ${newSortOrder}`);
     
-    return dbResult;
-     } catch (error) {
-     return {
-       data: false,
-       success: false,
-       error: error instanceof Error ? error.message : 'Unknown error'
-     };
-   }
+    // Move task in database FIRST - this is the critical operation
+    const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
+    
+    if (!dbResult.success) {
+      console.error('❌ Database move failed:', dbResult.error);
+      return dbResult;
+    }
+    
+    console.log(`✅ Task ${taskId} moved successfully in database`);
+    
+    // Only invalidate caches AFTER successful database operation
+    try {
+      await invalidateKanbanCaches(projectId, teamId);
+      console.log(`✅ Cache invalidation completed for task move`);
+    } catch (cacheError) {
+      console.warn('⚠️ Cache invalidation failed, but task move succeeded:', cacheError);
+      // Don't fail the operation if cache invalidation fails
+      // The database operation is the source of truth
+    }
+    
+    return {
+      data: true,
+      success: true,
+      source: 'database'
+    };
+  } catch (error) {
+    console.error('❌ Error in moveTaskWithRedis:', error);
+    return {
+      data: false,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      source: 'unknown'
+    };
+  }
 }
 
 // =====================================================
@@ -417,21 +433,29 @@ export async function getProjectCategoriesWithRedis(
 }
 
 // =====================================================
-// CACHE INVALIDATION UTILITIES
+// CACHE INVALIDATION UTILITIES - SAFE VERSION
 // =====================================================
 
 async function invalidateKanbanCaches(projectId: string, teamId?: string): Promise<void> {
-     try {
-     // Invalidate board cache
-     const boardPattern = generateCacheKey(KEY_PREFIXES.KANBAN_BOARD, projectId, '*');
-     await invalidateCachePattern(boardPattern);
-     
-     // Invalidate categories cache
-     const categoriesPattern = generateCacheKey(KEY_PREFIXES.PROJECT_CATEGORIES, projectId);
-     await deleteCacheData(categoriesPattern);
-   } catch (error) {
-     // Handle error silently
-   }
+  try {
+    console.log(`🔄 Safely invalidating caches for project: ${projectId}, team: ${teamId || 'none'}`);
+    
+    // Only invalidate specific board cache, not all patterns
+    const boardCacheKey = generateCacheKey(KEY_PREFIXES.KANBAN_BOARD, projectId, teamId || 'no-team');
+    await deleteCacheData(boardCacheKey);
+    console.log(`✅ Invalidated board cache: ${boardCacheKey}`);
+    
+    // Invalidate categories cache only if needed
+    const categoriesCacheKey = generateCacheKey(KEY_PREFIXES.PROJECT_CATEGORIES, projectId);
+    await deleteCacheData(categoriesCacheKey);
+    console.log(`✅ Invalidated categories cache: ${categoriesCacheKey}`);
+    
+    console.log(`✅ Cache invalidation completed safely for project: ${projectId}`);
+  } catch (error) {
+    console.error('❌ Error in invalidateKanbanCaches:', error);
+    // Don't fail the operation if cache invalidation fails
+    // The database operation should still succeed
+  }
 }
 
 // =====================================================
@@ -707,44 +731,72 @@ async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string):
 
 async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOrder: number, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
-         // Moving task with params
+    console.log(`🔄 Moving task ${taskId} to column ${newColumnId} with sort order ${newSortOrder}`);
     
-    // Get the current task to compare changes
-    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
-      filters: { id: taskId }
-    });
-
-    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
-    
-    const currentTask = currentTaskResponse.data?.[0];
-    if (!currentTask) throw new Error('Task not found');
-
-    const response = await supabaseClient.update('kanban_tasks', taskId, {
-      column_id: newColumnId,
-      sort_order: newSortOrder
+    // Use a transaction to ensure data consistency
+    const { data: transactionResult, error: transactionError } = await supabaseClient.rpc('move_kanban_task_safe', {
+      p_task_id: taskId,
+      p_new_column_id: newColumnId,
+      p_new_sort_order: newSortOrder,
+      p_user_email: userEmail || 'system'
     });
     
-         if (response.error) {
-       throw new Error(response.error);
-     }
-
-    // Create timeline entry for task movement
+    if (transactionError) {
+      console.error('❌ Transaction error:', transactionError);
+      throw new Error(transactionError);
+    }
+    
+    if (transactionResult && transactionResult.success) {
+      console.log(`✅ Task ${taskId} moved successfully via transaction`);
+      return { data: true, success: true };
+    } else {
+      console.error('❌ Transaction failed:', transactionResult);
+      throw new Error('Transaction failed to move task');
+    }
+  } catch (error) {
+    console.error('❌ Error in moveTaskInDatabase:', error);
+    
+    // Fallback to direct update if transaction fails
     try {
-      // Import the createTaskTimeline function
-      const { createTaskTimeline } = await import('./kanban-api');
+      console.log(`🔄 Attempting fallback direct update for task ${taskId}`);
       
-      // Get column names for better timeline display
-      const fromColumnResponse = await supabaseClient.get('kanban_columns', {
-        filters: { id: currentTask.column_id }
+      // Get the current task to compare changes
+      const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
+        filters: { id: taskId }
       });
-      const toColumnResponse = await supabaseClient.get('kanban_columns', {
-        filters: { id: newColumnId }
+
+      if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+      
+      const currentTask = currentTaskResponse.data?.[0];
+      if (!currentTask) throw new Error('Task not found');
+
+      const response = await supabaseClient.update('kanban_tasks', taskId, {
+        column_id: newColumnId,
+        sort_order: newSortOrder
       });
       
-      const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
-      const toColumnName = toColumnResponse.data?.[0]?.name || newColumnId;
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      console.log(`✅ Fallback update successful for task ${taskId}`);
       
-              await createTaskTimeline(
+      // Create timeline entry for task movement
+      try {
+        const { createTaskTimeline } = await import('./kanban-api');
+        
+        // Get column names for better timeline display
+        const fromColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: currentTask.column_id }
+        });
+        const toColumnResponse = await supabaseClient.get('kanban_columns', {
+          filters: { id: newColumnId }
+        });
+        
+        const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
+        const toColumnName = toColumnResponse.data?.[0]?.name || newColumnId;
+        
+        await createTaskTimeline(
           taskId,
           userEmail || 'system',
           'moved',
@@ -756,17 +808,21 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
             sort_order: newSortOrder
           }
         );
-      // Timeline entry created
-    } catch (error) {
-      // Don't fail the task movement if timeline creation fails
+        console.log(`✅ Timeline entry created for task ${taskId} move`);
+      } catch (timelineError) {
+        console.warn('⚠️ Timeline creation failed, but task move succeeded:', timelineError);
+        // Don't fail the operation if timeline creation fails
+      }
+      
+      return { data: true, success: true };
+    } catch (fallbackError) {
+      console.error('❌ Fallback update also failed:', fallbackError);
+      return {
+        data: false,
+        success: false,
+        error: `Move failed: ${error instanceof Error ? error.message : 'Unknown error'}. Fallback also failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`
+      };
     }
-    return { data: true, success: true };
-  } catch (error) {
-    return {
-      data: false,
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
   }
 }
 

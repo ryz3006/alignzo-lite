@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, User, Calendar, Clock, Tag, Link, MessageSquare, AlertCircle, CheckCircle, Edit3, Trash2, Loader2 } from 'lucide-react';
-import { KanbanTaskWithDetails, TaskTimeline, TaskComment } from '@/lib/kanban-types';
-
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, User, Calendar, Clock, Tag, Link, MessageSquare, AlertCircle, CheckCircle, Edit3, Trash2, Loader2, FolderOpen, Settings, Eye, FileText, Users, Target, Zap } from 'lucide-react';
+import { KanbanTaskWithDetails, TaskTimeline, TaskComment, ProjectCategory, CategoryOption } from '@/lib/kanban-types';
 import toast from 'react-hot-toast';
 
 interface TaskDetailModalProps {
@@ -12,6 +11,7 @@ interface TaskDetailModalProps {
   task: KanbanTaskWithDetails;
   onAddComment: (taskId: string, comment: string) => void;
   userEmail: string | null;
+  projectData?: any; // Add project data for category loading
 }
 
 export default function TaskDetailModal({
@@ -19,7 +19,8 @@ export default function TaskDetailModal({
   onClose,
   task,
   onAddComment,
-  userEmail
+  userEmail,
+  projectData
 }: TaskDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'comments'>('details');
   const [newComment, setNewComment] = useState('');
@@ -27,10 +28,19 @@ export default function TaskDetailModal({
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+  
+  // Category loading states
+  const [categories, setCategories] = useState<ProjectCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [taskCategoryDetails, setTaskCategoryDetails] = useState<{
+    category?: ProjectCategory;
+    categoryOption?: CategoryOption;
+  }>({});
 
   useEffect(() => {
     if (isOpen && task) {
       loadTaskData();
+      loadCategoryDetails();
     }
   }, [isOpen, task]);
 
@@ -58,6 +68,69 @@ export default function TaskDetailModal({
       toast.error('Failed to load task data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategoryDetails = async () => {
+    if (!task.project_id) return;
+    
+    setLoadingCategories(true);
+    try {
+      // Load categories with options for the project
+      const response = await fetch(`/api/categories/project-options?projectId=${task.project_id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+                  if (data.categories && data.categories.length > 0) {
+            const categoriesWithOptions = data.categories.map((cat: {
+              id: string;
+              name: string;
+              description?: string;
+              sort_order?: number;
+              is_active?: boolean;
+              options?: Array<{
+                id: string;
+                option_name: string;
+                option_value?: string;
+                sort_order?: number;
+                is_active?: boolean;
+              }>;
+            }) => ({
+              id: cat.id,
+              name: cat.name,
+              description: cat.description,
+              project_id: task.project_id,
+              sort_order: cat.sort_order || 0,
+              is_active: cat.is_active !== false,
+              options: (cat.options || []).map((opt) => ({
+                id: opt.id,
+                category_id: cat.id,
+                option_name: opt.option_name,
+                option_value: opt.option_value,
+                sort_order: opt.sort_order || 0,
+                is_active: opt.is_active !== false
+              }))
+            }));
+          
+          setCategories(categoriesWithOptions);
+          
+          // Find the specific category and option for this task
+          const taskCategory = categoriesWithOptions.find((cat: ProjectCategory) => cat.id === task.category_id);
+          const taskCategoryOption = taskCategory?.options?.find((opt: CategoryOption) => opt.id === task.category_option_id);
+          
+          setTaskCategoryDetails({
+            category: taskCategory,
+            categoryOption: taskCategoryOption
+          });
+        }
+      } else {
+        console.error('Failed to load categories');
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -186,13 +259,21 @@ export default function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 dark:border-neutral-700">
+      <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 dark:border-neutral-700">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
           <div className="flex items-center space-x-3">
-            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">
-              Task Details
-            </h2>
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+              <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">
+                Task Details
+              </h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                {task.id}
+              </p>
+            </div>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(task.priority)}`}>
               {getPriorityIcon(task.priority)}
               <span className="ml-1 capitalize">{task.priority}</span>
@@ -210,22 +291,26 @@ export default function TaskDetailModal({
         <div className="border-b border-neutral-200 dark:border-neutral-700">
           <nav className="flex space-x-8 px-6">
             {[
-              { id: 'details', label: 'Details' },
-              { id: 'timeline', label: 'Timeline' },
-              { id: 'comments', label: 'Comments' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'details', label: 'Details', icon: Eye },
+              { id: 'timeline', label: 'Timeline', icon: Clock },
+              { id: 'comments', label: 'Comments', icon: MessageSquare }
+            ].map((tab) => {
+              const IconComponent = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300'
+                  }`}
+                >
+                  <IconComponent className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
 
@@ -234,13 +319,13 @@ export default function TaskDetailModal({
           {activeTab === 'details' && (
             <div className="space-y-8">
               {/* Task Title and Description */}
-              <div>
-                <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+                <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">
                   {task.title}
                 </h3>
                 {task.description && (
-                  <div className="bg-neutral-50 dark:bg-neutral-700 rounded-xl p-4">
-                    <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                  <div className="bg-white dark:bg-neutral-700 rounded-xl p-4 border border-blue-200 dark:border-blue-700">
+                    <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed text-lg">
                       {task.description}
                     </p>
                   </div>
@@ -248,66 +333,30 @@ export default function TaskDetailModal({
               </div>
 
               {/* Task Meta Information */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                {/* Basic Information */}
                 <div className="space-y-6">
-                  <h4 className="text-lg font-semibold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                    Task Information
-                  </h4>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                      <Tag className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                      Basic Information
+                    </h4>
+                  </div>
                   
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
                       <Tag className="h-5 w-5 text-neutral-400" />
-                      <div>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Category</p>
-                        <p className="text-neutral-900 dark:text-white font-medium">
-                          {task.category?.name || 'Not specified'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {task.category_option && (
-                      <div className="flex items-center space-x-3">
-                        <Tag className="h-5 w-5 text-neutral-400" />
-                        <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Category Option</p>
-                          <p className="text-neutral-900 dark:text-white font-medium">{task.category_option.option_name}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-neutral-400" />
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Status</p>
                         <p className="text-neutral-900 dark:text-white font-medium capitalize">{task.status}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3">
-                      <Calendar className="h-5 w-5 text-neutral-400" />
-                      <div>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Created</p>
-                        <p className="text-neutral-900 dark:text-white font-medium">
-                          {formatDate(task.created_at)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {task.due_date && (
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="h-5 w-5 text-neutral-400" />
-                        <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Due Date</p>
-                          <p className="text-neutral-900 dark:text-white font-medium">
-                            {formatDate(task.due_date)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
                       <Tag className="h-5 w-5 text-neutral-400" />
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Scope</p>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                           task.scope === 'personal' 
@@ -318,61 +367,11 @@ export default function TaskDetailModal({
                         </span>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <h4 className="text-lg font-semibold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                    Assignment & Time
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <User className="h-5 w-5 text-neutral-400" />
-                      <div>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Created By</p>
-                        <p className="text-neutral-900 dark:text-white font-medium">
-                          {task.created_by_user?.full_name || task.created_by}
-                        </p>
-                      </div>
-                    </div>
-
-                    {task.assigned_to && (
-                      <div className="flex items-center space-x-3">
-                        <User className="h-5 w-5 text-neutral-400" />
-                        <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Assigned To</p>
-                          <p className="text-neutral-900 dark:text-white font-medium">
-                            {task.assigned_to_user?.full_name || task.assigned_to}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {task.estimated_hours && (
-                      <div className="flex items-center space-x-3">
-                        <Clock className="h-5 w-5 text-neutral-400" />
-                        <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Estimated Hours</p>
-                          <p className="text-neutral-900 dark:text-white font-medium">{task.estimated_hours}h</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {task.actual_hours && (
-                      <div className="flex items-center space-x-3">
-                        <Clock className="h-5 w-5 text-neutral-400" />
-                        <div>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Actual Hours</p>
-                          <p className="text-neutral-900 dark:text-white font-medium">{task.actual_hours}h</p>
-                        </div>
-                      </div>
-                    )}
 
                     {task.column && (
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
                         <Tag className="h-5 w-5 text-neutral-400" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">Current Column</p>
                           <div className="flex items-center space-x-2">
                             <div 
@@ -386,16 +385,162 @@ export default function TaskDetailModal({
                     )}
                   </div>
                 </div>
+
+                {/* Categories and Options */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                      <FolderOpen className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                      Categories & Options
+                    </h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {loadingCategories ? (
+                      <div className="flex items-center space-x-3 text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Loading categories...</span>
+                      </div>
+                    ) : taskCategoryDetails.category ? (
+                      <div className="border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <div 
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: taskCategoryDetails.category.color || '#3B82F6' }}
+                          ></div>
+                          <h5 className="font-semibold text-neutral-900 dark:text-white">
+                            {taskCategoryDetails.category.name}
+                          </h5>
+                        </div>
+                        
+                        {taskCategoryDetails.category.description && (
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                            {taskCategoryDetails.category.description}
+                          </p>
+                        )}
+
+                        {taskCategoryDetails.categoryOption ? (
+                          <div className="bg-white dark:bg-neutral-600 rounded-lg p-3 border border-neutral-200 dark:border-neutral-600">
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">Selected Option:</p>
+                            <p className="font-medium text-neutral-900 dark:text-white">
+                              {taskCategoryDetails.categoryOption.option_name}
+                            </p>
+                            {taskCategoryDetails.categoryOption.option_value && (
+                              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                                Value: {taskCategoryDetails.categoryOption.option_value}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-neutral-500 dark:text-neutral-400 italic">
+                            No option selected
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                        <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg">No category assigned</p>
+                        <p className="text-sm">This task is not assigned to any category</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Assignment & Time */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                      <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                      Assignment & Time
+                    </h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <User className="h-5 w-5 text-neutral-400" />
+                      <div className="flex-1">
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Created By</p>
+                        <p className="text-neutral-900 dark:text-white font-medium">
+                          {task.created_by_user?.full_name || task.created_by}
+                        </p>
+                      </div>
+                    </div>
+
+                    {task.assigned_to && (
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                        <User className="h-5 w-5 text-neutral-400" />
+                        <div className="flex-1">
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Assigned To</p>
+                          <p className="text-neutral-900 dark:text-white font-medium">
+                            {task.assigned_to_user?.full_name || task.assigned_to}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <Calendar className="h-5 w-5 text-neutral-400" />
+                      <div className="flex-1">
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Created</p>
+                        <p className="text-neutral-900 dark:text-white font-medium">
+                          {formatDate(task.created_at)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {task.due_date && (
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                        <Calendar className="h-5 w-5 text-neutral-400" />
+                        <div className="flex-1">
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Due Date</p>
+                          <p className="text-neutral-900 dark:text-white font-medium">
+                            {formatDate(task.due_date)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {task.estimated_hours && (
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                        <Clock className="h-5 w-5 text-neutral-400" />
+                        <div className="flex-1">
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Estimated Hours</p>
+                          <p className="text-neutral-900 dark:text-white font-medium">{task.estimated_hours}h</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {task.actual_hours && (
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                        <Clock className="h-5 w-5 text-neutral-400" />
+                        <div className="flex-1">
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">Actual Hours</p>
+                          <p className="text-neutral-900 dark:text-white font-medium">{task.actual_hours}h</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* JIRA Integration */}
               {task.jira_ticket_key && (
                 <div className="border-t border-neutral-200 dark:border-neutral-700 pt-6">
-                  <h4 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">JIRA Integration</h4>
-                  <div className="flex items-center space-x-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                    <Link className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
+                      <Link className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">JIRA Integration</h4>
+                  </div>
+                  <div className="flex items-center space-x-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                    <Link className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
                     <div>
-                      <p className="font-semibold text-blue-600 dark:text-blue-400 text-lg">
+                      <p className="font-semibold text-yellow-600 dark:text-yellow-400 text-lg">
                         {task.jira_ticket_key}
                       </p>
                       {task.jira_ticket_id && task.jira_ticket_id !== task.jira_ticket_key && (
@@ -412,7 +557,12 @@ export default function TaskDetailModal({
 
           {activeTab === 'timeline' && (
             <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-6">Task Timeline</h3>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-neutral-900 dark:text-white">Task Timeline</h3>
+              </div>
               
               {loading ? (
                 <div className="text-center py-12">
@@ -465,7 +615,7 @@ export default function TaskDetailModal({
                 </div>
               ) : (
                 <div className="text-center py-12 text-neutral-500 dark:text-neutral-400">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">No timeline entries found</p>
                   <p className="text-sm">Timeline entries will appear here when actions are performed on this task.</p>
                 </div>
@@ -475,7 +625,12 @@ export default function TaskDetailModal({
 
           {activeTab === 'comments' && (
             <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-6">Comments</h3>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-neutral-900 dark:text-white">Comments</h3>
+              </div>
               
               {/* Add Comment */}
               <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
