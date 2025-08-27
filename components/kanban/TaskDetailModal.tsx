@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, MessageSquare, AlertCircle, CheckCircle, Edit3, Trash2, Loader2, FolderOpen, Settings, Eye, FileText, Users, Target, Zap } from 'lucide-react';
-import { KanbanTaskWithDetails, TaskTimeline, TaskComment, ProjectCategory, CategoryOption } from '@/lib/kanban-types';
+import { KanbanTaskWithDetails, TaskTimeline, TaskComment, ProjectCategory, CategoryOption, TaskCategoryWithDetails } from '@/lib/kanban-types';
 import toast from 'react-hot-toast';
 
 interface TaskDetailModalProps {
@@ -29,18 +29,97 @@ export default function TaskDetailModal({
   const [loading, setLoading] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
   
-  // Category loading states
+  // State for categories
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
+  const [taskCategories, setTaskCategories] = useState<TaskCategoryWithDetails[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
-  const [taskCategoryDetails, setTaskCategoryDetails] = useState<{
-    category?: ProjectCategory;
-    categoryOption?: CategoryOption;
-  }>({});
+  const [loadingTaskCategories, setLoadingTaskCategories] = useState(false);
+
+  // Load categories and task-specific categories when modal opens
+  useEffect(() => {
+    if (isOpen && task?.id && projectData?.id) {
+      loadCategories();
+      loadTaskCategories();
+    }
+  }, [isOpen, task?.id, projectData?.id]);
+
+  // Load available categories for the project
+  const loadCategories = useCallback(async () => {
+    if (!projectData?.id) return;
+    
+    setLoadingCategories(true);
+    try {
+      const response = await fetch(`/api/categories/project-options?projectId=${projectData.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.categories && data.categories.length > 0) {
+          const categoriesWithOptions = data.categories.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            description: cat.description,
+            project_id: projectData.id,
+            sort_order: cat.sort_order || 0,
+            is_active: cat.is_active !== false,
+            color: cat.color,
+            options: (cat.options || []).map((opt: any) => ({
+              id: opt.id,
+              category_id: cat.id,
+              option_name: opt.option_name,
+              option_value: opt.option_value,
+              sort_order: opt.sort_order || 0,
+              is_active: opt.is_active !== false
+            }))
+          }));
+          
+          setCategories(categoriesWithOptions);
+        } else {
+          setCategories([]);
+        }
+      } else {
+        console.error('API failed to load categories');
+        setCategories([]);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  }, [projectData?.id]);
+
+  // Load task-specific categories from the mapping table
+  const loadTaskCategories = useCallback(async () => {
+    if (!task?.id) return;
+    
+    setLoadingTaskCategories(true);
+    try {
+      const response = await fetch(`/api/kanban/task-categories?taskId=${task.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.categories) {
+          setTaskCategories(data.categories);
+        } else {
+          setTaskCategories([]);
+        }
+      } else {
+        console.error('API failed to load task categories');
+        setTaskCategories([]);
+      }
+    } catch (error) {
+      console.error('Error loading task categories:', error);
+      setTaskCategories([]);
+    } finally {
+      setLoadingTaskCategories(false);
+    }
+  }, [task?.id]);
 
   useEffect(() => {
     if (isOpen && task) {
       loadTaskData();
-      loadCategoryDetails();
     }
   }, [isOpen, task]);
 
@@ -68,69 +147,6 @@ export default function TaskDetailModal({
       toast.error('Failed to load task data');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCategoryDetails = async () => {
-    if (!task.project_id) return;
-    
-    setLoadingCategories(true);
-    try {
-      // Load categories with options for the project
-      const response = await fetch(`/api/categories/project-options?projectId=${task.project_id}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-                  if (data.categories && data.categories.length > 0) {
-            const categoriesWithOptions = data.categories.map((cat: {
-              id: string;
-              name: string;
-              description?: string;
-              sort_order?: number;
-              is_active?: boolean;
-              options?: Array<{
-                id: string;
-                option_name: string;
-                option_value?: string;
-                sort_order?: number;
-                is_active?: boolean;
-              }>;
-            }) => ({
-              id: cat.id,
-              name: cat.name,
-              description: cat.description,
-              project_id: task.project_id,
-              sort_order: cat.sort_order || 0,
-              is_active: cat.is_active !== false,
-              options: (cat.options || []).map((opt) => ({
-                id: opt.id,
-                category_id: cat.id,
-                option_name: opt.option_name,
-                option_value: opt.option_value,
-                sort_order: opt.sort_order || 0,
-                is_active: opt.is_active !== false
-              }))
-            }));
-          
-          setCategories(categoriesWithOptions);
-          
-          // Find the specific category and option for this task
-          const taskCategory = categoriesWithOptions.find((cat: ProjectCategory) => cat.id === task.category_id);
-          const taskCategoryOption = taskCategory?.options?.find((opt: CategoryOption) => opt.id === task.category_option_id);
-          
-          setTaskCategoryDetails({
-            category: taskCategory,
-            categoryOption: taskCategoryOption
-          });
-        }
-      } else {
-        console.error('Failed to load categories');
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    } finally {
-      setLoadingCategories(false);
     }
   };
 
@@ -357,13 +373,17 @@ export default function TaskDetailModal({
                     <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
                       <Tag className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Scope</p>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Priority</p>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          task.scope === 'personal' 
-                            ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' 
-                            : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
+                          task.priority === 'urgent' 
+                            ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' 
+                            : task.priority === 'high'
+                            ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800'
+                            : task.priority === 'medium'
+                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+                            : 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
                         }`}>
-                          {task.scope === 'personal' ? 'Personal' : 'Project'}
+                          {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Not specified'}
                         </span>
                       </div>
                     </div>
@@ -398,124 +418,80 @@ export default function TaskDetailModal({
                   </div>
                   
                   <div className="space-y-4">
-                    {loadingCategories ? (
+                    {loadingTaskCategories ? (
                       <div className="flex items-center space-x-3 text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Loading categories...</span>
+                        <span>Loading task categories...</span>
                       </div>
-                    ) : categories.length > 0 ? (
+                    ) : taskCategories.length > 0 ? (
                       <div className="space-y-4">
-                        {categories.map((category) => {
-                          const isSelected = category.id === task.category_id;
-                          const selectedOption = isSelected ? category.options?.find(opt => opt.id === task.category_option_id) : null;
-                          
-                          return (
-                            <div 
-                              key={category.id} 
-                              className={`border rounded-xl p-4 transition-all ${
-                                isSelected 
-                                  ? 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20' 
-                                  : 'border-neutral-200 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/50'
-                              }`}
-                            >
-                              <div className="flex items-center space-x-3 mb-3">
-                                <div 
-                                  className="w-4 h-4 rounded-full"
-                                  style={{ backgroundColor: category.color || '#3B82F6' }}
-                                ></div>
-                                <h5 className={`font-semibold ${
-                                  isSelected 
-                                    ? 'text-purple-900 dark:text-purple-100' 
-                                    : 'text-neutral-900 dark:text-white'
-                                }`}>
-                                  {category.name}
-                                  {isSelected && (
-                                    <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                      Selected
-                                    </span>
-                                  )}
-                                </h5>
-                              </div>
-                              
-                              {category.description && (
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                                  {category.description}
-                                </p>
-                              )}
-
-                              {/* Show options for this category */}
-                              {category.options && category.options.length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                                    Available Options:
-                                  </p>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {category.options.map((option) => {
-                                      const isOptionSelected = isSelected && option.id === task.category_option_id;
-                                      return (
-                                        <div 
-                                          key={option.id}
-                                          className={`p-3 rounded-lg border transition-all ${
-                                            isOptionSelected
-                                              ? 'border-purple-300 bg-purple-100 dark:bg-purple-800 dark:border-purple-600'
-                                              : 'border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-600'
-                                          }`}
-                                        >
-                                          <div className="flex items-center justify-between">
-                                            <span className={`font-medium ${
-                                              isOptionSelected
-                                                ? 'text-purple-900 dark:text-purple-100'
-                                                : 'text-neutral-900 dark:text-white'
-                                            }`}>
-                                              {option.option_name}
-                                            </span>
-                                            {isOptionSelected && (
-                                              <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                                            )}
-                                          </div>
-                                          {option.option_value && (
-                                            <p className={`text-xs mt-1 ${
-                                              isOptionSelected
-                                                ? 'text-purple-700 dark:text-purple-300'
-                                                : 'text-neutral-500 dark:text-neutral-400'
-                                            }`}>
-                                              Value: {option.option_value}
-                                            </p>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Show selected option details if this category is selected */}
-                              {isSelected && selectedOption && (
-                                <div className="mt-3 p-3 bg-purple-100 dark:bg-purple-800 rounded-lg border border-purple-200 dark:border-purple-700">
-                                  <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">
-                                    Selected Option Details:
-                                  </p>
-                                  <div className="bg-white dark:bg-neutral-700 rounded p-2">
-                                    <p className="font-medium text-purple-900 dark:text-purple-100">
-                                      {selectedOption.option_name}
-                                    </p>
-                                    {selectedOption.option_value && (
-                                      <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
-                                        Value: {selectedOption.option_value}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                        {taskCategories.map((taskCategory) => (
+                          <div 
+                            key={taskCategory.mapping_id} 
+                            className={`border rounded-xl p-4 transition-all ${
+                              taskCategory.is_primary
+                                ? 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20' 
+                                : 'border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/50'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3 mb-3">
+                              <div 
+                                className="w-4 h-4 rounded-full"
+                                style={{ backgroundColor: taskCategory.category_color || '#3B82F6' }}
+                              ></div>
+                              <h5 className={`font-semibold ${
+                                taskCategory.is_primary
+                                  ? 'text-purple-900 dark:text-purple-100' 
+                                  : 'text-neutral-900 dark:text-white'
+                              }`}>
+                                {taskCategory.category_name}
+                                {taskCategory.is_primary && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                    Primary
+                                  </span>
+                                )}
+                              </h5>
                             </div>
-                          );
-                        })}
+                            
+                            {taskCategory.category_description && (
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                                {taskCategory.category_description}
+                              </p>
+                            )}
+
+                            {/* Show selected option if any */}
+                            {taskCategory.category_option_id && taskCategory.option_name && (
+                              <div className="mt-3 p-3 bg-white dark:bg-neutral-600 rounded-lg border border-neutral-200 dark:border-neutral-600">
+                                <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                                  Selected Option:
+                                </p>
+                                <div className="bg-neutral-50 dark:bg-neutral-700 rounded p-2">
+                                  <p className="font-medium text-neutral-900 dark:text-white">
+                                    {taskCategory.option_name}
+                                  </p>
+                                  {taskCategory.option_value && (
+                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                                      Value: {taskCategory.option_value}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Show if no option selected */}
+                            {!taskCategory.category_option_id && (
+                              <div className="text-sm text-neutral-500 dark:text-neutral-400 italic">
+                                No option selected
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 rounded-xl">
                         <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg">No categories available</p>
-                        <p className="text-sm">This project has no categories configured</p>
+                        <p className="text-lg">No categories assigned</p>
+                        <p className="text-sm">This task is not assigned to any categories</p>
                       </div>
                     )}
                   </div>
@@ -615,9 +591,9 @@ export default function TaskDetailModal({
                       <p className="font-semibold text-yellow-600 dark:text-yellow-400 text-lg">
                         {task.jira_ticket_key}
                       </p>
-                      {task.jira_ticket_id && task.jira_ticket_id !== task.jira_ticket_key && (
+                      {task.jira_ticket_key && (
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                          ID: {task.jira_ticket_id}
+                          JIRA Ticket: {task.jira_ticket_key}
                         </p>
                       )}
                     </div>

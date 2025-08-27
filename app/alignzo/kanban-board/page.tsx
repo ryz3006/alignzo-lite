@@ -820,11 +820,15 @@ export default function KanbanBoardPage() {
                                       {/* Scope Badge and Actions */}
                                       <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-600">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                                          task.scope === 'personal' 
-                                            ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' 
-                                            : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
+                                          task.priority === 'urgent'
+                                            ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                                            : task.priority === 'high'
+                                            ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800'
+                                            : task.priority === 'medium'
+                                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+                                            : 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
                                         }`}>
-                                          {task.scope === 'personal' ? 'Personal' : 'Project'}
+                                          {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
                                         </span>
 
                                         {/* Action Buttons */}

@@ -133,16 +133,52 @@ export interface User {
 }
 
 // Extended interfaces for UI components
-export interface KanbanTaskWithDetails extends KanbanTask {
-  category?: ProjectCategory;
-  category_option?: CategoryOption;
+export interface KanbanTaskWithDetails {
+  id: string;
+  title: string;
+  description?: string;
+  column_id: string;
+  sort_order: number;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'active' | 'completed' | 'archived';
+  estimated_hours?: number;
+  actual_hours?: number;
+  due_date?: string;
+  jira_ticket_key?: string;
+  assigned_to?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  project_id: string;
+  
+  // Legacy single category fields (for backward compatibility)
+  category_id: string;
+  category_option_id?: string;
+  
+  // Scope field for compatibility with KanbanTask
+  scope: 'personal' | 'project';
+  
+  // New multiple categories support
+  categories?: TaskCategoryWithDetails[];
+  
+  // User relationships
+  assigned_to_user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  created_by_user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  
+  // Column relationship
   column?: KanbanColumn;
-  project?: Project;
-  created_by_user?: User;
-  assigned_to_user?: User;
+  
+  // Comments and timeline
   comments?: TaskComment[];
   timeline?: TaskTimeline[];
-  assignments?: TaskAssignment[];
 }
 
 export interface KanbanColumnWithTasks extends KanbanColumn {
@@ -304,6 +340,40 @@ export interface TaskNotification {
   message: string;
   is_read: boolean;
   created_at: string;
+}
+
+// Task-Category Mapping Types
+export interface TaskCategoryMapping {
+  id: string;
+  task_id: string;
+  category_id: string;
+  category_option_id?: string;
+  is_primary: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface TaskCategoryWithDetails {
+  mapping_id: string;
+  category_id: string;
+  category_name: string;
+  category_description?: string;
+  category_color?: string;
+  category_option_id?: string;
+  option_name?: string;
+  option_value?: string;
+  is_primary: boolean;
+  sort_order: number;
+}
+
+export interface TaskCategorySelection {
+  category_id: string;
+  category_option_id?: string;
+  is_primary: boolean;
+  sort_order: number;
 }
 
 

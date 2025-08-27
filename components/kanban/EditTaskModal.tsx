@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings, MessageSquare } from 'lucide-react';
-import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskComment } from '@/lib/kanban-types';
+import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskComment, TaskCategorySelection } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getCurrentUser } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -94,7 +94,104 @@ export default function EditTaskModal({
 
   // Categories state
   const [availableCategories, setAvailableCategories] = useState<ProjectCategory[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<TaskCategorySelection[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  // Load categories and task-specific categories when modal opens
+  useEffect(() => {
+    if (isOpen && projectData?.id) {
+      loadCategories();
+    }
+  }, [isOpen, projectData?.id]);
+
+  // Load task categories when task changes
+  useEffect(() => {
+    if (isOpen && task?.id) {
+      loadTaskCategories();
+    }
+  }, [isOpen, task?.id]);
+
+  // Memoized function to load categories
+  const loadCategories = useCallback(async () => {
+    if (!projectData?.id) return;
+    
+    setIsLoadingCategories(true);
+    try {
+      // Use the simplified API endpoint to get categories with options
+      const response = await fetch(`/api/categories/project-options?projectId=${projectData.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.categories && data.categories.length > 0) {
+          // Transform the data to match the expected format
+          const categoriesWithOptions = data.categories.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            description: cat.description,
+            project_id: projectData.id,
+            sort_order: cat.sort_order || 0,
+            is_active: cat.is_active !== false,
+            options: (cat.options || []).map((opt: any) => ({
+              id: opt.id,
+              category_id: cat.id,
+              option_name: opt.option_name,
+              option_value: opt.option_value,
+              sort_order: opt.sort_order || 0,
+              is_active: opt.is_active !== false
+            }))
+          }));
+          
+          setAvailableCategories(categoriesWithOptions);
+        } else {
+          setAvailableCategories([]);
+        }
+      } else {
+        console.error('API failed to load categories');
+        toast.error('Failed to load categories. Please try again.');
+        setAvailableCategories([]);
+      }
+    } catch (error) {
+      console.error('Error loading categories for project:', error);
+      toast.error('Failed to load categories. Please try again.');
+      setAvailableCategories([]);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [projectData?.id]);
+
+  // Load task-specific categories from the mapping table
+  const loadTaskCategories = useCallback(async () => {
+    if (!task?.id) return;
+    
+    try {
+      const response = await fetch(`/api/kanban/task-categories?taskId=${task.id}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.categories) {
+          // Transform to the selection format
+          const categorySelections = data.categories.map((cat: any) => ({
+            category_id: cat.category_id,
+            category_option_id: cat.category_option_id || undefined,
+            is_primary: cat.is_primary,
+            sort_order: cat.sort_order
+          }));
+          
+          setSelectedCategories(categorySelections);
+        } else {
+          setSelectedCategories([]);
+        }
+      } else {
+        console.error('API failed to load task categories');
+        setSelectedCategories([]);
+      }
+    } catch (error) {
+      console.error('Error loading task categories:', error);
+      setSelectedCategories([]);
+    }
+  }, [task?.id]);
 
   // Format date for datetime-local input (handle timezone properly)
   const formatDateForInput = (dateString: string | null | undefined) => {
@@ -143,7 +240,7 @@ export default function EditTaskModal({
 
     try {
       // Load categories with options using the same API as CreateTaskModal
-      setIsLoadingCategories(true);
+      // setIsLoadingCategories(true); // This is now handled by the useEffect
       const response = await fetch(`/api/categories/project-options?projectId=${projectData.id}`);
       
       if (response.ok) {
@@ -168,21 +265,21 @@ export default function EditTaskModal({
             }))
           }));
           
-          setAvailableCategories(categoriesWithOptions);
+          // setAvailableCategories(categoriesWithOptions); // This is now handled by the useEffect
         } else {
-          setAvailableCategories([]);
+          // setAvailableCategories([]); // This is now handled by the useEffect
         }
       } else {
         console.error('API failed to load categories');
         toast.error('Failed to load categories. Please try again.');
-        setAvailableCategories([]);
+        // setAvailableCategories([]); // This is now handled by the useEffect
       }
     } catch (error) {
       console.error('Error loading categories:', error);
       toast.error('Failed to load categories. Please try again.');
-      setAvailableCategories([]);
+      // setAvailableCategories([]); // This is now handled by the useEffect
     } finally {
-      setIsLoadingCategories(false);
+      // setIsLoadingCategories(false); // This is now handled by the useEffect
     }
 
     // Load team members
@@ -422,7 +519,42 @@ export default function EditTaskModal({
     
     if (validateForm()) {
       setIsLoading(true);
-      onSubmit(task.id, formData);
+      
+      try {
+        // Update task categories first
+        if (selectedCategories.length > 0) {
+          const categoriesResponse = await fetch('/api/kanban/task-categories', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              taskId: task.id,
+              categories: selectedCategories,
+              userEmail: userEmail
+            }),
+          });
+
+          if (!categoriesResponse.ok) {
+            throw new Error('Failed to update task categories');
+          }
+        }
+        
+        // Call the onSubmit callback with the form data
+        await onSubmit(task.id, formData);
+        
+        // Close the modal on success
+        onClose();
+        
+        // Show success message
+        toast.success('Task updated successfully!');
+        
+      } catch (error) {
+        console.error('Error updating task:', error);
+        toast.error('Failed to update task. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -599,37 +731,95 @@ export default function EditTaskModal({
                     ) : availableCategories.length === 0 ? (
                       <div className="text-neutral-500 p-4 border border-neutral-200 dark:border-neutral-600 rounded-xl">No categories available for this project</div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {availableCategories.map((category) => (
-                          <div key={category.id} className="space-y-2">
-                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                              {category.name}
-                            </label>
-                            <select
-                              value={formData.category_id === category.id ? (formData.category_option_id || '') : ''}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleInputChange('category_id', category.id);
-                                  handleInputChange('category_option_id', e.target.value);
-                                } else {
-                                  // Only clear category_id if this was the selected category
-                                  if (formData.category_id === category.id) {
-                                    handleInputChange('category_id', '');
-                                    handleInputChange('category_option_id', '');
-                                  }
-                                }
-                              }}
-                              className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                            >
-                              <option value="">Select {category.name}</option>
-                              {category.options?.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.option_name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
+                      <div className="space-y-4">
+                        {availableCategories.map((category) => {
+                          const isSelected = selectedCategories.some(sc => sc.category_id === category.id);
+                          const selectedCategory = selectedCategories.find(sc => sc.category_id === category.id);
+                          
+                          return (
+                            <div key={category.id} className={`border rounded-lg p-4 transition-all ${
+                              isSelected 
+                                ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20' 
+                                : 'border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-700'
+                            }`}>
+                              <div className="flex items-center justify-between mb-3">
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        // Add category
+                                        setSelectedCategories(prev => [
+                                          ...prev,
+                                          {
+                                            category_id: category.id,
+                                            category_option_id: undefined,
+                                            is_primary: prev.length === 0, // First selected becomes primary
+                                            sort_order: prev.length
+                                          }
+                                        ]);
+                                      } else {
+                                        // Remove category
+                                        setSelectedCategories(prev => prev.filter(sc => sc.category_id !== category.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                  />
+                                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                                    {category.name}
+                                  </span>
+                                </label>
+                                
+                                {isSelected && (
+                                  <div className="flex items-center space-x-2">
+                                    <label className="flex items-center space-x-1 text-xs">
+                                      <input
+                                        type="radio"
+                                        name="primary-category"
+                                        checked={selectedCategory?.is_primary || false}
+                                        onChange={() => {
+                                          setSelectedCategories(prev => prev.map(sc => ({
+                                            ...sc,
+                                            is_primary: sc.category_id === category.id
+                                          })));
+                                        }}
+                                        className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                      />
+                                      <span className="text-neutral-500 dark:text-neutral-400">Primary</span>
+                                    </label>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {isSelected && category.options && category.options.length > 0 && (
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                                    Select Option:
+                                  </label>
+                                  <select
+                                    value={selectedCategory?.category_option_id || ''}
+                                    onChange={(e) => {
+                                      setSelectedCategories(prev => prev.map(sc => 
+                                        sc.category_id === category.id 
+                                          ? { ...sc, category_option_id: e.target.value || undefined }
+                                          : sc
+                                      ));
+                                    }}
+                                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                                  >
+                                    <option value="">No option selected</option>
+                                    {category.options.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.option_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
