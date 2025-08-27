@@ -299,64 +299,52 @@ export default function GoogleDrivePage() {
 
   if (!isConfigured) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-6">
-          <div className="flex items-center mb-6">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg mr-4">
-              <Settings className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Google Drive Integration</h1>
-              <p className="text-neutral-600 dark:text-neutral-400">Configure your Google Drive connection</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Client ID
-              </label>
-              <input
-                type="text"
-                value={configData.clientId}
-                onChange={(e) => setConfigData(prev => ({ ...prev, clientId: e.target.value }))}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your Google OAuth Client ID"
-              />
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-8">
+            <div className="flex items-center mb-6">
+              <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg mr-4">
+                <Settings className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">Google Drive Not Configured</h1>
+                <p className="text-neutral-600 dark:text-neutral-400">Contact your administrator to set up Google Drive integration</p>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                Client Secret
-              </label>
-              <input
-                type="password"
-                value={configData.clientSecret}
-                onChange={(e) => setConfigData(prev => ({ ...prev, clientSecret: e.target.value }))}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your Google OAuth Client Secret"
-              />
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Configuration Required
+                  </h3>
+                  <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                    <p>
+                      Google Drive integration has not been configured for this application. 
+                      Please contact your system administrator to set up the Google Drive 
+                      OAuth credentials and enable this feature.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={saveConfiguration}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
-            >
-              Save Configuration
-            </button>
-          </div>
-
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions:</h3>
-            <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>1. Go to Google Cloud Console</li>
-              <li>2. Create a new project or select existing one</li>
-              <li>3. Enable Google Drive API</li>
-              <li>4. Configure OAuth consent screen</li>
-              <li>5. Create OAuth 2.0 credentials</li>
-              <li>6. Add your domain to authorized origins</li>
-              <li>7. Copy Client ID and Client Secret above</li>
-            </ol>
+            <div className="bg-neutral-50 dark:bg-neutral-700/50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                What your administrator needs to do:
+              </h3>
+              <ol className="text-sm text-neutral-700 dark:text-neutral-300 space-y-1">
+                <li>1. Set up Google Cloud Project with Drive API enabled</li>
+                <li>2. Configure OAuth 2.0 credentials</li>
+                <li>3. Add authorized redirect URIs</li>
+                <li>4. Configure the integration in the admin panel</li>
+              </ol>
+            </div>
           </div>
         </div>
       </div>

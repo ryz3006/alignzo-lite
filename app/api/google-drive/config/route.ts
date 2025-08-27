@@ -5,12 +5,21 @@ import bcrypt from 'bcryptjs';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization of Supabase client
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export async function GET() {
   try {
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('google_drive_config')
       .select('*')
@@ -32,6 +41,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { clientId, clientSecret } = await request.json();
 
     if (!clientId || !clientSecret) {
@@ -83,6 +93,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving Google Drive config:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE() {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Delete configuration
+    const { error: configError } = await supabase
+      .from('google_drive_config')
+      .delete()
+      .neq('id', 0); // Delete all records
+
+    if (configError) {
+      console.error('Error deleting Google Drive config:', configError);
+      return NextResponse.json({ error: 'Failed to delete configuration' }, { status: 500 });
+    }
+
+    // Delete tokens
+    const { error: tokensError } = await supabase
+      .from('google_drive_tokens')
+      .delete()
+      .neq('id', 0); // Delete all records
+
+    if (tokensError) {
+      console.error('Error deleting Google Drive tokens:', tokensError);
+      // Don't return error here as config was deleted successfully
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting Google Drive config:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

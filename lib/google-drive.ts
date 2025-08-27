@@ -2,9 +2,17 @@ import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization of Supabase client
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase environment variables not configured');
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export interface GoogleDriveConfig {
   clientId: string;
@@ -21,6 +29,7 @@ export class GoogleDriveService {
 
   async initialize() {
     try {
+      const supabase = getSupabaseClient();
       // Get configuration from database
       const { data: config, error } = await supabase
         .from('google_drive_config')
@@ -78,6 +87,7 @@ export class GoogleDriveService {
 
   private async storeTokens(tokens: any) {
     try {
+      const supabase = getSupabaseClient();
       const { error } = await supabase
         .from('google_drive_tokens')
         .upsert({
@@ -97,6 +107,7 @@ export class GoogleDriveService {
 
   async loadStoredTokens() {
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('google_drive_tokens')
         .select('*')
