@@ -142,18 +142,45 @@ export default function EditTaskModal({
     if (!projectData) return;
 
     try {
-      // Load categories
+      // Load categories with options using the same API as CreateTaskModal
       setIsLoadingCategories(true);
-      const categoriesResponse = await supabaseClient.get('project_categories', {
-        filters: { project_id: projectData.id, is_active: true },
-        order: { column: 'sort_order', ascending: true }
-      });
+      const response = await fetch(`/api/categories/project-options?projectId=${projectData.id}`);
       
-      if (categoriesResponse.data) {
-        setAvailableCategories(categoriesResponse.data);
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.categories && data.categories.length > 0) {
+          // Transform the data to match the expected format
+          const categoriesWithOptions = data.categories.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            description: cat.description,
+            project_id: projectData.id,
+            sort_order: cat.sort_order || 0,
+            is_active: cat.is_active !== false,
+            options: (cat.options || []).map((opt: any) => ({
+              id: opt.id,
+              category_id: cat.id,
+              option_name: opt.option_name,
+              option_value: opt.option_value,
+              sort_order: opt.sort_order || 0,
+              is_active: opt.is_active !== false
+            }))
+          }));
+          
+          setAvailableCategories(categoriesWithOptions);
+        } else {
+          setAvailableCategories([]);
+        }
+      } else {
+        console.error('API failed to load categories');
+        toast.error('Failed to load categories. Please try again.');
+        setAvailableCategories([]);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
+      toast.error('Failed to load categories. Please try again.');
+      setAvailableCategories([]);
     } finally {
       setIsLoadingCategories(false);
     }
@@ -585,8 +612,11 @@ export default function EditTaskModal({
                                   handleInputChange('category_id', category.id);
                                   handleInputChange('category_option_id', e.target.value);
                                 } else {
-                                  handleInputChange('category_id', '');
-                                  handleInputChange('category_option_id', '');
+                                  // Only clear category_id if this was the selected category
+                                  if (formData.category_id === category.id) {
+                                    handleInputChange('category_id', '');
+                                    handleInputChange('category_option_id', '');
+                                  }
                                 }
                               }}
                               className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"

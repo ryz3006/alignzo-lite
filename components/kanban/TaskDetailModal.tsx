@@ -403,47 +403,119 @@ export default function TaskDetailModal({
                         <Loader2 className="h-5 w-5 animate-spin" />
                         <span>Loading categories...</span>
                       </div>
-                    ) : taskCategoryDetails.category ? (
-                      <div className="border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div 
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: taskCategoryDetails.category.color || '#3B82F6' }}
-                          ></div>
-                          <h5 className="font-semibold text-neutral-900 dark:text-white">
-                            {taskCategoryDetails.category.name}
-                          </h5>
-                        </div>
-                        
-                        {taskCategoryDetails.category.description && (
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                            {taskCategoryDetails.category.description}
-                          </p>
-                        )}
+                    ) : categories.length > 0 ? (
+                      <div className="space-y-4">
+                        {categories.map((category) => {
+                          const isSelected = category.id === task.category_id;
+                          const selectedOption = isSelected ? category.options?.find(opt => opt.id === task.category_option_id) : null;
+                          
+                          return (
+                            <div 
+                              key={category.id} 
+                              className={`border rounded-xl p-4 transition-all ${
+                                isSelected 
+                                  ? 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20' 
+                                  : 'border-neutral-200 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700/50'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3 mb-3">
+                                <div 
+                                  className="w-4 h-4 rounded-full"
+                                  style={{ backgroundColor: category.color || '#3B82F6' }}
+                                ></div>
+                                <h5 className={`font-semibold ${
+                                  isSelected 
+                                    ? 'text-purple-900 dark:text-purple-100' 
+                                    : 'text-neutral-900 dark:text-white'
+                                }`}>
+                                  {category.name}
+                                  {isSelected && (
+                                    <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                      Selected
+                                    </span>
+                                  )}
+                                </h5>
+                              </div>
+                              
+                              {category.description && (
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                                  {category.description}
+                                </p>
+                              )}
 
-                        {taskCategoryDetails.categoryOption ? (
-                          <div className="bg-white dark:bg-neutral-600 rounded-lg p-3 border border-neutral-200 dark:border-neutral-600">
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">Selected Option:</p>
-                            <p className="font-medium text-neutral-900 dark:text-white">
-                              {taskCategoryDetails.categoryOption.option_name}
-                            </p>
-                            {taskCategoryDetails.categoryOption.option_value && (
-                              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                                Value: {taskCategoryDetails.categoryOption.option_value}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-neutral-500 dark:text-neutral-400 italic">
-                            No option selected
-                          </div>
-                        )}
+                              {/* Show options for this category */}
+                              {category.options && category.options.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                                    Available Options:
+                                  </p>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {category.options.map((option) => {
+                                      const isOptionSelected = isSelected && option.id === task.category_option_id;
+                                      return (
+                                        <div 
+                                          key={option.id}
+                                          className={`p-3 rounded-lg border transition-all ${
+                                            isOptionSelected
+                                              ? 'border-purple-300 bg-purple-100 dark:bg-purple-800 dark:border-purple-600'
+                                              : 'border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-600'
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className={`font-medium ${
+                                              isOptionSelected
+                                                ? 'text-purple-900 dark:text-purple-100'
+                                                : 'text-neutral-900 dark:text-white'
+                                            }`}>
+                                              {option.option_name}
+                                            </span>
+                                            {isOptionSelected && (
+                                              <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                            )}
+                                          </div>
+                                          {option.option_value && (
+                                            <p className={`text-xs mt-1 ${
+                                              isOptionSelected
+                                                ? 'text-purple-700 dark:text-purple-300'
+                                                : 'text-neutral-500 dark:text-neutral-400'
+                                            }`}>
+                                              Value: {option.option_value}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Show selected option details if this category is selected */}
+                              {isSelected && selectedOption && (
+                                <div className="mt-3 p-3 bg-purple-100 dark:bg-purple-800 rounded-lg border border-purple-200 dark:border-purple-700">
+                                  <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">
+                                    Selected Option Details:
+                                  </p>
+                                  <div className="bg-white dark:bg-neutral-700 rounded p-2">
+                                    <p className="font-medium text-purple-900 dark:text-purple-100">
+                                      {selectedOption.option_name}
+                                    </p>
+                                    {selectedOption.option_value && (
+                                      <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                                        Value: {selectedOption.option_value}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 rounded-xl">
                         <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg">No category assigned</p>
-                        <p className="text-sm">This task is not assigned to any category</p>
+                        <p className="text-lg">No categories available</p>
+                        <p className="text-sm">This project has no categories configured</p>
                       </div>
                     )}
                   </div>
