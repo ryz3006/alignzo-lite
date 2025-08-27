@@ -132,7 +132,7 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     SELECT 
-        tcm.id as mapping_id,
+        tcm.id,
         tcm.category_id,
         tcm.category_option_id,
         tcm.is_primary,
@@ -290,25 +290,49 @@ BEGIN
             'is_primary', tcm.is_primary,
             'sort_order', tcm.sort_order
         )
+        ORDER BY tcm.is_primary DESC, tcm.sort_order ASC, pc.name ASC
     ) INTO v_result
     FROM task_category_mappings tcm
     JOIN project_categories pc ON tcm.category_id = pc.id
     LEFT JOIN category_options co ON tcm.category_option_id = co.id
     WHERE tcm.task_id = p_task_id
     AND pc.is_active = true
-    AND (co.id IS NULL OR co.is_active = true)
-    ORDER BY tcm.is_primary DESC, tcm.sort_order ASC, pc.name ASC;
+    AND (co.id IS NULL OR co.is_active = true);
     
     RETURN COALESCE(v_result, '[]'::json);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 13. Grant necessary permissions
+-- 13. Create a simpler JSON function that's more reliable
+CREATE OR REPLACE FUNCTION get_task_categories_simple_json(p_task_id UUID)
+RETURNS JSON AS $$
+DECLARE
+    v_result JSON;
+BEGIN
+    SELECT json_agg(
+        json_build_object(
+            'mapping_id', tcm.id,
+            'category_id', tcm.category_id,
+            'category_option_id', tcm.category_option_id,
+            'is_primary', tcm.is_primary,
+            'sort_order', tcm.sort_order
+        )
+        ORDER BY tcm.is_primary DESC, tcm.sort_order ASC
+    ) INTO v_result
+    FROM task_category_mappings tcm
+    WHERE tcm.task_id = p_task_id;
+    
+    RETURN COALESCE(v_result, '[]'::json);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 14. Grant necessary permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON task_category_mappings TO authenticated;
 GRANT EXECUTE ON FUNCTION debug_task_categories(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_simple(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_with_options(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_task_categories_with_options_json(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_task_categories_simple_json(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_task_categories(UUID, JSON, TEXT) TO authenticated;
 
 -- 13. Test the functions (optional - remove these lines after testing)

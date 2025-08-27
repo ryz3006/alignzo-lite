@@ -65,16 +65,33 @@ export async function GET(request: NextRequest) {
       console.log('JSON function response:', jsonResult);
       
       if (jsonResult.error) {
-        console.error('Both functions failed:', { tableError: error, jsonError: jsonResult.error });
-        return NextResponse.json(
-          { error: 'Failed to fetch task categories', details: `Table function: ${error}, JSON function: ${jsonResult.error}` },
-          { status: 500 }
-        );
+        console.log('Complex JSON function failed, trying simple JSON function...');
+        const simpleJsonResult = await supabaseClient.rpc('get_task_categories_simple_json', {
+          p_task_id: taskId
+        });
+        
+        console.log('Simple JSON function response:', simpleJsonResult);
+        
+        if (simpleJsonResult.error) {
+          console.error('All functions failed:', { 
+            tableError: error, 
+            jsonError: jsonResult.error, 
+            simpleJsonError: simpleJsonResult.error 
+          });
+          return NextResponse.json(
+            { error: 'Failed to fetch task categories', details: `Table function: ${error}, JSON function: ${jsonResult.error}, Simple JSON function: ${simpleJsonResult.error}` },
+            { status: 500 }
+          );
+        }
+        
+        // Use the simple JSON function result
+        data = simpleJsonResult.data;
+        error = simpleJsonResult.error;
+      } else {
+        // Use the complex JSON function result
+        data = jsonResult.data;
+        error = jsonResult.error;
       }
-      
-      // Use the JSON function result
-      data = jsonResult.data;
-      error = jsonResult.error;
     }
 
     return NextResponse.json({
