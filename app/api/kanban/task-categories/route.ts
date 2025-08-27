@@ -140,11 +140,11 @@ export async function POST(request: NextRequest) {
           // Use direct Supabase client for better reliability
           const { createClient } = require('@supabase/supabase-js');
           const supabaseUrl = process.env.SUPABASE_URL;
-          const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
           
-          console.log(`[DEBUG] Supabase environment check - URL: ${!!supabaseUrl}, Key: ${!!supabaseAnonKey}`);
+          console.log(`[DEBUG] Supabase environment check - URL: ${!!supabaseUrl}, Service Key: ${!!supabaseServiceKey}`);
           
-          if (!supabaseUrl || !supabaseAnonKey) {
+          if (!supabaseUrl || !supabaseServiceKey) {
             console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
             categoryDetails.push({
               categoryName: cat.category_id,
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
             continue;
           }
           
-          const supabase = createClient(supabaseUrl, supabaseAnonKey);
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
           
           // Get category name
           console.log(`[DEBUG] Fetching category name from project_categories for ID: ${cat.category_id}`);

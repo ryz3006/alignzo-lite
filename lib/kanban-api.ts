@@ -877,16 +877,16 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                 // Use direct Supabase client for better reliability
                 const { createClient } = require('@supabase/supabase-js');
                 const supabaseUrl = process.env.SUPABASE_URL;
-                const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+                const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
                 
-                console.log(`[DEBUG] Supabase URL available: ${!!supabaseUrl}, Anon Key available: ${!!supabaseAnonKey}`);
+                console.log(`[DEBUG] Supabase URL available: ${!!supabaseUrl}, Service Key available: ${!!supabaseServiceKey}`);
                 
-                if (!supabaseUrl || !supabaseAnonKey) {
+                if (!supabaseUrl || !supabaseServiceKey) {
                   console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
                   return catDetail;
                 }
                 
-                const supabase = createClient(supabaseUrl, supabaseAnonKey);
+                const supabase = createClient(supabaseUrl, supabaseServiceKey);
                 
                 // Resolve category name
                 console.log(`[DEBUG] Fetching category name for ID: ${catDetail.categoryName}`);
@@ -898,11 +898,15 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                 
                 if (categoryError) {
                   console.warn(`[DEBUG] Error fetching category name for ${catDetail.categoryName}:`, categoryError);
+                  // Check if it's a "not found" error
+                  if (categoryError.code === 'PGRST116') {
+                    console.warn(`[DEBUG] Category ${catDetail.categoryName} not found in database - likely deleted or from different project`);
+                  }
                 } else {
                   console.log(`[DEBUG] Category name resolved: ${categoryData?.name || 'NOT_FOUND'}`);
                 }
                 
-                const resolvedCategoryName = categoryData?.name || catDetail.categoryName;
+                const resolvedCategoryName = categoryData?.name || `[Deleted Category: ${catDetail.categoryName.substring(0, 8)}...]`;
                 
                 // Resolve option name if it exists and is different from category name
                 let resolvedOptionName = catDetail.optionName;
@@ -916,11 +920,15 @@ export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskT
                   
                   if (optionError) {
                     console.warn(`[DEBUG] Error fetching option name for ${catDetail.optionName}:`, optionError);
+                    // Check if it's a "not found" error
+                    if (optionError.code === 'PGRST116') {
+                      console.warn(`[DEBUG] Option ${catDetail.optionName} not found in database - likely deleted or from different project`);
+                    }
                   } else {
                     console.log(`[DEBUG] Option name resolved: ${optionData?.option_name || 'NOT_FOUND'}`);
                   }
                   
-                  resolvedOptionName = optionData?.option_name || catDetail.optionName;
+                  resolvedOptionName = optionData?.option_name || `[Deleted Option: ${catDetail.optionName.substring(0, 8)}...]`;
                 }
                 
                 const result = {

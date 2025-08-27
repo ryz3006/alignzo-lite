@@ -1,142 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
-
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId');
-
-    if (!projectId) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'Supabase environment variables not configured' },
+        { status: 500 }
+      );
     }
-
-    console.log('Debug: Fetching categories for project:', projectId);
-
-    // Test 1: Direct query to project_categories
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Get all categories
     const { data: categories, error: categoriesError } = await supabase
       .from('project_categories')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('is_active', true)
-      .order('sort_order');
-
+      .select('id, name, project_id, created_at')
+      .order('created_at', { ascending: false });
+    
     if (categoriesError) {
-      console.error('Debug: Error fetching categories:', categoriesError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch categories',
-        details: categoriesError
-      }, { status: 500 });
+      console.error('Error fetching categories:', categoriesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch categories', details: categoriesError },
+        { status: 500 }
+      );
     }
-
-    console.log('Debug: Found categories:', categories?.length || 0);
-    console.log('Debug: Categories data:', categories);
-
-    // Test 2: Check if category_options table exists and has data
-    let categoryOptions = [];
-    try {
-      const { data: options, error: optionsError } = await supabase
-        .from('category_options')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order');
-
-      if (!optionsError && options) {
-        categoryOptions = options;
-        console.log('Debug: Found category options:', categoryOptions.length);
-        console.log('Debug: Category options data:', categoryOptions);
-      } else {
-        console.log('Debug: No category options found or table doesn\'t exist');
-        console.log('Debug: Options error:', optionsError);
-      }
-    } catch (error) {
-      console.log('Debug: category_options table might not exist:', error);
+    
+    // Get all category options
+    const { data: options, error: optionsError } = await supabase
+      .from('category_options')
+      .select('id, option_name, category_id, created_at')
+      .order('created_at', { ascending: false });
+    
+    if (optionsError) {
+      console.error('Error fetching options:', optionsError);
+      return NextResponse.json(
+        { error: 'Failed to fetch options', details: optionsError },
+        { status: 500 }
+      );
     }
-
-    // Test 3: Try the RPC function
-    let rpcResult = null;
-    try {
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_project_categories_with_options', { project_uuid: projectId });
-
-      if (rpcError) {
-        console.log('Debug: RPC function failed:', rpcError);
-        console.log('Debug: RPC error details:', JSON.stringify(rpcError, null, 2));
-      } else {
-        console.log('Debug: RPC raw result:', rpcData);
-        rpcResult = rpcData ? JSON.parse(rpcData) : [];
-        console.log('Debug: RPC function returned:', rpcResult.length, 'categories');
-        console.log('Debug: RPC parsed result:', JSON.stringify(rpcResult, null, 2));
-      }
-    } catch (error) {
-      console.log('Debug: RPC function error:', error);
-      console.log('Debug: RPC error details:', JSON.stringify(error, null, 2));
-    }
-
-    // Test 4: Check if RPC function exists
-    let functionExists = false;
-    try {
-      const { data: functionData, error: functionError } = await supabase
-        .rpc('get_project_categories_with_options', { project_uuid: '00000000-0000-0000-0000-000000000000' });
-      
-      // If we get here, the function exists (even if it returns empty for invalid UUID)
-      functionExists = true;
-      console.log('Debug: RPC function exists and is callable');
-    } catch (error) {
-      console.log('Debug: RPC function does not exist or is not callable:', error);
-    }
-
-    // Test 5: Manual join to get categories with options
-    let manualJoinResult = [];
-    try {
-      const { data: joinData, error: joinError } = await supabase
-        .from('project_categories')
-        .select(`
-          *,
-          category_options(*)
-        `)
-        .eq('project_id', projectId)
-        .eq('is_active', true)
-        .order('sort_order');
-
-      if (!joinError && joinData) {
-        manualJoinResult = joinData;
-        console.log('Debug: Manual join returned:', manualJoinResult.length, 'categories');
-      } else {
-        console.log('Debug: Manual join failed:', joinError);
-      }
-    } catch (error) {
-      console.log('Debug: Manual join error:', error);
-    }
-
+    
+    // Check specific timeline category IDs
+    const timelineCategoryIds = [
+      '1353a294-12fd-49b6-8676-cc273130ca37',
+      'bcdd4397-4939-4591-b2c4-347ab45e9c1c', 
+      'fe9d976a-f33b-4221-9ee8-6edd4205bad7',
+      '3ed6517f-c532-492d-9d7c-e7badfe307d7'
+    ];
+    
+    const timelineOptionIds = [
+      'd3e90e79-05ee-42c5-adb3-e0e90c16adcd',
+      'bf11fc52-bd59-4b07-94f9-3a3817042eec',
+      '1a7a55c3-3eac-410e-9290-4d50e7095ddd',
+      'e377b73b-d150-4e0b-9576-09e7cc3ea50a',
+      '7a052cb5-716c-4b43-9488-c6c5fbf6e273'
+    ];
+    
+    const foundCategories = categories.filter(cat => timelineCategoryIds.includes(cat.id));
+    const foundOptions = options.filter(opt => timelineOptionIds.includes(opt.id));
+    
     return NextResponse.json({
       success: true,
       data: {
-        projectCategories: categories || [],
-        categoryOptions: categoryOptions,
-        rpcResult: rpcResult,
-        manualJoinResult: manualJoinResult,
-        summary: {
-          categoriesCount: categories?.length || 0,
-          optionsCount: categoryOptions.length,
-          rpcCategoriesCount: rpcResult?.length || 0,
-          manualJoinCount: manualJoinResult.length
-        }
+        totalCategories: categories.length,
+        totalOptions: options.length,
+        timelineCategoryIds,
+        timelineOptionIds,
+        foundCategories,
+        foundOptions,
+        missingCategories: timelineCategoryIds.filter(id => !categories.find(cat => cat.id === id)),
+        missingOptions: timelineOptionIds.filter(id => !options.find(opt => opt.id === id)),
+        allCategories: categories.slice(0, 10), // First 10 categories
+        allOptions: options.slice(0, 10) // First 10 options
       }
     });
-
+    
   } catch (error) {
-    console.error('Debug: Error in categories debug endpoint:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error('Error in debug categories API:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
