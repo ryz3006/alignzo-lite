@@ -36,9 +36,8 @@ CREATE POLICY "Users can view task-category mappings for accessible tasks" ON ta
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
-            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
+            AND tm.user_email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -48,9 +47,8 @@ CREATE POLICY "Users can insert task-category mappings for accessible tasks" ON 
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
-            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
+            AND tm.user_email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -60,9 +58,8 @@ CREATE POLICY "Users can update task-category mappings for editable tasks" ON ta
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
-            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
+            AND tm.user_email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
@@ -72,9 +69,8 @@ CREATE POLICY "Users can delete task-category mappings for editable tasks" ON ta
             SELECT 1 FROM kanban_tasks kt
             JOIN team_project_assignments tpa ON kt.project_id = tpa.project_id
             JOIN team_members tm ON tpa.team_id = tm.team_id
-            JOIN users u ON tm.user_id = u.id
             WHERE kt.id = task_category_mappings.task_id
-            AND u.email = current_setting('request.jwt.claims', true)::json->>'email'
+            AND tm.user_email = current_setting('request.jwt.claims', true)::json->>'email'
         )
     );
 
