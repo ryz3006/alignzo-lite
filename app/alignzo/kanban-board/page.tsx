@@ -84,6 +84,12 @@ export default function KanbanBoardPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
+  // Drag and drop states
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartTime, setDragStartTime] = useState<number>(0);
+  const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [optimisticBoard, setOptimisticBoard] = useState<KanbanColumnWithTasks[]>([]);
+  
   // Modal states
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
@@ -109,10 +115,23 @@ export default function KanbanBoardPage() {
   
   // Redis status
   const [redisStatus, setRedisStatus] = useState<{ status: string; message: string } | null>(null);
+  
+  // Toast notifications
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   useEffect(() => {
     initializePage();
   }, []);
+
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const initializePage = async () => {
     try {
@@ -243,31 +262,109 @@ export default function KanbanBoardPage() {
     loadKanbanBoard(true); // Force refresh
   };
 
-  const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || !user || !selectedProject || !selectedTeam) return;
+  // Optimistic update function
+  const performOptimisticUpdate = (taskId: string, sourceColumnId: string, destinationColumnId: string, newIndex: number) => {
+    const currentBoard = [...kanbanBoard];
+    
+    // Find the task in the source column
+    const sourceColumn = currentBoard.find(col => col.id === sourceColumnId);
+    const destinationColumn = currentBoard.find(col => col.id === destinationColumnId);
+    
+    if (!sourceColumn || !destinationColumn) return currentBoard;
+    
+    // Find and remove the task from source column
+    const taskIndex = sourceColumn.tasks.findIndex(task => task.id === taskId);
+    if (taskIndex === -1) return currentBoard;
+    
+    const [movedTask] = sourceColumn.tasks.splice(taskIndex, 1);
+    
+    // Add the task to destination column at the new index
+    if (sourceColumnId === destinationColumnId) {
+      // Same column, just reorder
+      destinationColumn.tasks.splice(newIndex, 0, movedTask);
+    } else {
+      // Different column, add to new column
+      destinationColumn.tasks.splice(newIndex, 0, movedTask);
+      // Update the task's column_id
+      movedTask.column_id = destinationColumnId;
+    }
+    
+    return currentBoard;
+  };
 
-    const { draggableId, destination } = result;
+  // Revert optimistic update
+  const revertOptimisticUpdate = () => {
+    setOptimisticBoard([]);
+    setMovingTaskId(null);
+  };
+
+  const handleDragStart = (result: any) => {
+    setIsDragging(true);
+    setDragStartTime(Date.now());
+    setMovingTaskId(result.draggableId);
+    console.log('🔄 Drag: Started dragging task:', result.draggableId);
+  };
+
+  const handleDragUpdate = (result: any) => {
+    if (result.destination) {
+      console.log('🔄 Drag: Updating position for task:', result.draggableId);
+    }
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    setIsDragging(false);
+    setMovingTaskId(null);
+    
+    if (!result.destination || !user || !selectedProject || !selectedTeam) {
+      console.log('🔄 Drag: Drag cancelled or invalid destination');
+      return;
+    }
+
+    const { draggableId, source, destination } = result;
     const taskId = draggableId;
-    const newColumnId = destination.droppableId;
+    const sourceColumnId = source.droppableId;
+    const destinationColumnId = destination.droppableId;
     const newSortOrder = destination.index;
+
+    // Calculate drag duration for UX feedback
+    const dragDuration = Date.now() - dragStartTime;
+    console.log(`🔄 Drag: Completed in ${dragDuration}ms`);
+
+    // Perform optimistic update immediately
+    const optimisticBoardData = performOptimisticUpdate(taskId, sourceColumnId, destinationColumnId, newSortOrder);
+    setOptimisticBoard(optimisticBoardData);
+    setKanbanBoard(optimisticBoardData);
 
     try {
       console.log('🔄 Task: Moving task with Redis enhancement...');
       
-      const response = await moveTaskWithRedis(taskId, newColumnId, newSortOrder, selectedProject.id, selectedTeam);
+      const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam);
       
       if (response.success) {
         console.log('🟢 Task: Task moved successfully');
-        
-        // Force refresh to ensure data consistency
-        loadKanbanBoard(true);
+        // Clear optimistic state since the server confirmed the move
+        setOptimisticBoard([]);
+        // Show success toast
+        setToast({ type: 'success', message: 'Task moved successfully!' });
+        // Optionally refresh to get the latest data from server
+        // loadKanbanBoard(true);
       } else {
         console.error('🔴 Task: Failed to move task:', response.error);
-        // Refresh board to revert any optimistic updates
+        // Revert optimistic update on failure
+        revertOptimisticUpdate();
+        // Show error toast
+        setToast({ type: 'error', message: `Failed to move task: ${response.error}` });
+        // Refresh board to get the correct state
         loadKanbanBoard(true);
       }
     } catch (error) {
       console.error('🔴 Task: Error moving task:', error);
+      // Revert optimistic update on error
+      revertOptimisticUpdate();
+      // Show error toast
+      setToast({ type: 'error', message: 'An error occurred while moving the task' });
+      // Refresh board to get the correct state
+      loadKanbanBoard(true);
     }
   };
 
@@ -641,9 +738,23 @@ export default function KanbanBoardPage() {
 
       {/* Kanban Board */}
       {boardLoaded && (
-        <div className="px-6 pb-6">
+                <div className="px-6 pb-6 relative">
+          {/* Global loading overlay */}
+          {movingTaskId && (
+            <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
+              <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
+              </div>
+            </div>
+          )}
+          
           {viewMode === 'kanban' ? (
-            <DragDropContext onDragEnd={handleDragEnd}>
+            <DragDropContext 
+              onDragStart={handleDragStart}
+              onDragUpdate={handleDragUpdate}
+              onDragEnd={handleDragEnd}
+            >
               <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0">
                 {kanbanBoard.map((column) => (
                   <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
@@ -692,8 +803,14 @@ export default function KanbanBoardPage() {
                           <div
                             ref={provided.innerRef}
                             {...provided.droppableProps}
-                            className={`p-4 min-h-[300px] ${
-                              snapshot.isDraggingOver ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                            className={`p-4 min-h-[300px] transition-all duration-200 ${
+                              snapshot.isDraggingOver 
+                                ? 'bg-blue-100/80 dark:bg-blue-900/20 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg' 
+                                : ''
+                            } ${
+                              isDragging && !snapshot.isDraggingOver 
+                                ? 'bg-neutral-50/50 dark:bg-neutral-800/20' 
+                                : ''
                             }`}
                           >
                             {filteredTasks(column.tasks).map((task, index) => (
@@ -703,8 +820,14 @@ export default function KanbanBoardPage() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-150 ${
-                                      snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : ''
+                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-grab active:cursor-grabbing hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${
+                                      snapshot.isDragging 
+                                        ? 'shadow-2xl rotate-2 scale-110 z-50 bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600' 
+                                        : ''
+                                    } ${
+                                      movingTaskId === task.id 
+                                        ? 'opacity-75 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-600' 
+                                        : ''
                                     }`}
                                     onClick={() => openTaskDetailModal(task)}
                                   >
@@ -714,6 +837,12 @@ export default function KanbanBoardPage() {
                                         {task.title}
                                       </h4>
                                       <div className="flex items-center space-x-1 flex-shrink-0">
+                                        {movingTaskId === task.id && (
+                                          <div className="flex items-center space-x-1 text-yellow-600 dark:text-yellow-400">
+                                            <div className="animate-spin h-3 w-3 border border-yellow-600 dark:border-yellow-400 border-t-transparent rounded-full"></div>
+                                            <span className="text-xs">Moving...</span>
+                                          </div>
+                                        )}
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                                           {getPriorityIcon(task.priority)}
                                           <span className="ml-1 capitalize">{task.priority}</span>
@@ -1009,6 +1138,29 @@ export default function KanbanBoardPage() {
           projectId={selectedProject?.id || ''}
           isOwner={user?.role === 'owner'}
         />
+      )}
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg border transition-all duration-300 ${
+          toast.type === 'success' 
+            ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
+            : toast.type === 'error'
+            ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
+            : 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {toast.type === 'success' && <CheckCircle className="h-4 w-4" />}
+            {toast.type === 'error' && <AlertCircle className="h-4 w-4" />}
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 text-current hover:opacity-70"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
