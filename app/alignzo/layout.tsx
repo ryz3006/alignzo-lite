@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  ChevronLeft
+  ChevronLeft,
+  Folder
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
