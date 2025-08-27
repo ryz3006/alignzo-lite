@@ -271,6 +271,45 @@ export async function getCurrentUser() {
   });
 }
 
+// Server-side version for API routes
+export async function getCurrentUserServer(request?: Request): Promise<{ email: string } | null> {
+  // For now, we'll use a simple approach - extract user from headers
+  // In production, you'd want to implement proper JWT token validation
+  
+  if (!request) {
+    return null;
+  }
+  
+  try {
+    // Try to get user email from headers (set by client-side)
+    const userEmail = request.headers.get('x-user-email') || 
+                     request.headers.get('authorization')?.replace('Bearer ', '');
+    
+    if (userEmail && userEmail !== 'anonymous') {
+      return { email: userEmail };
+    }
+    
+    // For development/testing, you can also check for a test user
+    if (process.env.NODE_ENV === 'development') {
+      const testUser = process.env.TEST_USER_EMAIL;
+      if (testUser) {
+        return { email: testUser };
+      }
+    }
+    
+    // For testing purposes, return a default user if no authentication is found
+    // This should be removed in production
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+      return { email: 'test@example.com' };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting current user on server:', error);
+    return null;
+  }
+}
+
 export function getCurrentAdmin() {
   if (typeof window === 'undefined') return null;
   

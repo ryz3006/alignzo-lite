@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseClient } from '@/lib/supabase-client';
 import { withAudit } from '@/lib/api-audit-wrapper';
 import { AuditEventType } from '@/lib/audit-trail';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUserServer } from '@/lib/auth';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export const POST = withAudit(
 )(async (request: NextRequest) => {
   try {
     // Check authentication
-    const user = await getCurrentUser();
+    const user = await getCurrentUserServer(request);
     if (!user?.email) {
       return NextResponse.json(
         { error: 'Authentication required' },

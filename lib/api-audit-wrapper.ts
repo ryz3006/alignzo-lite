@@ -126,9 +126,9 @@ export class ApiAuditWrapper {
   async logAuditEvent(
     request: NextRequest,
     eventType: AuditEventType,
-    resourceType: string,
+    tableName: string,
     description: string,
-    resourceId?: string,
+    recordId?: string,
     metadata?: any,
     success: boolean = true,
     errorMessage?: string,
@@ -137,26 +137,24 @@ export class ApiAuditWrapper {
     if (!this.shouldAudit(request.url)) return;
 
     try {
-      const auditEntry: Omit<AuditEntry, 'id' | 'created_at'> = {
+      const auditEntry = {
         user_email: this.extractUserEmail(request),
         event_type: eventType,
-        resource_type: resourceType,
-        resource_id: resourceId,
-        description,
-        metadata: this.sanitizeMetadata(metadata),
+        table_name: tableName,
+        record_id: recordId,
+        old_values: null, // Not used in this implementation
+        new_values: null, // Not used in this implementation
         ip_address: this.extractIP(request),
         user_agent: this.extractUserAgent(request),
         endpoint: request.url,
         method: request.method,
         success,
         error_message: errorMessage,
-        response_time: this.config.includeResponseTime ? responseTime : undefined
+        metadata: this.sanitizeMetadata(metadata),
+        created_at: new Date().toISOString()
       };
 
-      await supabaseClient.insert('audit_trail', {
-        ...auditEntry,
-        created_at: new Date().toISOString()
-      });
+      await supabaseClient.insert('audit_trail', auditEntry);
     } catch (error) {
       console.error('Error logging audit event:', error);
     }
