@@ -129,13 +129,45 @@ export async function POST(request: NextRequest) {
       const currentCategories = currentCategoriesResponse.data || [];
       const newCategories = categories;
       
-      // Compare categories to create meaningful timeline entry
-      const categoryNames = newCategories.map((cat: any) => {
-        // Try to get category name from the categories array
-        const categoryName = cat.category_name || cat.category_id;
-        const optionName = cat.option_name || cat.category_option_id;
-        return optionName ? `${categoryName}: ${optionName}` : categoryName;
-      }).join(', ');
+      // Get category and option names for better timeline display
+      const categoryDetails = [];
+      
+      for (const cat of newCategories) {
+        try {
+          // Get category name
+          const categoryResponse = await supabaseClient.get('project_categories', {
+            select: 'name',
+            filters: { id: cat.category_id }
+          });
+          
+          const categoryName = categoryResponse.data?.[0]?.name || cat.category_id;
+          
+          // Get option name if category_option_id is provided
+          let optionName = null;
+          if (cat.category_option_id) {
+            const optionResponse = await supabaseClient.get('category_options', {
+              select: 'option_name',
+              filters: { id: cat.category_option_id }
+            });
+            optionName = optionResponse.data?.[0]?.option_name || cat.category_option_id;
+          }
+          
+          categoryDetails.push({
+            categoryName,
+            optionName,
+            displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
+          });
+        } catch (error) {
+          // Fallback to ID if name lookup fails
+          categoryDetails.push({
+            categoryName: cat.category_id,
+            optionName: cat.category_option_id,
+            displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
+          });
+        }
+      }
+      
+      const categoryNames = categoryDetails.map(cat => cat.displayText).join(', ');
       
       // Import the createTaskTimeline function
       const { createTaskTimeline } = await import('@/lib/kanban-api');
@@ -147,7 +179,8 @@ export async function POST(request: NextRequest) {
         {
           categories: categoryNames,
           count: newCategories.length,
-          previous_count: currentCategories.length
+          previous_count: currentCategories.length,
+          category_details: categoryDetails
         }
       );
     } catch (timelineError) {
@@ -175,6 +208,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get('taskId');
+    const userEmail = searchParams.get('userEmail');
 
     if (!taskId) {
       return NextResponse.json(
@@ -189,7 +223,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabaseClient.rpc('update_task_categories', {
       p_task_id: taskId,
       p_categories: '[]', // Empty array to clear all categories
-      p_user_email: 'system'
+      p_user_email: userEmail || 'system'
     });
 
     if (error) {
@@ -207,7 +241,7 @@ export async function DELETE(request: NextRequest) {
       
       await createTaskTimeline(
         taskId,
-        'system',
+        userEmail || 'system',
         'categories_removed',
         {
           action: 'All categories removed from task'

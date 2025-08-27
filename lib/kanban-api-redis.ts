@@ -459,6 +459,34 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 }
 
 // =====================================================
+// HELPER FUNCTIONS FOR TIMELINE
+// =====================================================
+
+async function getCategoryName(categoryId: string): Promise<string> {
+  try {
+    const response = await supabaseClient.get('project_categories', {
+      select: 'name',
+      filters: { id: categoryId }
+    });
+    return response.data?.[0]?.name || categoryId;
+  } catch (error) {
+    return categoryId;
+  }
+}
+
+async function getCategoryOptionName(optionId: string): Promise<string> {
+  try {
+    const response = await supabaseClient.get('category_options', {
+      select: 'option_name',
+      filters: { id: optionId }
+    });
+    return response.data?.[0]?.option_name || optionId;
+  } catch (error) {
+    return optionId;
+  }
+}
+
+// =====================================================
 // DATABASE FALLBACK FUNCTIONS
 // =====================================================
 
@@ -691,15 +719,8 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       // Category changes (legacy single category)
       if (updates.category_id !== undefined && updates.category_id !== currentTask.category_id) {
         // Get category names for better timeline display
-        const fromCategoryResponse = await supabaseClient.get('project_categories', {
-          filters: { id: currentTask.category_id }
-        });
-        const toCategoryResponse = await supabaseClient.get('project_categories', {
-          filters: { id: updates.category_id }
-        });
-        
-        const fromCategoryName = fromCategoryResponse.data?.[0]?.name || currentTask.category_id;
-        const toCategoryName = toCategoryResponse.data?.[0]?.name || updates.category_id;
+        const fromCategoryName = await getCategoryName(currentTask.category_id);
+        const toCategoryName = await getCategoryName(updates.category_id);
         
         await createTaskTimeline(
           taskId,
@@ -717,15 +738,8 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       // Category option changes (legacy single category option)
       if (updates.category_option_id !== undefined && updates.category_option_id !== currentTask.category_option_id) {
         // Get category option names for better timeline display
-        const fromOptionResponse = await supabaseClient.get('category_options', {
-          filters: { id: currentTask.category_option_id }
-        });
-        const toOptionResponse = await supabaseClient.get('category_options', {
-          filters: { id: updates.category_option_id }
-        });
-        
-        const fromOptionName = fromOptionResponse.data?.[0]?.option_name || currentTask.category_option_id;
-        const toOptionName = toOptionResponse.data?.[0]?.option_name || updates.category_option_id;
+        const fromOptionName = await getCategoryOptionName(currentTask.category_option_id);
+        const toOptionName = await getCategoryOptionName(updates.category_option_id);
         
         await createTaskTimeline(
           taskId,
@@ -742,12 +756,28 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
 
       // Due date changes
       if (updates.due_date !== undefined && updates.due_date !== currentTask.due_date) {
+        const formatDate = (dateString: string | null) => {
+          if (!dateString) return 'No due date';
+          try {
+            return new Date(dateString).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          } catch {
+            return dateString;
+          }
+        };
+        
         await createTaskTimeline(
           taskId,
           userEmail || 'system',
-          'updated',
+          'due_date_changed',
           {
-            field: 'due_date',
+            from_date: formatDate(currentTask.due_date),
+            to_date: formatDate(updates.due_date),
             old_value: currentTask.due_date,
             new_value: updates.due_date
           }
