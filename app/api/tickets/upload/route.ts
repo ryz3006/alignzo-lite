@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseClient } from '@/lib/supabase-client';
+import { withAudit } from '@/lib/api-audit-wrapper';
+import { AuditEventType } from '@/lib/audit-trail';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function POST(request: NextRequest) {
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
+export const POST = withAudit(
+  AuditEventType.DATA_IMPORT,
+  'tickets',
+  'User uploaded ticket data'
+)(async (request: NextRequest) => {
   try {
     // Check authentication
     const user = await getCurrentUser();
@@ -41,43 +50,42 @@ export async function POST(request: NextRequest) {
     }
 
     // Get mapping details
-    const { data: mapping, error: mappingError } = await supabase
-      .from('ticket_upload_mappings')
-      .select('*,source:ticket_sources(*),project:projects(*)')
-      .eq('id', mappingId)
-      .single();
+    const mappingResponse = await supabaseClient.get('ticket_upload_mappings', {
+      select: '*,source:ticket_sources(*),project:projects(*)',
+      filters: { id: mappingId }
+    });
 
-    if (mappingError || !mapping) {
+    if (mappingResponse.error || !mappingResponse.data || mappingResponse.data.length === 0) {
       return NextResponse.json(
         { error: 'Invalid mapping configuration' },
         { status: 400 }
       );
     }
 
-    // Create upload session
-    const { data: session, error: sessionError } = await supabase
-      .from('upload_sessions')
-      .insert({
-        filename: file.name,
-        file_size: file.size,
-        mapping_id: mappingId,
-        status: 'processing',
-        total_records: 0,
-        processed_records: 0,
-        successful_uploads: 0,
-        failed_uploads: 0,
-        uploaded_by: user.email
-      })
-      .select()
-      .single();
+    const mapping = mappingResponse.data[0];
 
-    if (sessionError) {
-      console.error('Error creating upload session:', sessionError);
+    // Create upload session
+    const sessionResponse = await supabaseClient.insert('upload_sessions', {
+      filename: file.name,
+      file_size: file.size,
+      mapping_id: mappingId,
+      status: 'processing',
+      total_records: 0,
+      processed_records: 0,
+      successful_uploads: 0,
+      failed_uploads: 0,
+      uploaded_by: user.email
+    });
+
+    if (sessionResponse.error) {
+      console.error('Error creating upload session:', sessionResponse.error);
       return NextResponse.json(
         { error: 'Failed to create upload session' },
         { status: 500 }
       );
     }
+
+    const session = sessionResponse.data[0];
 
     // Read file content
     const fileBuffer = await file.arrayBuffer();
@@ -107,110 +115,88 @@ export async function POST(request: NextRequest) {
           records.push(record);
         }
       } else {
-        // For Excel files, you would need a library like 'xlsx'
-        // For now, return an error
+        // For Excel files, you would use a library like xlsx
+        // For now, we'll return an error
         return NextResponse.json(
-          { error: 'Excel file processing not implemented yet. Please use CSV files.' },
+          { error: 'Excel file parsing not implemented yet' },
           { status: 400 }
         );
       }
-
-      // Update session with total records
-      await supabase
-        .from('upload_sessions')
-        .update({ total_records: records.length })
-        .eq('id', session.id);
-
-      // Process records and insert into uploaded_tickets
-      let successCount = 0;
-      let failureCount = 0;
-      const errors: string[] = [];
-
-      for (let i = 0; i < records.length; i++) {
-        const record = records[i];
-        
-        try {
-          // Map CSV fields to ticket fields (this mapping should be configurable)
-          const ticketData = {
-            incident_id: record.incident_id || record.ticket_id || record.id || `UPLOAD_${Date.now()}_${i}`,
-            priority: record.priority || 'Medium',
-            status: record.status || 'Open',
-            assignee: record.assignee || '',
-            summary: record.summary || record.description || '',
-            description: record.description || record.summary || '',
-            user_name: record.user_name || record.reported_by || '',
-            reported_date1: record.created_date || record.reported_date || new Date().toISOString(),
-            mapping_id: mappingId,
-            upload_session_id: session.id
-          };
-
-          const { error: insertError } = await supabase
-            .from('uploaded_tickets')
-            .insert(ticketData);
-
-          if (insertError) {
-            throw insertError;
-          }
-
-          successCount++;
-        } catch (error) {
-          failureCount++;
-          errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-
-        // Update progress
-        await supabase
-          .from('upload_sessions')
-          .update({ 
-            processed_records: i + 1,
-            successful_uploads: successCount,
-            failed_uploads: failureCount
-          })
-          .eq('id', session.id);
-      }
-
-      // Update final session status
-      const finalStatus = failureCount === 0 ? 'completed' : (successCount === 0 ? 'failed' : 'completed');
-      await supabase
-        .from('upload_sessions')
-        .update({ 
-          status: finalStatus,
-          error_details: errors.length > 0 ? errors.join('\n') : null,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', session.id);
-
-      return NextResponse.json({
-        success: true,
-        session_id: session.id,
-        total_records: records.length,
-        successful_uploads: successCount,
-        failed_uploads: failureCount,
-        message: `Upload completed. ${successCount} tickets uploaded successfully${failureCount > 0 ? `, ${failureCount} failed` : ''}.`
-      });
-
     } catch (parseError) {
-      // Update session as failed
-      await supabase
-        .from('upload_sessions')
-        .update({ 
-          status: 'failed',
-          error_details: parseError instanceof Error ? parseError.message : 'File parsing failed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', session.id);
-
+      console.error('Error parsing file:', parseError);
       return NextResponse.json(
-        { error: `File parsing failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}` },
+        { error: 'Failed to parse file content' },
         { status: 400 }
       );
     }
 
+    // Update session with total records
+    await supabaseClient.update('upload_sessions', session.id, {
+      total_records: records.length
+    });
+
+    // Process records (simplified - in production you'd want to process in batches)
+    let successfulUploads = 0;
+    let failedUploads = 0;
+    const errors: string[] = [];
+
+    for (const record of records) {
+      try {
+        // Map record fields to ticket structure based on mapping
+        const ticketData = {
+          project_id: mapping.project_id,
+          source_id: mapping.source_id,
+          ticket_id: record[mapping.source_organization_field] || '',
+          title: record.title || record.summary || '',
+          description: record.description || '',
+          status: record.status || 'Open',
+          priority: record.priority || 'Medium',
+          assignee: record.assignee || '',
+          reporter: record.reporter || '',
+          created_date: record.created || record.created_date || new Date().toISOString(),
+          updated_date: record.updated || record.updated_date || new Date().toISOString(),
+          raw_data: record,
+          uploaded_by: user.email,
+          upload_session_id: session.id
+        };
+
+        const ticketResponse = await supabaseClient.insert('uploaded_tickets', ticketData);
+        
+        if (ticketResponse.error) {
+          throw new Error(ticketResponse.error);
+        }
+        
+        successfulUploads++;
+      } catch (error) {
+        failedUploads++;
+        errors.push(`Row ${successfulUploads + failedUploads}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    // Update session with final status
+    const finalStatus = failedUploads === 0 ? 'completed' : 'completed_with_errors';
+    await supabaseClient.update('upload_sessions', session.id, {
+      status: finalStatus,
+      processed_records: records.length,
+      successful_uploads: successfulUploads,
+      failed_uploads: failedUploads,
+      error_message: errors.length > 0 ? errors.slice(0, 5).join('; ') : null
+    });
+
+    return NextResponse.json({
+      message: 'Upload completed',
+      session_id: session.id,
+      total_records: records.length,
+      successful_uploads: successfulUploads,
+      failed_uploads: failedUploads,
+      errors: errors.slice(0, 5) // Return first 5 errors
+    });
+
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
     );
   }
-}
+});

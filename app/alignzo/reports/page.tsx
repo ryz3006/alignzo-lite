@@ -84,17 +84,20 @@ export default function UserWorkReportsPage() {
       const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
-      const response = await supabaseClient.getUserWorkLogs(currentUser.email, {
-        order: { column: 'created_at', ascending: false }
+      const response = await fetch('/api/work-logs', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (response.error) {
-        console.error('Error loading work logs:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load work logs');
       }
 
-      const data = response.data;
-      setWorkLogs(data || []);
+      const result = await response.json();
+      setWorkLogs(result.data || []);
     } catch (error) {
       console.error('Error loading work logs:', error);
       toast.error('Failed to load work logs');
@@ -208,16 +211,24 @@ export default function UserWorkReportsPage() {
     try {
       const breakDuration = calculateBreakDuration();
       const updateData = {
+        id: editingLog.id,
         ...formData,
         total_pause_duration_seconds: breakDuration,
       };
 
-      const response = await supabaseClient.update('work_logs', editingLog.id, updateData);
+      const response = await fetch('/api/work-logs', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
 
-      if (response.error) {
-        console.error('Error updating work log:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update work log');
       }
+
       toast.success('Work log updated successfully');
       setShowEditModal(false);
       setEditingLog(null);
@@ -234,12 +245,18 @@ export default function UserWorkReportsPage() {
     if (!confirm('Are you sure you want to delete this work log?')) return;
 
     try {
-      const response = await supabaseClient.delete('work_logs', logId);
+      const response = await fetch(`/api/work-logs?id=${logId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (response.error) {
-        console.error('Error deleting work log:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete work log');
       }
+
       toast.success('Work log deleted successfully');
       loadWorkLogs();
     } catch (error: any) {
@@ -258,12 +275,18 @@ export default function UserWorkReportsPage() {
 
     try {
       const logIds = Array.from(selectedLogs);
-      // TODO: Implement bulk delete in proxy - for now, delete one by one
+      // Delete one by one using the API
       for (const logId of logIds) {
-        const response = await supabaseClient.delete('work_logs', logId);
-        if (response.error) {
-          console.error('Error deleting work log:', response.error);
-          throw new Error(response.error);
+        const response = await fetch(`/api/work-logs?id=${logId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete work log');
         }
       }
       toast.success(`${selectedLogs.size} work log(s) deleted successfully`);

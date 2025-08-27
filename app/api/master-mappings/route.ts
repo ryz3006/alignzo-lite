@@ -7,11 +7,11 @@ import { getCurrentUser } from '@/lib/auth';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 
-// GET - Retrieve timers for the current user
+// GET - Retrieve master mappings
 export const GET = withAudit(
   AuditEventType.READ,
-  'timers',
-  'User retrieved their timers'
+  'ticket_master_mappings',
+  'User retrieved master mappings'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -24,17 +24,15 @@ export const GET = withAudit(
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
-    const projectId = searchParams.get('projectId');
-    const status = searchParams.get('status');
+    const pageSize = parseInt(searchParams.get('pageSize') || '20');
+    const sourceId = searchParams.get('sourceId');
+    const searchTerm = searchParams.get('search');
 
     // Build filters
-    const filters: any = { user_email: user.email };
-    if (projectId) filters.project_id = projectId;
-    if (status) filters.status = status;
+    const filters: any = {};
+    if (sourceId) filters.source_id = sourceId;
 
-    const response = await supabaseClient.get('timers', {
-      select: '*,project:projects(*)',
+    const response = await supabaseClient.getTicketMasterMappings({
       filters,
       order: { column: 'created_at', ascending: false },
       limit: pageSize,
@@ -45,30 +43,39 @@ export const GET = withAudit(
       throw new Error(response.error);
     }
 
+    // Filter by search term if provided
+    let filteredData = response.data || [];
+    if (searchTerm) {
+      filteredData = filteredData.filter((mapping: any) =>
+        mapping.source_assignee_value.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        mapping.mapped_user_email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
     return NextResponse.json({
-      data: response.data,
+      data: filteredData,
       pagination: {
         currentPage: page,
         pageSize,
-        totalCount: response.count || 0,
-        totalPages: Math.ceil((response.count || 0) / pageSize)
+        totalCount: filteredData.length,
+        totalPages: Math.ceil(filteredData.length / pageSize)
       }
     });
 
   } catch (error) {
-    console.error('Error fetching timers:', error);
+    console.error('Error fetching master mappings:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch timers' },
+      { error: 'Failed to fetch master mappings' },
       { status: 500 }
     );
   }
 });
 
-// POST - Create a new timer
+// POST - Create a new master mapping
 export const POST = withAudit(
   AuditEventType.CREATE,
-  'timers',
-  'User created a new timer'
+  'ticket_master_mappings',
+  'User created a new master mapping'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -80,99 +87,102 @@ export const POST = withAudit(
     }
 
     const body = await request.json();
-    const timerData = {
-      ...body,
-      user_email: user.email,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    const { source_id, source_assignee_value, mapped_user_email } = body;
 
-    const response = await supabaseClient.insert('timers', timerData);
-
-    if (response.error) {
-      throw new Error(response.error);
-    }
-
-    return NextResponse.json({
-      message: 'Timer created successfully',
-      data: response.data
-    });
-
-  } catch (error) {
-    console.error('Error creating timer:', error);
-    return NextResponse.json(
-      { error: 'Failed to create timer' },
-      { status: 500 }
-    );
-  }
-});
-
-// PUT - Update an existing timer
-export const PUT = withAudit(
-  AuditEventType.UPDATE,
-  'timers',
-  'User updated a timer'
-)(async (request: NextRequest) => {
-  try {
-    const user = await getCurrentUser();
-    if (!user?.email) {
+    if (!source_id || !source_assignee_value || !mapped_user_email) {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-    const { id, ...updateData } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Timer ID is required' },
+        { error: 'Source ID, assignee value, and mapped user email are required' },
         { status: 400 }
       );
     }
 
-    // Verify the timer belongs to the user
-    const existingTimer = await supabaseClient.get('timers', {
-      select: 'id',
-      filters: { id, user_email: user.email }
-    });
-
-    if (existingTimer.error || !existingTimer.data || existingTimer.data.length === 0) {
-      return NextResponse.json(
-        { error: 'Timer not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    const response = await supabaseClient.update('timers', id, {
-      ...updateData,
+    const mappingData = {
+      source_id,
+      source_assignee_value: source_assignee_value.trim(),
+      mapped_user_email: mapped_user_email.trim(),
+      is_active: true,
+      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    });
+    };
+
+    const response = await supabaseClient.insert('ticket_master_mappings', mappingData);
 
     if (response.error) {
       throw new Error(response.error);
     }
 
     return NextResponse.json({
-      message: 'Timer updated successfully',
+      message: 'Master mapping created successfully',
       data: response.data
     });
 
   } catch (error) {
-    console.error('Error updating timer:', error);
+    console.error('Error creating master mapping:', error);
     return NextResponse.json(
-      { error: 'Failed to update timer' },
+      { error: 'Failed to create master mapping' },
       { status: 500 }
     );
   }
 });
 
-// DELETE - Delete a timer
+// PUT - Update an existing master mapping
+export const PUT = withAudit(
+  AuditEventType.UPDATE,
+  'ticket_master_mappings',
+  'User updated a master mapping'
+)(async (request: NextRequest) => {
+  try {
+    const user = await getCurrentUser();
+    if (!user?.email) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, source_id, source_assignee_value, mapped_user_email, is_active } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Mapping ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const updateData = {
+      ...(source_id && { source_id }),
+      ...(source_assignee_value && { source_assignee_value: source_assignee_value.trim() }),
+      ...(mapped_user_email && { mapped_user_email: mapped_user_email.trim() }),
+      ...(typeof is_active === 'boolean' && { is_active }),
+      updated_at: new Date().toISOString()
+    };
+
+    const response = await supabaseClient.update('ticket_master_mappings', id, updateData);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return NextResponse.json({
+      message: 'Master mapping updated successfully',
+      data: response.data
+    });
+
+  } catch (error) {
+    console.error('Error updating master mapping:', error);
+    return NextResponse.json(
+      { error: 'Failed to update master mapping' },
+      { status: 500 }
+    );
+  }
+});
+
+// DELETE - Delete a master mapping
 export const DELETE = withAudit(
   AuditEventType.DELETE,
-  'timers',
-  'User deleted a timer'
+  'ticket_master_mappings',
+  'User deleted a master mapping'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -188,38 +198,25 @@ export const DELETE = withAudit(
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Timer ID is required' },
+        { error: 'Mapping ID is required' },
         { status: 400 }
       );
     }
 
-    // Verify the timer belongs to the user
-    const existingTimer = await supabaseClient.get('timers', {
-      select: 'id',
-      filters: { id, user_email: user.email }
-    });
-
-    if (existingTimer.error || !existingTimer.data || existingTimer.data.length === 0) {
-      return NextResponse.json(
-        { error: 'Timer not found or access denied' },
-        { status: 404 }
-      );
-    }
-
-    const response = await supabaseClient.delete('timers', id);
+    const response = await supabaseClient.delete('ticket_master_mappings', id);
 
     if (response.error) {
       throw new Error(response.error);
     }
 
     return NextResponse.json({
-      message: 'Timer deleted successfully'
+      message: 'Master mapping deleted successfully'
     });
 
   } catch (error) {
-    console.error('Error deleting timer:', error);
+    console.error('Error deleting master mapping:', error);
     return NextResponse.json(
-      { error: 'Failed to delete timer' },
+      { error: 'Failed to delete master mapping' },
       { status: 500 }
     );
   }

@@ -37,17 +37,21 @@ export default function UploadedTicketsPage() {
   const loadUploadedTickets = async () => {
     try {
       setLoading(true);
-      const response = await supabaseClient.get('uploaded_tickets', {
-        select: '*',
-        order: { column: 'created_at', ascending: false }
+      const response = await fetch('/api/uploaded-tickets', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (response.error) {
-        console.error('Error loading uploaded tickets:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load uploaded tickets');
       }
-      setUploadedTickets(response.data || []);
-      setFilteredTickets(response.data || []);
+
+      const result = await response.json();
+      setUploadedTickets(result.data || []);
+      setFilteredTickets(result.data || []);
     } catch (error) {
       console.error('Error loading uploaded tickets:', error);
       toast.error('Failed to load uploaded tickets');
@@ -67,12 +71,18 @@ export default function UploadedTicketsPage() {
     }
 
     try {
-      const response = await supabaseClient.delete('uploaded_tickets', ticketId);
+      const response = await fetch(`/api/uploaded-tickets?id=${ticketId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (response.error) {
-        console.error('Error deleting ticket:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete ticket');
       }
+
       toast.success('Ticket deleted successfully');
       loadUploadedTickets();
     } catch (error: any) {
@@ -92,12 +102,18 @@ export default function UploadedTicketsPage() {
     }
 
     try {
-      // TODO: Implement bulk delete in proxy - for now, delete one by one
+      // Delete one by one using the API
       for (const ticketId of selectedTickets) {
-        const response = await supabaseClient.delete('uploaded_tickets', ticketId);
-        if (response.error) {
-          console.error('Error deleting ticket:', response.error);
-          throw new Error(response.error);
+        const response = await fetch(`/api/uploaded-tickets?id=${ticketId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete ticket');
         }
       }
       toast.success(`${selectedTickets.length} tickets deleted successfully`);

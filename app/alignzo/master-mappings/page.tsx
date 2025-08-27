@@ -61,45 +61,52 @@ export default function MasterMappingsPage() {
   };
 
   const loadMasterMappings = async () => {
-    const response = await supabaseClient.getTicketMasterMappings();
+    try {
+      const response = await fetch('/api/master-mappings', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (response.error) {
-      console.error('Error loading master mappings:', response.error);
-      throw new Error(response.error);
-    }
-    
-    // Ensure sources are loaded before creating the map
-    if (sources.length === 0) {
-      console.warn('Sources not loaded yet, loading them now...');
-      await loadSources();
-    }
-    
-    // Get the current sources state after loading
-    const currentSources = sources.length > 0 ? sources : await supabaseClient.getTicketSources().then(r => r.data || []);
-    
-    // Create a map of source_id to source name for manual joining
-    const sourceMap = new Map(currentSources.map((source: any) => [source.id, source.name]));
-    
-    // Add source information to each mapping
-    const mappingsWithSource = (response.data || []).map((mapping: any) => {
-      // Check if the mapping has a nested source object from the join
-      const sourceName = mapping.source?.name || sourceMap.get(mapping.source_id) || 'Unknown';
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load master mappings');
+      }
+
+      const result = await response.json();
       
-      return {
-        ...mapping,
-        source: {
-          id: mapping.source_id,
-          name: sourceName
-        }
-      };
-    });
-    
-    console.log('Current sources:', currentSources);
-    console.log('Source map:', sourceMap);
-    console.log('Raw mappings data:', response.data);
-    console.log('Mappings with source:', mappingsWithSource);
-    
-    setMasterMappings(mappingsWithSource);
+      // Ensure sources are loaded before creating the map
+      if (sources.length === 0) {
+        console.warn('Sources not loaded yet, loading them now...');
+        await loadSources();
+      }
+      
+      // Get the current sources state after loading
+      const currentSources = sources.length > 0 ? sources : await supabaseClient.getTicketSources().then(r => r.data || []);
+      
+      // Create a map of source_id to source name for manual joining
+      const sourceMap = new Map(currentSources.map((source: any) => [source.id, source.name]));
+      
+      // Add source information to each mapping
+      const mappingsWithSource = (result.data || []).map((mapping: any) => {
+        // Check if the mapping has a nested source object from the join
+        const sourceName = mapping.source?.name || sourceMap.get(mapping.source_id) || 'Unknown';
+        
+        return {
+          ...mapping,
+          source: {
+            id: mapping.source_id,
+            name: sourceName
+          }
+        };
+      });
+      
+      setMasterMappings(mappingsWithSource);
+    } catch (error) {
+      console.error('Error loading master mappings:', error);
+      toast.error('Failed to load master mappings');
+    }
   };
 
   const handleAddMapping = async () => {
@@ -109,17 +116,23 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const response = await supabaseClient.insert('ticket_master_mappings', {
-        source_id: selectedSource,
-        source_assignee_value: sourceAssigneeValue.trim(),
-        mapped_user_email: mappedUserEmail.trim(),
-        is_active: true
+      const response = await fetch('/api/master-mappings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_id: selectedSource,
+          source_assignee_value: sourceAssigneeValue.trim(),
+          mapped_user_email: mappedUserEmail.trim(),
+        }),
       });
 
-      if (response.error) {
-        console.error('Error creating mapping:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create mapping');
       }
+
       toast.success('Master mapping created successfully');
       setShowAddModal(false);
       resetForm();
@@ -145,18 +158,27 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const response = await supabaseClient.update('ticket_master_mappings', editingMapping.id, {
-        source_id: selectedSource,
-        source_assignee_value: sourceAssigneeValue.trim(),
-        mapped_user_email: mappedUserEmail.trim()
+      const response = await fetch('/api/master-mappings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingMapping.id,
+          source_id: selectedSource,
+          source_assignee_value: sourceAssigneeValue.trim(),
+          mapped_user_email: mappedUserEmail.trim(),
+        }),
       });
 
-      if (response.error) {
-        console.error('Error updating mapping:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update mapping');
       }
+
       toast.success('Master mapping updated successfully');
       setShowEditModal(false);
+      setEditingMapping(null);
       resetForm();
       loadMasterMappings();
     } catch (error: any) {
@@ -171,12 +193,18 @@ export default function MasterMappingsPage() {
     }
 
     try {
-      const response = await supabaseClient.delete('ticket_master_mappings', mappingId);
+      const response = await fetch(`/api/master-mappings?id=${mappingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (response.error) {
-        console.error('Error deleting mapping:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete mapping');
       }
+
       toast.success('Master mapping deleted successfully');
       loadMasterMappings();
     } catch (error: any) {
@@ -187,14 +215,22 @@ export default function MasterMappingsPage() {
 
   const handleToggleActive = async (mapping: TicketMasterMapping) => {
     try {
-      const response = await supabaseClient.update('ticket_master_mappings', mapping.id, {
-        is_active: !mapping.is_active
+      const response = await fetch('/api/master-mappings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: mapping.id,
+          is_active: !mapping.is_active
+        }),
       });
 
-      if (response.error) {
-        console.error('Error toggling mapping status:', response.error);
-        throw new Error(response.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update mapping status');
       }
+
       toast.success(`Mapping ${mapping.is_active ? 'deactivated' : 'activated'} successfully`);
       loadMasterMappings();
     } catch (error: any) {

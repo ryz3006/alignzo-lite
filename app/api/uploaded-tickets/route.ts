@@ -7,11 +7,11 @@ import { getCurrentUser } from '@/lib/auth';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 
-// GET - Retrieve timers for the current user
+// GET - Retrieve uploaded tickets
 export const GET = withAudit(
   AuditEventType.READ,
-  'timers',
-  'User retrieved their timers'
+  'uploaded_tickets',
+  'User retrieved uploaded tickets'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -24,17 +24,20 @@ export const GET = withAudit(
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const pageSize = parseInt(searchParams.get('pageSize') || '20');
     const projectId = searchParams.get('projectId');
+    const sourceId = searchParams.get('sourceId');
     const status = searchParams.get('status');
+    const searchTerm = searchParams.get('search');
 
     // Build filters
-    const filters: any = { user_email: user.email };
+    const filters: any = { uploaded_by: user.email };
     if (projectId) filters.project_id = projectId;
+    if (sourceId) filters.source_id = sourceId;
     if (status) filters.status = status;
 
-    const response = await supabaseClient.get('timers', {
-      select: '*,project:projects(*)',
+    const response = await supabaseClient.get('uploaded_tickets', {
+      select: '*,project:projects(*),source:ticket_sources(*)',
       filters,
       order: { column: 'created_at', ascending: false },
       limit: pageSize,
@@ -45,30 +48,40 @@ export const GET = withAudit(
       throw new Error(response.error);
     }
 
+    // Filter by search term if provided
+    let filteredData = response.data || [];
+    if (searchTerm) {
+      filteredData = filteredData.filter((ticket: any) =>
+        ticket.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ticket.ticket_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ticket.assignee?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
     return NextResponse.json({
-      data: response.data,
+      data: filteredData,
       pagination: {
         currentPage: page,
         pageSize,
-        totalCount: response.count || 0,
-        totalPages: Math.ceil((response.count || 0) / pageSize)
+        totalCount: filteredData.length,
+        totalPages: Math.ceil(filteredData.length / pageSize)
       }
     });
 
   } catch (error) {
-    console.error('Error fetching timers:', error);
+    console.error('Error fetching uploaded tickets:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch timers' },
+      { error: 'Failed to fetch uploaded tickets' },
       { status: 500 }
     );
   }
 });
 
-// POST - Create a new timer
+// POST - Create a new uploaded ticket
 export const POST = withAudit(
   AuditEventType.CREATE,
-  'timers',
-  'User created a new timer'
+  'uploaded_tickets',
+  'User created a new uploaded ticket'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -80,38 +93,38 @@ export const POST = withAudit(
     }
 
     const body = await request.json();
-    const timerData = {
+    const ticketData = {
       ...body,
-      user_email: user.email,
+      uploaded_by: user.email,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    const response = await supabaseClient.insert('timers', timerData);
+    const response = await supabaseClient.insert('uploaded_tickets', ticketData);
 
     if (response.error) {
       throw new Error(response.error);
     }
 
     return NextResponse.json({
-      message: 'Timer created successfully',
+      message: 'Ticket created successfully',
       data: response.data
     });
 
   } catch (error) {
-    console.error('Error creating timer:', error);
+    console.error('Error creating uploaded ticket:', error);
     return NextResponse.json(
-      { error: 'Failed to create timer' },
+      { error: 'Failed to create uploaded ticket' },
       { status: 500 }
     );
   }
 });
 
-// PUT - Update an existing timer
+// PUT - Update an existing uploaded ticket
 export const PUT = withAudit(
   AuditEventType.UPDATE,
-  'timers',
-  'User updated a timer'
+  'uploaded_tickets',
+  'User updated an uploaded ticket'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -127,25 +140,25 @@ export const PUT = withAudit(
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Timer ID is required' },
+        { error: 'Ticket ID is required' },
         { status: 400 }
       );
     }
 
-    // Verify the timer belongs to the user
-    const existingTimer = await supabaseClient.get('timers', {
+    // Verify the ticket belongs to the user
+    const existingTicket = await supabaseClient.get('uploaded_tickets', {
       select: 'id',
-      filters: { id, user_email: user.email }
+      filters: { id, uploaded_by: user.email }
     });
 
-    if (existingTimer.error || !existingTimer.data || existingTimer.data.length === 0) {
+    if (existingTicket.error || !existingTicket.data || existingTicket.data.length === 0) {
       return NextResponse.json(
-        { error: 'Timer not found or access denied' },
+        { error: 'Ticket not found or access denied' },
         { status: 404 }
       );
     }
 
-    const response = await supabaseClient.update('timers', id, {
+    const response = await supabaseClient.update('uploaded_tickets', id, {
       ...updateData,
       updated_at: new Date().toISOString()
     });
@@ -155,24 +168,24 @@ export const PUT = withAudit(
     }
 
     return NextResponse.json({
-      message: 'Timer updated successfully',
+      message: 'Ticket updated successfully',
       data: response.data
     });
 
   } catch (error) {
-    console.error('Error updating timer:', error);
+    console.error('Error updating uploaded ticket:', error);
     return NextResponse.json(
-      { error: 'Failed to update timer' },
+      { error: 'Failed to update uploaded ticket' },
       { status: 500 }
     );
   }
 });
 
-// DELETE - Delete a timer
+// DELETE - Delete an uploaded ticket
 export const DELETE = withAudit(
   AuditEventType.DELETE,
-  'timers',
-  'User deleted a timer'
+  'uploaded_tickets',
+  'User deleted an uploaded ticket'
 )(async (request: NextRequest) => {
   try {
     const user = await getCurrentUser();
@@ -188,38 +201,38 @@ export const DELETE = withAudit(
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Timer ID is required' },
+        { error: 'Ticket ID is required' },
         { status: 400 }
       );
     }
 
-    // Verify the timer belongs to the user
-    const existingTimer = await supabaseClient.get('timers', {
+    // Verify the ticket belongs to the user
+    const existingTicket = await supabaseClient.get('uploaded_tickets', {
       select: 'id',
-      filters: { id, user_email: user.email }
+      filters: { id, uploaded_by: user.email }
     });
 
-    if (existingTimer.error || !existingTimer.data || existingTimer.data.length === 0) {
+    if (existingTicket.error || !existingTicket.data || existingTicket.data.length === 0) {
       return NextResponse.json(
-        { error: 'Timer not found or access denied' },
+        { error: 'Ticket not found or access denied' },
         { status: 404 }
       );
     }
 
-    const response = await supabaseClient.delete('timers', id);
+    const response = await supabaseClient.delete('uploaded_tickets', id);
 
     if (response.error) {
       throw new Error(response.error);
     }
 
     return NextResponse.json({
-      message: 'Timer deleted successfully'
+      message: 'Ticket deleted successfully'
     });
 
   } catch (error) {
-    console.error('Error deleting timer:', error);
+    console.error('Error deleting uploaded ticket:', error);
     return NextResponse.json(
-      { error: 'Failed to delete timer' },
+      { error: 'Failed to delete uploaded ticket' },
       { status: 500 }
     );
   }
