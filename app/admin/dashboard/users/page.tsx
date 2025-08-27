@@ -30,7 +30,6 @@ export default function UsersPage() {
     access_master_mappings: false,
     access_shift_schedule: false,
     access_integrations: false,
-    access_google_drive: false,
   };
 
   const [formData, setFormData] = useState(defaultFormData);
@@ -116,7 +115,6 @@ export default function UsersPage() {
       access_master_mappings: user.access_master_mappings ?? false,
       access_shift_schedule: user.access_shift_schedule ?? false,
       access_integrations: user.access_integrations ?? false,
-      access_google_drive: user.access_google_drive ?? false,
     });
     setShowModal(true);
   };
@@ -393,18 +391,7 @@ export default function UsersPage() {
                         Integrations
                       </label>
                     </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="access_google_drive"
-                        checked={formData.access_google_drive}
-                        onChange={(e) => setFormData({ ...formData, access_google_drive: e.target.checked })}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="access_google_drive" className="ml-2 text-sm text-gray-700">
-                        Google Drive
-                      </label>
-                    </div>
+                    
                   </div>
                   
                   {/* Analytics Sub-options */}

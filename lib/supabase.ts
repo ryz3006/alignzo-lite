@@ -89,7 +89,6 @@ export interface User {
   access_master_mappings?: boolean;
   access_shift_schedule?: boolean;
   access_integrations?: boolean;
-  access_google_drive?: boolean;
   created_at: string;
   updated_at: string;
 }

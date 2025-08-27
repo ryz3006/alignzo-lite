@@ -24,8 +24,7 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  ChevronLeft,
-  Folder
+  ChevronLeft
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
@@ -121,7 +120,6 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     { name: 'Uploaded Tickets', href: '/alignzo/uploaded-tickets', icon: Database, accessKey: 'access_upload_tickets' },
     { name: 'Master Mappings', href: '/alignzo/master-mappings', icon: Users, accessKey: 'access_master_mappings' },
     { name: 'Shift Schedule', href: '/alignzo/shift-schedule', icon: Clock, accessKey: 'access_shift_schedule' },
-    { name: 'Google Drive', href: '/alignzo/google-drive', icon: Folder, accessKey: 'access_google_drive' },
     { name: 'Integrations', href: '/alignzo/integrations', icon: Settings, accessKey: 'access_integrations' },
   ];
 

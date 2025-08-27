@@ -16,8 +16,7 @@ import {
   X,
   Calendar,
   Shield,
-  Activity,
-  Folder
+  Activity
 } from 'lucide-react';
 
 export default function AdminDashboardLayout({
@@ -83,7 +82,6 @@ export default function AdminDashboardLayout({
     { name: 'Work Reports', href: '/admin/dashboard/reports', icon: FileText },
     { name: 'Shift Schedule', href: '/admin/dashboard/shift-schedule', icon: Calendar },
     { name: 'Audit Trail', href: '/admin/dashboard/audit-trail', icon: Activity },
-    { name: 'Google Drive', href: '/admin/google-drive', icon: Folder },
   ];
 
   if (loading) {
