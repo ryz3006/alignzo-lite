@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings, MessageSquare } from 'lucide-react';
 import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskComment, TaskCategorySelection } from '@/lib/kanban-types';
 import { supabaseClient } from '@/lib/supabase-client';
@@ -96,6 +96,44 @@ export default function EditTaskModal({
   const [availableCategories, setAvailableCategories] = useState<ProjectCategory[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<TaskCategorySelection[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  // Task age calculation
+  const taskAgeInfo = useMemo(() => {
+    if (!task?.created_at) return null;
+    
+    const createdDate = new Date(task.created_at);
+    const now = new Date();
+    const diffTime = now.getTime() - createdDate.getTime();
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    let ageText: string;
+    let ageColor: string;
+
+    if (diffMinutes < 1) {
+      ageText = 'Just now';
+      ageColor = 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    } else if (diffMinutes < 60) {
+      ageText = `${diffMinutes} min ago`;
+      ageColor = 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    } else if (diffHours < 24) {
+      ageText = `${diffHours} hr ago`;
+      ageColor = diffHours < 6 
+        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+    } else if (diffDays < 7) {
+      ageText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      ageColor = diffDays < 3 
+        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+        : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400';
+    } else {
+      ageText = `${diffDays} days ago`;
+      ageColor = 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+    }
+
+    return { ageText, ageColor };
+  }, [task?.created_at]);
 
   // Load categories and task-specific categories when modal opens
   useEffect(() => {
@@ -591,12 +629,25 @@ export default function EditTaskModal({
       <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 dark:border-neutral-700">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
-          <div>
-            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Edit Task</h2>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-              Update task details and settings
-            </p>
+          <div className="flex items-center space-x-4">
+            <div>
+              <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Edit Task</h2>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                Update task details and settings
+              </p>
+            </div>
+            
+            {/* Task Age Badge */}
+            {taskAgeInfo && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">Created:</span>
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${taskAgeInfo.ageColor}`}>
+                  {taskAgeInfo.ageText}
+                </span>
+              </div>
+            )}
           </div>
+          
           <button
             onClick={onClose}
             className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700"

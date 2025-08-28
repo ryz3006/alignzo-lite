@@ -762,6 +762,13 @@ export default function KanbanBoardPage() {
                                 onClick={() => openTaskDetailModal(task)}
                                 viewMode="kanban"
                                 isMoving={movingTaskId === task.id}
+                                onEdit={openEditTaskModal}
+                                onDelete={(taskId) => {
+                                  setTaskToDelete(taskId);
+                                  setShowDeleteConfirmModal(true);
+                                }}
+                                canEdit={true}
+                                canDelete={user?.email === task.created_by}
                               />
                             ))}
                             {provided.placeholder}
@@ -806,6 +813,13 @@ export default function KanbanBoardPage() {
                           onClick={() => openTaskDetailModal(task)}
                           viewMode="list"
                           isMoving={false}
+                          onEdit={openEditTaskModal}
+                          onDelete={(taskId) => {
+                            setTaskToDelete(taskId);
+                            setShowDeleteConfirmModal(true);
+                          }}
+                          canEdit={true}
+                          canDelete={user?.email === task.created_by}
                         />
                       ))
                     )}

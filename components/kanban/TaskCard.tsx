@@ -11,7 +11,9 @@ import {
   Link, 
   AlertCircle,
   CheckCircle,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { KanbanTask } from '@/lib/kanban-types';
 
@@ -21,9 +23,13 @@ interface TaskCardProps {
   onClick: () => void;
   viewMode: 'kanban' | 'list';
   isMoving?: boolean;
+  onEdit?: (task: KanbanTask) => void;
+  onDelete?: (taskId: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardProps) => {
+const TaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit, onDelete, canEdit, canDelete }: TaskCardProps) => {
   // Memoized priority colors
   const getPriorityColor = useCallback((priority: string) => {
     const colors = {
@@ -283,20 +289,50 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
 
             {/* Priority and Scope Row */}
             <div className="flex items-center justify-between">
-              {/* Priority Badge */}
-              <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
-                {task.priority}
-              </span>
+              <div className="flex items-center space-x-2">
+                {/* Priority Badge */}
+                <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
+                  {task.priority}
+                </span>
+                
+                {/* Scope Badge */}
+                <span className={`text-xs px-2 py-1 rounded-full ${scopeColor}`}>
+                  {task.scope}
+                </span>
+                
+                {/* Completion Status */}
+                {task.status === 'completed' && (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                )}
+              </div>
               
-              {/* Scope Badge */}
-              <span className={`text-xs px-2 py-1 rounded-full ${scopeColor}`}>
-                {task.scope}
-              </span>
-              
-              {/* Completion Status */}
-              {task.status === 'completed' && (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              )}
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-1">
+                {canEdit && onEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(task);
+                    }}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded transition-colors"
+                    title="Edit Task"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {canDelete && onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(task.id);
+                    }}
+                    className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                    title="Delete Task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
