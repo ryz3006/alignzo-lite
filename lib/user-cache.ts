@@ -43,8 +43,6 @@ export interface UserDashboardData {
     tomorrowShiftColor: string;
     todayShiftTime?: string;
     tomorrowShiftTime?: string;
-    todayShiftIcon: any;
-    tomorrowShiftIcon: any;
     projectId?: string;
     teamId?: string;
   };
