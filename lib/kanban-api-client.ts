@@ -36,8 +36,14 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<any[]
   try {
     const response = await fetch(`/api/kanban/user-projects-with-cache?userEmail=${encodeURIComponent(userEmail)}`);
     if (response.ok) {
-      const data = await response.json();
-      return data.data || [];
+      const result = await response.json();
+      // Handle both direct array response and wrapped response format
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result.data) {
+        return result.data;
+      }
+      return [];
     }
     return [];
   } catch (error) {

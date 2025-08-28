@@ -47,9 +47,14 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<any[]
     
     if (response.ok) {
       const result = await response.json();
-      return result.success && result.data ? result.data : [];
+      // Handle both direct array response and wrapped response format
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result.success && result.data) {
+        return result.data;
+      }
+      return [];
     }
-    
     return [];
   } catch (error) {
     console.error('Error in cached user projects fetch:', error);
