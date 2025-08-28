@@ -9,6 +9,7 @@ import { getProjectCategoriesWithCache } from '@/lib/kanban-api-enhanced-client'
 import { getUserProjectsWithCache } from '@/lib/kanban-api-enhanced-client';
 import { X, Save, Search, Plus, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useDashboardRefresh } from './DashboardRefreshContext';
 
 interface WorkLogModalProps {
   isOpen: boolean;
@@ -72,6 +73,7 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
     dynamic_category_selections: {} as Record<string, string>,
   });
   const [loading, setLoading] = useState(false);
+  const { refreshDashboard } = useDashboardRefresh();
 
   useEffect(() => {
     if (isOpen) {
@@ -452,6 +454,9 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       }
 
       toast.success('Work log saved successfully');
+
+      // Refresh dashboard data to update worked hours
+      refreshDashboard();
 
       // Reset form
       setFormData({

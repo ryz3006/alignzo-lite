@@ -6,6 +6,7 @@ import { supabaseClient } from '@/lib/supabase-client';
 import { Timer, Project, ProjectCategory } from '@/lib/supabase';
 import { formatDuration } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import { useDashboardRefresh } from './DashboardRefreshContext';
 
 interface TimerContextType {
   timers: Timer[];
@@ -23,6 +24,7 @@ const TimerContext = createContext<TimerContextType | undefined>(undefined);
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [activeTimers, setActiveTimers] = useState<Timer[]>([]);
+  const { refreshDashboard } = useDashboardRefresh();
 
   useEffect(() => {
     loadTimers();
@@ -166,6 +168,8 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
       toast.success('Timer stopped and work logged');
       await loadTimers();
+      // Refresh dashboard data to update worked hours
+      refreshDashboard();
     } catch (error: any) {
       console.error('Error stopping timer:', error);
       toast.error(error.message || 'Failed to stop timer');

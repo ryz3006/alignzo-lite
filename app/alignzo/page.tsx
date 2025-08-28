@@ -22,11 +22,13 @@ import {
   CheckCircle,
   AlertCircle,
   UserCheck,
-  Timer
+  Timer,
+  RefreshCw
 } from 'lucide-react';
 import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import toast from 'react-hot-toast';
+import { useDashboardRefresh } from '@/components/DashboardRefreshContext';
 
 interface DashboardStats {
   todayHours: number;
@@ -155,6 +157,7 @@ export default function UserDashboardPage() {
   const [shiftUsers, setShiftUsers] = useState<any[]>([]);
   const [loadingShiftUsers, setLoadingShiftUsers] = useState(false);
   const [greetingLoaded, setGreetingLoaded] = useState(false);
+  const { isRefreshing } = useDashboardRefresh();
 
   // Check system preference for dark mode
   useEffect(() => {
@@ -238,6 +241,13 @@ export default function UserDashboardPage() {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  // Reload dashboard data when refresh is triggered
+  useEffect(() => {
+    if (isRefreshing) {
+      loadDashboardData();
+    }
+  }, [isRefreshing, loadDashboardData]);
 
   const loadUser = async () => {
     const currentUser = await getCurrentUser();
@@ -769,7 +779,16 @@ export default function UserDashboardPage() {
           </div>
           
           <div className="flex items-center space-x-3">
-            {/* Dark mode toggle removed - available in header bar */}
+            {/* Refresh Button */}
+            <button
+              onClick={loadDashboardData}
+              disabled={isLoading}
+              className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh dashboard data"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
           </div>
         </div>
 
@@ -889,14 +908,19 @@ export default function UserDashboardPage() {
           {statCards.map((stat, index) => (
             <div 
               key={stat.title} 
-              className="group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1"
+              className={`group relative overflow-hidden bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 hover:shadow-medium transition-all duration-300 hover:-translate-y-1 ${isRefreshing ? 'opacity-75' : ''}`}
               style={{ animationDelay: `${index * 100}ms` }}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-700 dark:to-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-medium group-hover:scale-110 transition-transform duration-300`}>
+                  <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-medium group-hover:scale-110 transition-transform duration-300 relative`}>
                     <stat.icon className="h-6 w-6 text-white" />
+                    {isRefreshing && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                        <RefreshCw className="h-2 w-2 text-primary-600 animate-spin" />
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-3xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">

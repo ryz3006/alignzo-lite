@@ -27,6 +27,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
+import { DashboardRefreshProvider } from '@/components/DashboardRefreshContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
 import TimerManagementModal from '@/components/TimerManagementModal';
 
@@ -361,9 +362,11 @@ export default function UserDashboardLayout({
 }) {
   return (
     <TimerProvider>
-      <UserDashboardContent>
-        {children}
-      </UserDashboardContent>
+      <DashboardRefreshProvider>
+        <UserDashboardContent>
+          {children}
+        </UserDashboardContent>
+      </DashboardRefreshProvider>
     </TimerProvider>
   );
 }
