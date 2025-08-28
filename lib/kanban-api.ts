@@ -449,8 +449,18 @@ export async function getKanbanTask(taskId: string): Promise<ApiResponse<KanbanT
 
 export async function createKanbanTask(taskData: CreateTaskForm & { project_id: string }): Promise<ApiResponse<KanbanTask>> {
   try {
-    // Clean the task data
+    // Clean the task data - handle empty strings for date fields
     const cleanTaskData = { ...taskData };
+    
+    // Convert empty strings to null for date fields
+    if (cleanTaskData.due_date === '') {
+      cleanTaskData.due_date = null;
+    }
+    
+    // Remove fields that shouldn't be in the database
+    delete (cleanTaskData as any).categories;
+    delete (cleanTaskData as any).user_email;
+    delete (cleanTaskData as any).team_id;
 
     const { data, error } = await supabase
       .from('kanban_tasks')
@@ -494,8 +504,13 @@ export async function updateKanbanTask(taskId: string, updates: UpdateTaskForm):
 
     if (currentError) throw new Error(currentError.message);
 
-    // Clean up the updates object
+    // Clean up the updates object - handle empty strings for date fields
     const cleanedUpdates = { ...updates };
+    
+    // Convert empty strings to null for date fields
+    if (cleanedUpdates.due_date === '') {
+      cleanedUpdates.due_date = null;
+    }
 
     const { data, error } = await supabase
       .from('kanban_tasks')
