@@ -29,7 +29,7 @@ export class KanbanCache {
   }
 
   private getUserProjectsKey(userEmail: string): string {
-    return `kanban:user-projects:${userEmail}`;
+    return `kanban:user-projects-v2:${userEmail}`;
   }
 
   // Board data caching

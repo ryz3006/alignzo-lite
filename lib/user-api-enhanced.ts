@@ -104,8 +104,10 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<UserP
     if (teamResponse.error) throw new Error(teamResponse.error);
 
     const userTeamIds = teamResponse.data?.map((membership: any) => membership.team_id) || [];
+    console.log(`[Cache] User team IDs for ${userEmail}:`, userTeamIds);
     
     if (userTeamIds.length === 0) {
+      console.log(`[Cache] No teams found for user ${userEmail}`);
       return [];
     }
 
@@ -117,13 +119,19 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<UserP
 
     if (projectResponse.error) throw new Error(projectResponse.error);
 
-    const projects: UserProjectData[] = (projectResponse.data || []).map((assignment: any) => ({
-      projectId: assignment.project_id,
-      projectName: assignment.projects?.name || 'Unknown Project',
+    console.log(`[Cache] Project assignments for user ${userEmail}:`, projectResponse.data);
+
+    const projects: any[] = (projectResponse.data || []).map((assignment: any) => ({
+      id: assignment.project_id,
+      name: assignment.projects?.name || 'Unknown Project',
       product: assignment.projects?.product || '',
       country: assignment.projects?.country || '',
-      isActive: assignment.projects?.is_active !== false
+      is_active: assignment.projects?.is_active !== false,
+      created_at: assignment.projects?.created_at || new Date().toISOString(),
+      updated_at: assignment.projects?.updated_at || new Date().toISOString()
     }));
+
+    console.log(`[Cache] Processed projects for user ${userEmail}:`, projects);
 
     // Cache the result (non-blocking)
     userCache.setUserProjects(userEmail, projects)

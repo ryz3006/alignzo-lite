@@ -4,6 +4,7 @@ import { getKanbanColumns as getOriginalColumns } from './kanban-api';
 import { getUserAccessibleProjects as getOriginalProjects } from './kanban-api';
 import { getProjectCategoriesWithRedis } from './kanban-api-redis';
 import { KanbanColumnWithTasks } from './kanban-types';
+import { supabaseClient } from './supabase-client';
 
 export async function getKanbanBoardWithCache(
   projectId: string, 
@@ -73,15 +74,77 @@ export async function getKanbanColumnsWithCache(projectId: string): Promise<any[
 export async function getUserProjectsWithCache(userEmail: string): Promise<any[]> {
   try {
     const cached = await kanbanCache.getUserProjects(userEmail);
-    if (cached) return cached;
+    if (cached && cached.length > 0) {
+      // Check if cached data has categories with options
+      const hasCategoriesWithOptions = cached.some((project: any) => 
+        project.categories && project.categories.length > 0 && 
+        project.categories.some((cat: any) => cat.options && cat.options.length > 0)
+      );
+      
+      if (hasCategoriesWithOptions) {
+        console.log(`[Cache] User projects hit for ${userEmail} with categories`);
+        return cached;
+      } else {
+        console.log(`[Cache] User projects hit for ${userEmail} but missing categories, refreshing...`);
+        // Clear cache and fetch fresh data
+        await kanbanCache.invalidateUser(userEmail);
+      }
+    }
 
+    console.log(`[Cache] User projects miss for ${userEmail}, fetching from database`);
     const response = await getOriginalProjects(userEmail);
     
     if (response.success && response.data) {
-      kanbanCache.setUserProjects(userEmail, response.data)
+      // Ensure categories and options are loaded for each project
+      const projectsWithCategories = await Promise.all(
+        response.data.map(async (project: any) => {
+          try {
+            // Load categories for this project
+            const categoriesResponse = await supabaseClient.get('project_categories', {
+              select: '*',
+              filters: { project_id: project.id },
+              order: { column: 'sort_order', ascending: true }
+            });
+
+            if (!categoriesResponse.error && categoriesResponse.data) {
+              // Load options for all categories
+              const categoryIds = categoriesResponse.data.map((cat: any) => cat.id);
+              let categoryOptions: any[] = [];
+              
+              if (categoryIds.length > 0) {
+                const optionsResponse = await supabaseClient.get('category_options', {
+                  select: '*',
+                  filters: { category_id: categoryIds },
+                  order: { column: 'sort_order', ascending: true }
+                });
+
+                if (!optionsResponse.error && optionsResponse.data) {
+                  categoryOptions = optionsResponse.data;
+                }
+              }
+
+              // Attach options to categories
+              project.categories = categoriesResponse.data.map((category: any) => ({
+                ...category,
+                options: categoryOptions.filter((option: any) => option.category_id === category.id)
+              }));
+            } else {
+              project.categories = [];
+            }
+          } catch (error) {
+            console.warn('Error loading categories for project:', project.id, error);
+            project.categories = [];
+          }
+          
+          return project;
+        })
+      );
+
+      // Cache the enhanced result (non-blocking)
+      kanbanCache.setUserProjects(userEmail, projectsWithCategories)
         .catch(error => console.warn('Failed to cache user projects:', error));
       
-      return response.data;
+      return projectsWithCategories;
     }
     
     return [];
@@ -140,4 +203,8 @@ export async function invalidateKanbanCache(projectId: string, teamId?: string):
 
 export async function invalidateUserCache(userId: string): Promise<void> {
   await kanbanCache.invalidateUser(userId);
+}
+
+export async function invalidateUserProjectsCache(userEmail: string): Promise<void> {
+  await kanbanCache.invalidateUser(userEmail);
 }

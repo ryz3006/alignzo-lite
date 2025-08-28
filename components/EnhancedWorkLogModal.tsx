@@ -6,7 +6,7 @@ import { Project, ProjectCategory } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials } from '@/lib/jira';
 import { getProjectCategoriesWithCache } from '@/lib/kanban-api-enhanced-client';
-import { getUserProjectsWithCache } from '@/lib/user-api-client';
+import { getUserProjectsWithCache } from '@/lib/kanban-api-enhanced-client';
 import { X, Save, Search, Plus, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -162,8 +162,15 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
 
   const loadProjects = async () => {
     try {
+      // Get current user email
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) {
+        console.error('No authenticated user found');
+        return;
+      }
+
       // Use enhanced cached API for user projects
-      const projects = await getUserProjectsWithCache();
+      const projects = await getUserProjectsWithCache(currentUser.email);
       setProjects(projects);
     } catch (error) {
       console.error('Error loading projects:', error);
