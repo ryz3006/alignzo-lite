@@ -679,6 +679,14 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       // Import the createTaskTimeline function
       const { createTaskTimeline } = await import('./kanban-api');
       
+      // Ensure we have a valid user email for timeline entries
+      let timelineUserEmail: string = userEmail || '';
+      if (!timelineUserEmail) {
+        console.warn('No user email provided for timeline entries. Using current user context.');
+        // Try to get the current user from the task's created_by field as fallback
+        timelineUserEmail = currentTask.created_by || 'system';
+      }
+      
       // Title/Description changes
       if (updates.title !== undefined && updates.title !== currentTask.title) {
         await createTaskTimeline(
@@ -689,7 +697,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             old_value: currentTask.title,
             new_value: updates.title
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -702,7 +710,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             old_value: currentTask.description,
             new_value: updates.description
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -715,7 +723,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_priority: currentTask.priority,
             to_priority: updates.priority
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -728,7 +736,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_status: currentTask.status,
             to_status: updates.status
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -741,7 +749,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_user: currentTask.assigned_to,
             to_user: updates.assigned_to
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -753,7 +761,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
           JSON.stringify({
             ticket_key: updates.jira_ticket_key
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -783,7 +791,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_column_id: currentTask.column_id,
             to_column_id: updates.column_id
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -802,7 +810,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_category_id: currentTask.category_id,
             to_category_id: updates.category_id
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -821,7 +829,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             from_option_id: currentTask.category_option_id,
             to_option_id: updates.category_option_id
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
@@ -851,7 +859,7 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
             old_value: currentTask.due_date,
             new_value: updates.due_date
           }),
-          userEmail || 'system'
+          timelineUserEmail
         );
       }
 
