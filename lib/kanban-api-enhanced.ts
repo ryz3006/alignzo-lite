@@ -118,7 +118,7 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<any[]
                   table: 'category_options',
                   action: 'select',
                   select: '*',
-                  filters: { category_id: categoryIds },
+                  filters: { category_id_in: categoryIds },
                   order: { column: 'sort_order', ascending: true }
                 });
 

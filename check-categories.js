@@ -1,64 +1,79 @@
-const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
 
-async function checkCategoriesInDatabase() {
+// Create Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ CRITICAL: Supabase environment variables not configured!');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+async function checkCategories() {
   try {
-    console.log('🔍 Checking categories in database...');
+    const projectId = '992bb505-f93b-4a9e-88ba-f4aede14c9e0';
     
-    // Test the production API to see what categories exist
-    const url = 'https://alignzo-lite.vercel.app/api/categories/project-options?projectId=your-project-id';
+    console.log('🔍 Checking categories for project:', projectId);
     
-    console.log(`Fetching categories from: ${url}`);
+    // Check if project exists
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
     
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.categories) {
-      console.log('\n✅ Categories found in database:');
-      data.categories.forEach((cat, index) => {
-        console.log(`\n${index + 1}. Category: ${cat.name} (ID: ${cat.id})`);
-        if (cat.options && cat.options.length > 0) {
-          console.log(`   Options:`);
-          cat.options.forEach((opt, optIndex) => {
-            console.log(`     ${optIndex + 1}. ${opt.option_name} (ID: ${opt.id})`);
-          });
-        } else {
-          console.log(`   No options found`);
-        }
-      });
-    } else {
-      console.log('\n❌ No categories found in database');
+    if (projectError) {
+      console.error('❌ Project not found:', projectError.message);
+      return;
     }
     
-    // Also check the specific category IDs from the timeline
-    const timelineCategoryIds = [
-      '1353a294-12fd-49b6-8676-cc273130ca37',
-      'bcdd4397-4939-4591-b2c4-347ab45e9c1c', 
-      'fe9d976a-f33b-4221-9ee8-6edd4205bad7',
-      '3ed6517f-c532-492d-9d7c-e7badfe307d7'
-    ];
+    console.log('✅ Project found:', project.name);
     
-    const timelineOptionIds = [
-      'd3e90e79-05ee-42c5-adb3-e0e90c16adcd',
-      'bf11fc52-bd59-4b07-94f9-3a3817042eec',
-      '1a7a55c3-3eac-410e-9290-4d50e7095ddd',
-      'e377b73b-d150-4e0b-9576-09e7cc3ea50a',
-      '7a052cb5-716c-4b43-9488-c6c5fbf6e273'
-    ];
+    // Check categories
+    const { data: categories, error: categoriesError } = await supabase
+      .from('project_categories')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('is_active', true);
     
-    console.log('\n🔍 Timeline Category IDs to check:');
-    timelineCategoryIds.forEach(id => {
-      console.log(`  - ${id}`);
-    });
+    if (categoriesError) {
+      console.error('❌ Error fetching categories:', categoriesError.message);
+      return;
+    }
     
-    console.log('\n🔍 Timeline Option IDs to check:');
-    timelineOptionIds.forEach(id => {
-      console.log(`  - ${id}`);
-    });
+    console.log(`📂 Found ${categories?.length || 0} categories`);
+    
+    if (categories && categories.length > 0) {
+      for (const category of categories) {
+        console.log(`  - Category: ${category.name} (ID: ${category.id})`);
+        
+        // Check options for this category
+        const { data: options, error: optionsError } = await supabase
+          .from('category_options')
+          .select('*')
+          .eq('category_id', category.id)
+          .eq('is_active', true);
+        
+        if (optionsError) {
+          console.error(`    ❌ Error fetching options:`, optionsError.message);
+        } else {
+          console.log(`    📋 Options: ${options?.length || 0}`);
+          if (options && options.length > 0) {
+            options.forEach(option => {
+              console.log(`      • ${option.option_name}: ${option.option_value}`);
+            });
+          }
+        }
+      }
+    } else {
+      console.log('⚠️  No categories found for this project');
+    }
     
   } catch (error) {
-    console.error('\n❌ Error checking categories:', error.message);
+    console.error('❌ Error:', error);
   }
 }
 
-// Run the check
-checkCategoriesInDatabase();
+checkCategories();
