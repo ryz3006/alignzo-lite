@@ -35,7 +35,11 @@ export function DashboardRefreshProvider({ children }: { children: React.ReactNo
 export function useDashboardRefresh() {
   const context = useContext(DashboardRefreshContext);
   if (context === undefined) {
-    throw new Error('useDashboardRefresh must be used within a DashboardRefreshProvider');
+    // Return a default implementation during build time or when provider is not available
+    return {
+      refreshDashboard: () => {},
+      isRefreshing: false,
+    };
   }
   return context;
 }

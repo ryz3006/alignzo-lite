@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to prevent static generation issues with client-side context
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { getCurrentUser, checkUserAccess, signOutUser, getUserAccessControls } from '@/lib/auth';

@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { getCurrentUser, getUserIdFromEmail } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
