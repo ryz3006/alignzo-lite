@@ -518,33 +518,41 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
     // Filter out team_id and user_email as they don't exist in kanban_tasks table
     const { team_id, user_email, categories, ...taskDataWithoutExtraFields } = taskData as any;
     
+    // Clean the task data - handle empty strings for date fields
+    const cleanTaskData = { ...taskDataWithoutExtraFields };
+    
+    // Convert empty strings to null for date fields
+    if (cleanTaskData.due_date === '') {
+      cleanTaskData.due_date = null;
+    }
+    
     // Debug logging to help identify the issue
     console.log('🔍 Creating task with data:', {
       original: taskData,
-      filtered: taskDataWithoutExtraFields,
+      filtered: cleanTaskData,
       categories: categories
     });
 
     // Validate required fields before database insertion
-    if (!taskDataWithoutExtraFields.category_id || taskDataWithoutExtraFields.category_id.trim() === '') {
-      console.error('❌ Category ID is empty or invalid:', taskDataWithoutExtraFields.category_id);
+    if (!cleanTaskData.category_id || cleanTaskData.category_id.trim() === '') {
+      console.error('❌ Category ID is empty or invalid:', cleanTaskData.category_id);
       throw new Error('Category ID is required and must be a valid UUID');
     }
 
-    if (!taskDataWithoutExtraFields.column_id || taskDataWithoutExtraFields.column_id.trim() === '') {
-      console.error('❌ Column ID is empty or invalid:', taskDataWithoutExtraFields.column_id);
+    if (!cleanTaskData.column_id || cleanTaskData.column_id.trim() === '') {
+      console.error('❌ Column ID is empty or invalid:', cleanTaskData.column_id);
       throw new Error('Column ID is required and must be a valid UUID');
     }
 
-    if (!taskDataWithoutExtraFields.project_id || taskDataWithoutExtraFields.project_id.trim() === '') {
-      console.error('❌ Project ID is empty or invalid:', taskDataWithoutExtraFields.project_id);
+    if (!cleanTaskData.project_id || cleanTaskData.project_id.trim() === '') {
+      console.error('❌ Project ID is empty or invalid:', cleanTaskData.project_id);
       throw new Error('Project ID is required and must be a valid UUID');
     }
 
          // Creating task with data
      const { data: insertData, error: insertError } = await supabase
        .from('kanban_tasks')
-       .insert(taskDataWithoutExtraFields)
+       .insert(cleanTaskData)
        .select()
        .single();
      
