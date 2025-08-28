@@ -253,11 +253,14 @@ export default function TaskDetailModal({
       case 'assigned':
         return details?.assigned_to ? `Assigned to ${details.assigned_to}` : 'Assignment changed';
       case 'moved':
-        return details?.from_column_name && details?.to_column_name 
-          ? `Moved from ${details.from_column_name} to ${details.to_column_name}`
-          : details?.from_column && details?.to_column 
-            ? `Moved from ${details.from_column} to ${details.to_column}`
-            : 'Task moved';
+        // Always prioritize column names over IDs for better user experience
+        if (details?.from_column_name && details?.to_column_name) {
+          return `Moved from ${details.from_column_name} to ${details.to_column_name}`;
+        } else if (details?.from_column && details?.to_column) {
+          // If we only have IDs, show a generic message to avoid showing IDs to users
+          return 'Task moved to different column';
+        }
+        return 'Task moved';
       case 'commented':
         return 'Added a comment';
       case 'linked_jira':
