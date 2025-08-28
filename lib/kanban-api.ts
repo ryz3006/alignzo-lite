@@ -1511,7 +1511,7 @@ export async function getUserAccessibleProjects(userEmail: string): Promise<ApiR
             const { data: options, error: optionsError } = await supabase
               .from('category_options')
               .select('*')
-              .eq('category_id', categoryIds)
+              .in('category_id', categoryIds)
               .eq('is_active', true)
               .order('sort_order', { ascending: true });
 
