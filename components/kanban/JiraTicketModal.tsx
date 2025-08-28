@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, Link, Clock, User, Tag, AlertCircle, CheckCircle } from 'lucide-react';
 import { JiraTicket } from '@/lib/kanban-types';
 import { searchJiraTickets } from '@/lib/kanban-api';
+import { getCurrentUser } from '@/lib/auth';
 
 interface JiraTicketModalProps {
   isOpen: boolean;
@@ -21,15 +22,34 @@ export default function JiraTicketModal({
   const [searchResults, setSearchResults] = useState<JiraTicket[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user?.email) {
+          setUserEmail(user.email);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+      }
+    };
+    loadUser();
+  }, []);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
+    if (!userEmail) {
+      console.error('User email not available');
+      return;
+    }
 
     setSearching(true);
     try {
-      const response = await searchJiraTickets(searchQuery, projectKey);
+      const response = await searchJiraTickets(searchQuery, projectKey, userEmail);
       if (response.success && response.data) {
-        setSearchResults(response.data);
+        setSearchResults(response.data.issues);
       }
     } catch (error) {
       console.error('Error searching JIRA tickets:', error);

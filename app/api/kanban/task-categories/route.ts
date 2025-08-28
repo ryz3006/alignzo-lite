@@ -227,14 +227,14 @@ export async function POST(request: NextRequest) {
       
       await createTaskTimeline(
         taskId,
-        userEmail || 'system',
         'categories_updated',
-        {
+        JSON.stringify({
           categories: categoryNames,
           count: newCategories.length,
           previous_count: currentCategories.length,
           category_details: categoryDetails
-        }
+        }),
+        userEmail || 'system'
       );
     } catch (timelineError) {
       console.warn('Failed to create timeline entry for category changes:', timelineError);
@@ -294,11 +294,11 @@ export async function DELETE(request: NextRequest) {
       
       await createTaskTimeline(
         taskId,
-        userEmail || 'system',
         'categories_removed',
-        {
+        JSON.stringify({
           action: 'All categories removed from task'
-        }
+        }),
+        userEmail || 'system'
       );
     } catch (timelineError) {
       console.warn('Failed to create timeline entry for category removal:', timelineError);

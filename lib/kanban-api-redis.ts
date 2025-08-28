@@ -2,7 +2,22 @@
 // REDIS-ENHANCED KANBAN BOARD API
 // =====================================================
 
-import { supabaseClient } from './supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+// Create direct Supabase client like the project-options API
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ CRITICAL: Supabase environment variables not configured!');
+  console.error('   SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  console.error('   SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+}
+
+const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 import { 
   setCacheData, 
   getCacheData, 
@@ -94,31 +109,33 @@ async function getKanbanBoardFromDatabase(
       columnFilters.team_id = teamId;
     }
 
-    const columnsResponse = await supabaseClient.get('kanban_columns', {
-      select: '*',
-      filters: columnFilters,
-      order: {
-        column: 'sort_order',
-        ascending: true
-      }
-    });
+    let columnsQuery = supabase
+      .from('kanban_columns')
+      .select('*')
+      .eq('project_id', columnFilters.project_id)
+      .eq('is_active', true);
+    
+    if (columnFilters.team_id) {
+      columnsQuery = columnsQuery.eq('team_id', columnFilters.team_id);
+    }
+    
+    let { data: columns, error: columnsError } = await columnsQuery.order('sort_order', { ascending: true });
 
-    if (columnsResponse.error) throw new Error(columnsResponse.error);
+    if (columnsError) throw new Error(columnsError.message);
 
     // Create default columns if none exist
-    if (teamId && (!columnsResponse.data || columnsResponse.data.length === 0)) {
+    if (teamId && (!columns || columns.length === 0)) {
       await createDefaultColumns(projectId, teamId);
       // Re-fetch columns after creation
-      const newColumnsResponse = await supabaseClient.get('kanban_columns', {
-        select: '*',
-        filters: columnFilters,
-        order: {
-          column: 'sort_order',
-          ascending: true
-        }
-      });
-      if (!newColumnsResponse.error) {
-        columnsResponse.data = newColumnsResponse.data;
+      const { data: newColumns, error: newColumnsError } = await supabase
+        .from('kanban_columns')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      
+      if (!newColumnsError && newColumns) {
+        columns = newColumns;
       }
     }
 
@@ -132,21 +149,19 @@ async function getKanbanBoardFromDatabase(
       taskFilters.scope = 'project';
     }
 
-    const tasksResponse = await supabaseClient.get('kanban_tasks', {
-      select: '*',
-      filters: taskFilters,
-      order: {
-        column: 'sort_order',
-        ascending: true
-      }
-    });
+    const { data: tasks, error: tasksError } = await supabase
+      .from('kanban_tasks')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'active')
+      .order('sort_order', { ascending: true });
 
-    if (tasksResponse.error) throw new Error(tasksResponse.error);
+    if (tasksError) throw new Error(tasksError.message);
 
     // Group tasks by column
-    const columnsWithTasks: KanbanColumnWithTasks[] = (columnsResponse.data || []).map((column: KanbanColumn) => ({
+    const columnsWithTasks: KanbanColumnWithTasks[] = (columns || []).map((column: KanbanColumn) => ({
       ...column,
-      tasks: (tasksResponse.data || []).filter((task: KanbanTask) => task.column_id === column.id) || []
+      tasks: (tasks || []).filter((task: KanbanTask) => task.column_id === column.id) || []
     }));
 
          return {
@@ -173,14 +188,16 @@ async function createDefaultColumns(projectId: string, teamId: string): Promise<
       { name: 'Done', description: 'Completed tasks', color: '#10B981', sort_order: 4 }
     ];
 
-    for (const columnData of defaultColumns) {
-      await supabaseClient.insert('kanban_columns', {
-        project_id: projectId,
-        team_id: teamId,
-        ...columnData,
-        is_active: true
-      });
-    }
+         for (const columnData of defaultColumns) {
+       await supabase
+         .from('kanban_columns')
+         .insert({
+           project_id: projectId,
+           team_id: teamId,
+           ...columnData,
+           is_active: true
+         });
+     }
 
          // Default columns created
    } catch (error) {
@@ -462,29 +479,35 @@ async function invalidateKanbanCaches(projectId: string, teamId?: string): Promi
 // HELPER FUNCTIONS FOR TIMELINE
 // =====================================================
 
-async function getCategoryName(categoryId: string): Promise<string> {
-  try {
-    const response = await supabaseClient.get('project_categories', {
-      select: 'name',
-      filters: { id: categoryId }
-    });
-    return response.data?.[0]?.name || categoryId;
-  } catch (error) {
-    return categoryId;
-  }
-}
+ async function getCategoryName(categoryId: string): Promise<string> {
+   try {
+     const { data, error } = await supabase
+       .from('project_categories')
+       .select('name')
+       .eq('id', categoryId)
+       .single();
+     
+     if (error) throw error;
+     return data?.name || categoryId;
+   } catch (error) {
+     return categoryId;
+   }
+ }
 
-async function getCategoryOptionName(optionId: string): Promise<string> {
-  try {
-    const response = await supabaseClient.get('category_options', {
-      select: 'option_name',
-      filters: { id: optionId }
-    });
-    return response.data?.[0]?.option_name || optionId;
-  } catch (error) {
-    return optionId;
-  }
-}
+ async function getCategoryOptionName(optionId: string): Promise<string> {
+   try {
+     const { data, error } = await supabase
+       .from('category_options')
+       .select('option_name')
+       .eq('id', optionId)
+       .single();
+     
+     if (error) throw error;
+     return data?.option_name || optionId;
+   } catch (error) {
+     return optionId;
+   }
+ }
 
 // =====================================================
 // DATABASE FALLBACK FUNCTIONS
@@ -518,31 +541,36 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
       throw new Error('Project ID is required and must be a valid UUID');
     }
 
-    // Creating task with data
-    const response = await supabaseClient.insert('kanban_tasks', taskDataWithoutExtraFields);
-    if (response.error) throw new Error(response.error);
+         // Creating task with data
+     const { data: insertData, error: insertError } = await supabase
+       .from('kanban_tasks')
+       .insert(taskDataWithoutExtraFields)
+       .select()
+       .single();
+     
+     if (insertError) throw new Error(insertError.message);
 
-    // If the insert was successful but no data returned, try to fetch the created task
-    let createdTask: KanbanTask | null = null;
-    
-    if (response.data && response.data[0]) {
-      createdTask = response.data[0];
-    } else {
-      // Try to fetch the most recently created task by this user
-      const fetchResponse = await supabaseClient.get('kanban_tasks', {
-        filters: {
-          created_by: taskData.created_by,
-          title: taskData.title,
-          project_id: taskData.project_id
-        },
-        order: { column: 'created_at', ascending: false },
-        limit: 1
-      });
-      
-      if (fetchResponse.data && fetchResponse.data.length > 0) {
-        createdTask = fetchResponse.data[0];
-      }
-    }
+     // If the insert was successful but no data returned, try to fetch the created task
+     let createdTask: KanbanTask | null = null;
+     
+     if (insertData) {
+       createdTask = insertData;
+     } else {
+       // Try to fetch the most recently created task by this user
+       const { data: fetchData, error: fetchError } = await supabase
+         .from('kanban_tasks')
+         .select('*')
+         .eq('created_by', taskData.created_by)
+         .eq('title', taskData.title)
+         .eq('project_id', taskData.project_id)
+         .order('created_at', { ascending: false })
+         .limit(1)
+         .single();
+       
+       if (!fetchError && fetchData) {
+         createdTask = fetchData;
+       }
+     }
 
     // Handle multiple categories if provided
     if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
@@ -550,7 +578,7 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
         // Call the database function directly to save the categories
         const categoriesJson = JSON.stringify(categories);
         
-        const { data: rpcData, error: categoriesError } = await supabaseClient.rpc('update_task_categories', {
+        const { data: rpcData, error: categoriesError } = await supabase.rpc('update_task_categories', {
           p_task_id: createdTask.id,
           p_categories: categoriesJson,
           p_user_email: userEmail || taskData.created_by || 'system'
@@ -579,9 +607,9 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
         const { createTaskTimeline } = await import('./kanban-api');
         await createTaskTimeline(
           createdTask.id,
-          userEmail || taskData.created_by || 'system',
           'created',
-          timelineDetails
+          JSON.stringify(timelineDetails),
+          userEmail || taskData.created_by || 'system'
         );
                  // Timeline entry created
        } catch (error) {
@@ -610,13 +638,15 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
     // Updating task with data
     
     // Get the current task to compare changes
-    const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
-      filters: { id: taskId }
-    });
+    const { data: currentTaskData, error: currentTaskError } = await supabase
+      .from('kanban_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
 
-    if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+    if (currentTaskError) throw new Error(currentTaskError.message);
     
-    const currentTask = currentTaskResponse.data?.[0];
+    const currentTask = currentTaskData;
     if (!currentTask) throw new Error('Task not found');
 
     // Clean the updates object to handle empty strings for date fields
@@ -625,10 +655,16 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       cleanedUpdates.due_date = null;
     }
 
-    const response = await supabaseClient.update('kanban_tasks', taskId, cleanedUpdates);
-    if (response.error) throw new Error(response.error);
+    const { data: updatedTaskData, error: updateError } = await supabase
+      .from('kanban_tasks')
+      .update(cleanedUpdates)
+      .eq('id', taskId)
+      .select()
+      .single();
+    
+    if (updateError) throw new Error(updateError.message);
 
-    const updatedTask = response.data;
+    const updatedTask = updatedTaskData;
 
     // Create timeline entries for each change
     try {
@@ -639,26 +675,26 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       if (updates.title !== undefined && updates.title !== currentTask.title) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'updated',
-          {
+          JSON.stringify({
             field: 'title',
             old_value: currentTask.title,
             new_value: updates.title
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
       if (updates.description !== undefined && updates.description !== currentTask.description) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'updated',
-          {
+          JSON.stringify({
             field: 'description',
             old_value: currentTask.description,
             new_value: updates.description
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -666,12 +702,12 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       if (updates.priority !== undefined && updates.priority !== currentTask.priority) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'priority_changed',
-          {
+          JSON.stringify({
             from_priority: currentTask.priority,
             to_priority: updates.priority
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -679,12 +715,12 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       if (updates.status !== undefined && updates.status !== currentTask.status) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'status_changed',
-          {
+          JSON.stringify({
             from_status: currentTask.status,
             to_status: updates.status
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -692,12 +728,12 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       if (updates.assigned_to !== undefined && updates.assigned_to !== currentTask.assigned_to) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'assigned',
-          {
+          JSON.stringify({
             from_user: currentTask.assigned_to,
             to_user: updates.assigned_to
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -705,37 +741,41 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
       if (updates.jira_ticket_key !== undefined && updates.jira_ticket_key !== currentTask.jira_ticket_key) {
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'linked_jira',
-          {
+          JSON.stringify({
             ticket_key: updates.jira_ticket_key
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
       // Column movement
       if (updates.column_id !== undefined && updates.column_id !== currentTask.column_id) {
         // Get column names for better timeline display
-        const fromColumnResponse = await supabaseClient.get('kanban_columns', {
-          filters: { id: currentTask.column_id }
-        });
-        const toColumnResponse = await supabaseClient.get('kanban_columns', {
-          filters: { id: updates.column_id }
-        });
+        const { data: fromColumnData } = await supabase
+          .from('kanban_columns')
+          .select('name')
+          .eq('id', currentTask.column_id)
+          .single();
+        const { data: toColumnData } = await supabase
+          .from('kanban_columns')
+          .select('name')
+          .eq('id', updates.column_id)
+          .single();
         
-        const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
-        const toColumnName = toColumnResponse.data?.[0]?.name || updates.column_id;
+        const fromColumnName = fromColumnData?.name || currentTask.column_id;
+        const toColumnName = toColumnData?.name || updates.column_id;
         
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'moved',
-          {
+          JSON.stringify({
             from_column: fromColumnName,
             to_column: toColumnName,
             from_column_id: currentTask.column_id,
             to_column_id: updates.column_id
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -747,14 +787,14 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
         
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'category_changed',
-          {
+          JSON.stringify({
             from_category: fromCategoryName,
             to_category: toCategoryName,
             from_category_id: currentTask.category_id,
             to_category_id: updates.category_id
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -766,14 +806,14 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
         
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'category_option_changed',
-          {
+          JSON.stringify({
             from_option: fromOptionName,
             to_option: toOptionName,
             from_option_id: currentTask.category_option_id,
             to_option_id: updates.category_option_id
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -796,14 +836,14 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
         
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'due_date_changed',
-          {
+          JSON.stringify({
             from_date: formatDate(currentTask.due_date),
             to_date: formatDate(updates.due_date),
             old_value: currentTask.due_date,
             new_value: updates.due_date
-          }
+          }),
+          userEmail || 'system'
         );
       }
 
@@ -826,13 +866,14 @@ async function updateKanbanTaskInDatabase(taskId: string, updates: UpdateTaskFor
 async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string): Promise<ApiResponse<boolean>> {
   try {
     // Get the task details before deletion for timeline
-    const taskResponse = await supabaseClient.get('kanban_tasks', {
-      filters: { id: taskId }
-    });
+    const { data: taskToDelete, error: taskError } = await supabase
+      .from('kanban_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
 
-    if (taskResponse.error) throw new Error(taskResponse.error);
+    if (taskError) throw new Error(taskError.message);
     
-    const taskToDelete = taskResponse.data?.[0];
     if (!taskToDelete) throw new Error('Task not found');
 
     // Create timeline entry for task deletion
@@ -841,22 +882,26 @@ async function deleteKanbanTaskFromDatabase(taskId: string, userEmail?: string):
       const { createTaskTimeline } = await import('./kanban-api');
               await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'deleted',
-          {
+          JSON.stringify({
             title: taskToDelete.title,
             description: taskToDelete.description,
             priority: taskToDelete.priority,
             column_id: taskToDelete.column_id
-          }
+          }),
+          userEmail || 'system'
         );
-               // Timeline entry created
-       } catch (error) {
-         // Don't fail the task deletion if timeline creation fails
-       }
+                // Timeline entry created
+        } catch (error) {
+          // Don't fail the task deletion if timeline creation fails
+        }
 
-    const response = await supabaseClient.delete('kanban_tasks', taskId);
-    if (response.error) throw new Error(response.error);
+    const { error: deleteError } = await supabase
+      .from('kanban_tasks')
+      .delete()
+      .eq('id', taskId);
+    
+    if (deleteError) throw new Error(deleteError.message);
     return { data: true, success: true };
   } catch (error) {
     console.error('🔴 Database: Error deleting task:', error);
@@ -873,7 +918,7 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
     console.log(`🔄 Moving task ${taskId} to column ${newColumnId} with sort order ${newSortOrder}`);
     
     // Use a transaction to ensure data consistency
-    const { data: transactionResult, error: transactionError } = await supabaseClient.rpc('move_kanban_task_safe', {
+    const { data: transactionResult, error: transactionError } = await supabase.rpc('move_kanban_task_safe', {
       p_task_id: taskId,
       p_new_column_id: newColumnId,
       p_new_sort_order: newSortOrder,
@@ -882,7 +927,7 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
     
     if (transactionError) {
       console.error('❌ Transaction error:', transactionError);
-      throw new Error(transactionError);
+      throw new Error(transactionError.message || 'Transaction failed');
     }
     
     if (transactionResult && transactionResult.success) {
@@ -900,22 +945,26 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
       console.log(`🔄 Attempting fallback direct update for task ${taskId}`);
       
       // Get the current task to compare changes
-      const currentTaskResponse = await supabaseClient.get('kanban_tasks', {
-        filters: { id: taskId }
-      });
+      const { data: currentTask, error: currentTaskError } = await supabase
+        .from('kanban_tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
 
-      if (currentTaskResponse.error) throw new Error(currentTaskResponse.error);
+      if (currentTaskError) throw new Error(currentTaskError.message);
       
-      const currentTask = currentTaskResponse.data?.[0];
       if (!currentTask) throw new Error('Task not found');
 
-      const response = await supabaseClient.update('kanban_tasks', taskId, {
-        column_id: newColumnId,
-        sort_order: newSortOrder
-      });
+      const { error: updateError } = await supabase
+        .from('kanban_tasks')
+        .update({
+          column_id: newColumnId,
+          sort_order: newSortOrder
+        })
+        .eq('id', taskId);
       
-      if (response.error) {
-        throw new Error(response.error);
+      if (updateError) {
+        throw new Error(updateError.message);
       }
 
       console.log(`✅ Fallback update successful for task ${taskId}`);
@@ -925,27 +974,31 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
         const { createTaskTimeline } = await import('./kanban-api');
         
         // Get column names for better timeline display
-        const fromColumnResponse = await supabaseClient.get('kanban_columns', {
-          filters: { id: currentTask.column_id }
-        });
-        const toColumnResponse = await supabaseClient.get('kanban_columns', {
-          filters: { id: newColumnId }
-        });
+        const { data: fromColumnData } = await supabase
+          .from('kanban_columns')
+          .select('name')
+          .eq('id', currentTask.column_id)
+          .single();
+        const { data: toColumnData } = await supabase
+          .from('kanban_columns')
+          .select('name')
+          .eq('id', newColumnId)
+          .single();
         
-        const fromColumnName = fromColumnResponse.data?.[0]?.name || currentTask.column_id;
-        const toColumnName = toColumnResponse.data?.[0]?.name || newColumnId;
+        const fromColumnName = fromColumnData?.name || currentTask.column_id;
+        const toColumnName = toColumnData?.name || newColumnId;
         
         await createTaskTimeline(
           taskId,
-          userEmail || 'system',
           'moved',
-          {
+          JSON.stringify({
             from_column: fromColumnName,
             to_column: toColumnName,
             from_column_id: currentTask.column_id,
             to_column_id: newColumnId,
             sort_order: newSortOrder
-          }
+          }),
+          userEmail || 'system'
         );
         console.log(`✅ Timeline entry created for task ${taskId} move`);
       } catch (timelineError) {
@@ -967,13 +1020,18 @@ async function moveTaskInDatabase(taskId: string, newColumnId: string, newSortOr
 
 async function createKanbanColumnInDatabase(columnData: CreateColumnForm, projectId: string, teamId?: string): Promise<ApiResponse<KanbanColumn>> {
   try {
-    const response = await supabaseClient.insert('kanban_columns', {
-      project_id: projectId,
-      team_id: teamId,
-      ...columnData
-    });
-    if (response.error) throw new Error(response.error);
-    return { data: response.data, success: true };
+    const { data, error } = await supabase
+      .from('kanban_columns')
+      .insert({
+        project_id: projectId,
+        team_id: teamId,
+        ...columnData
+      })
+      .select()
+      .single();
+    
+    if (error) throw new Error(error.message);
+    return { data: data, success: true };
   } catch (error) {
     return {
       data: {} as KanbanColumn,
@@ -985,9 +1043,15 @@ async function createKanbanColumnInDatabase(columnData: CreateColumnForm, projec
 
 async function updateKanbanColumnInDatabase(columnId: string, updates: Partial<CreateColumnForm>): Promise<ApiResponse<KanbanColumn>> {
   try {
-    const response = await supabaseClient.update('kanban_columns', columnId, updates);
-    if (response.error) throw new Error(response.error);
-    return { data: response.data, success: true };
+    const { data, error } = await supabase
+      .from('kanban_columns')
+      .update(updates)
+      .eq('id', columnId)
+      .select()
+      .single();
+    
+    if (error) throw new Error(error.message);
+    return { data: data, success: true };
   } catch (error) {
     return {
       data: {} as KanbanColumn,
@@ -999,8 +1063,12 @@ async function updateKanbanColumnInDatabase(columnId: string, updates: Partial<C
 
 async function deleteKanbanColumnFromDatabase(columnId: string): Promise<ApiResponse<boolean>> {
   try {
-    const response = await supabaseClient.delete('kanban_columns', columnId);
-    if (response.error) throw new Error(response.error);
+    const { error } = await supabase
+      .from('kanban_columns')
+      .delete()
+      .eq('id', columnId);
+    
+    if (error) throw new Error(error.message);
     return { data: true, success: true };
   } catch (error) {
     return {
@@ -1013,25 +1081,66 @@ async function deleteKanbanColumnFromDatabase(columnId: string): Promise<ApiResp
 
 async function getProjectCategoriesFromDatabase(projectId: string): Promise<ApiResponse<ProjectCategory[]>> {
   try {
-    const response = await supabaseClient.get('project_categories', {
-      select: '*',
-      filters: {
-        project_id: projectId,
-        is_active: true
-      },
-      order: {
-        column: 'sort_order',
-        ascending: true
-      }
-    });
+    // Use the direct Supabase client that's already imported at the top
+    console.log(`🔍 Fetching categories for project: ${projectId}`);
+    
+    // First, get categories
+    const { data: categories, error: categoriesError } = await supabase
+      .from('project_categories')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('is_active', true)
+      .order('sort_order');
 
-    if (response.error) throw new Error(response.error);
+    if (categoriesError) {
+      console.error('❌ Error fetching categories:', categoriesError);
+      throw new Error(categoriesError.message);
+    }
 
+    const categoriesData = categories || [];
+    console.log(`✅ Found ${categoriesData.length} categories`);
+    
+    // If no categories found, return empty array
+    if (categoriesData.length === 0) {
+      console.log('⚠️ No categories found for project');
+      return {
+        data: [],
+        success: true
+      };
+    }
+
+    // Get options for all categories
+    const categoryIds = categoriesData.map((cat: any) => cat.id);
+    console.log(`🔍 Fetching options for ${categoryIds.length} categories`);
+    
+    // Use the 'in' filter like the project-options API does
+    const { data: options, error: optionsError } = await supabase
+      .from('category_options')
+      .select('*')
+      .in('category_id', categoryIds)
+      .eq('is_active', true)
+      .order('sort_order');
+
+    if (optionsError) {
+      console.error('❌ Error fetching options:', optionsError);
+    }
+
+    const optionsData = options || [];
+    console.log(`✅ Found ${optionsData.length} options`);
+
+    // Attach options to categories
+    const categoriesWithOptions = categoriesData.map((category: any) => ({
+      ...category,
+      options: optionsData.filter((option: any) => option.category_id === category.id)
+    }));
+
+    console.log(`✅ Returning ${categoriesWithOptions.length} categories with options`);
     return {
-      data: response.data || [],
+      data: categoriesWithOptions,
       success: true
     };
   } catch (error) {
+    console.error('❌ Error in getProjectCategoriesFromDatabase:', error);
     return {
       data: [],
       success: false,
