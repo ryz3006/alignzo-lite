@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabase-client';
 import { Project, ProjectCategory } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials } from '@/lib/jira';
+import { getProjectCategoriesWithCache } from '@/lib/kanban-api-enhanced-client';
 import { X, Save, Search, Plus, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -213,40 +214,9 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
 
   const loadProjectCategories = async (projectId: string) => {
     try {
-      // Use the new API endpoint to get categories with options
-      const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Transform the data to match the expected format
-        const categoriesWithOptions = data.categories.map((cat: any) => ({
-          id: cat.id,
-          name: cat.name,
-          description: cat.description,
-          project_id: projectId,
-          sort_order: cat.sort_order || 0,
-          is_active: cat.is_active !== false,
-          color: cat.color,
-          options: (cat.options || []).map((opt: any) => ({
-            id: opt.id,
-            category_id: cat.id,
-            option_name: opt.option_name,
-            option_value: opt.option_value,
-            sort_order: opt.sort_order || 0,
-            is_active: opt.is_active !== false
-          }))
-        }));
-        setProjectCategories(categoriesWithOptions);
-      } else {
-        // Fallback to the old method
-        const response = await supabaseClient.get('project_categories', {
-          select: '*',
-          filters: { project_id: projectId }
-        });
-
-        if (response.error) throw new Error(response.error);
-        setProjectCategories(response.data || []);
-      }
+      // Use enhanced cached API for project categories
+      const categories = await getProjectCategoriesWithCache(projectId);
+      setProjectCategories(categories);
     } catch (error) {
       console.error('Error loading project categories:', error);
       toast.error('Failed to load project categories');

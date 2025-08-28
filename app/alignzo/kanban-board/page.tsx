@@ -48,6 +48,14 @@ import {
   deleteKanbanColumnWithRedis,
   getProjectCategoriesWithRedis
 } from '@/lib/kanban-client-api';
+// Add enhanced cached APIs for Phase 2 (client-safe version)
+import { 
+  getKanbanBoardWithCache,
+  getKanbanColumnsWithCache,
+  getUserProjectsWithCache,
+  invalidateKanbanCache
+} from '@/lib/kanban-api-enhanced-client';
+import CacheStatus from '@/components/CacheStatus';
 import {
   KanbanColumnWithTasks,
   KanbanTaskWithDetails,
@@ -143,11 +151,11 @@ export default function KanbanBoardPage() {
         setUser(currentUser);
       }
       
-      // Get user's accessible projects
-      const projectsResponse = await getUserAccessibleProjects(currentUser.email!);
-      if (projectsResponse.success && projectsResponse.data && projectsResponse.data.length > 0) {
-        setProjects(projectsResponse.data);
-        setSelectedProject(projectsResponse.data[0] as ProjectWithCategories);
+      // Get user's accessible projects with cache for Phase 2
+      const projectsResponse = await getUserProjectsWithCache(currentUser.email!);
+      if (projectsResponse && projectsResponse.length > 0) {
+        setProjects(projectsResponse);
+        setSelectedProject(projectsResponse[0] as ProjectWithCategories);
       }
       
       // Load user's teams
@@ -211,18 +219,18 @@ export default function KanbanBoardPage() {
          setLoading(true);
          setIsRefreshing(true);
          
-         // Use Redis-enhanced API with fallback
-         const response = await getKanbanBoardWithRedis(selectedProject.id, selectedTeam);
+         // Use enhanced cached API for Phase 2
+         const response = await getKanbanBoardWithCache(selectedProject.id, selectedTeam);
          
-         if (response.success && response.data) {
-           setKanbanBoard(response.data);
+         if (response && response.length > 0) {
+           setKanbanBoard(response);
            setCategories([]); // Categories will be loaded separately if needed
            
            // Update selectedProject with the fetched data
            setSelectedProject({
              ...selectedProject,
              categories: [],
-             columns: response.data
+             columns: response
            });
            
            setBoardLoaded(true);
@@ -329,6 +337,8 @@ export default function KanbanBoardPage() {
       if (response.success) {
         // Clear optimistic state since the server confirmed the move
         setOptimisticBoard([]);
+        // Invalidate cache for Phase 2
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
         // Show success toast
         setToast({ type: 'success', message: 'Task moved successfully!' });
         console.log(`✅ Task ${taskId} moved successfully`);
@@ -364,6 +374,8 @@ export default function KanbanBoardPage() {
       
       if (response.success) {
         setShowCreateTaskModal(false);
+        // Invalidate cache for Phase 2
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
         loadKanbanBoard(true); // Force refresh to show new task
         setToast({ type: 'success', message: 'Task created successfully!' });
       } else {
@@ -389,6 +401,8 @@ export default function KanbanBoardPage() {
        if (response.success) {
          setShowEditTaskModal(false);
          setEditingTask(null);
+         // Invalidate cache for Phase 2
+         await invalidateKanbanCache(selectedProject.id, selectedTeam);
          loadKanbanBoard(true); // Force refresh to show updated task
        } else {
          // Handle error silently
@@ -415,6 +429,8 @@ export default function KanbanBoardPage() {
        if (response.success) {
          setShowEditColumnModal(false);
          setEditingColumn(null);
+         // Invalidate cache for Phase 2
+         await invalidateKanbanCache(selectedProject.id, selectedTeam);
          loadKanbanBoard(true); // Force refresh to get updated column order
        } else {
          // Handle error silently
@@ -438,6 +454,8 @@ export default function KanbanBoardPage() {
        if (response.success) {
          setShowDeleteConfirmModal(false);
          setColumnToDelete('');
+         // Invalidate cache for Phase 2
+         await invalidateKanbanCache(selectedProject.id, selectedTeam);
          loadKanbanBoard(true); // Force refresh to get updated column order
        } else {
          // Handle error silently
@@ -456,6 +474,8 @@ export default function KanbanBoardPage() {
        if (response.success) {
          setShowDeleteConfirmModal(false);
          setTaskToDelete('');
+         // Invalidate cache for Phase 2
+         await invalidateKanbanCache(selectedProject.id, selectedTeam);
          loadKanbanBoard(true); // Force refresh to show task removed
          setToast({ type: 'success', message: 'Task deleted successfully!' });
        } else {
@@ -476,6 +496,8 @@ export default function KanbanBoardPage() {
        
        if (response.success) {
          setShowCreateColumnModal(false);
+         // Invalidate cache for Phase 2
+         await invalidateKanbanCache(selectedProject.id, selectedTeam);
          loadKanbanBoard(true); // Force refresh to get updated column order
        } else {
          // Handle error silently
@@ -561,7 +583,10 @@ export default function KanbanBoardPage() {
                   </p>
                 </div>
                 
-                
+                {/* Cache Status for Phase 2 */}
+                <div className="flex items-center space-x-4">
+                  <CacheStatus />
+                </div>
               </div>
             </div>
 

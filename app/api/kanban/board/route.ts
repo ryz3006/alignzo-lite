@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 import { getKanbanBoardWithRedis, moveTaskWithRedis, createKanbanTaskWithRedis } from '@/lib/kanban-api-redis';
+import { getKanbanBoardWithCache } from '@/lib/kanban-api-enhanced';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,9 +18,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await getKanbanBoardWithRedis(projectId, teamId || undefined);
+    // Use enhanced cached version for Phase 2
+    const result = await getKanbanBoardWithCache(projectId, teamId || '');
     
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'cache-enhanced'
+    });
   } catch (error) {
     console.error('Error fetching Kanban board:', error);
     return NextResponse.json(
