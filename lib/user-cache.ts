@@ -34,6 +34,20 @@ export interface UserDashboardData {
   teams: UserTeamData[];
   shifts: UserShiftData[];
   projects: UserProjectData[];
+  userShift?: {
+    todayShift: string;
+    tomorrowShift: string;
+    todayShiftName: string;
+    tomorrowShiftName: string;
+    todayShiftColor: string;
+    tomorrowShiftColor: string;
+    todayShiftTime?: string;
+    tomorrowShiftTime?: string;
+    todayShiftIcon: any;
+    tomorrowShiftIcon: any;
+    projectId?: string;
+    teamId?: string;
+  };
   stats: {
     todayHours: number;
     weekHours: number;

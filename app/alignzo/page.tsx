@@ -194,13 +194,11 @@ export default function UserDashboardPage() {
         setGreetingLoaded(true);
       }
 
-      // Set shift loading state
-      setIsLoadingShifts(true);
 
-      // Load rest of the data in parallel
-      const [workLogsResult, shiftsResult, teamsResult] = await Promise.allSettled([
+
+      // Load rest of the data in parallel (only if cache miss)
+      const [workLogsResult, teamsResult] = await Promise.allSettled([
         loadWorkLogs(),
-        loadShiftInformation(),
         loadTeamAvailability()
       ]);
 
@@ -214,28 +212,6 @@ export default function UserDashboardPage() {
         newData.recentWorkLogs = recentWorkLogs;
       }
       
-      if (shiftsResult.status === 'fulfilled') {
-        console.log('✅ Shift result fulfilled:', shiftsResult.value);
-        newData.userShift = shiftsResult.value;
-      } else if (shiftsResult.status === 'rejected') {
-        console.error('❌ Failed to load shift information:', shiftsResult.reason);
-        // Set default shift only if loading fails due to error
-        newData.userShift = {
-          todayShift: 'G',
-          tomorrowShift: 'G',
-          todayShiftName: 'General',
-          tomorrowShiftName: 'General',
-          todayShiftColor: 'text-green-600',
-          tomorrowShiftColor: 'text-green-600',
-          todayShiftTime: undefined,
-          tomorrowShiftTime: undefined,
-          todayShiftIcon: Sun,
-          tomorrowShiftIcon: Sun,
-          projectId: undefined,
-          teamId: undefined
-        };
-      }
-      
       if (teamsResult.status === 'fulfilled') {
         newData.teamAvailability = teamsResult.value;
       }
@@ -246,7 +222,6 @@ export default function UserDashboardPage() {
       toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
-      setIsLoadingShifts(false);
     }
   }, []);
 

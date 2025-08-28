@@ -231,11 +231,15 @@ export async function getDashboardDataWithCache(userEmail: string): Promise<User
     // Load team availability data
     const teamAvailability = await loadTeamAvailabilityData();
 
+    // Process shifts into userShift format for dashboard display
+    const userShift = processShiftsForDashboard(shifts, userEmail);
+
     const dashboardData: UserDashboardData = {
       user,
       teams,
       shifts,
       projects,
+      userShift,
       stats: workLogsData.stats,
       projectHours: workLogsData.projectHours,
       recentWorkLogs: workLogsData.recentWorkLogs,
@@ -251,6 +255,55 @@ export async function getDashboardDataWithCache(userEmail: string): Promise<User
     console.error('Error in cached dashboard data fetch:', error);
     return null;
   }
+}
+
+// Helper function to process shifts for dashboard display
+function processShiftsForDashboard(shifts: any[], userEmail: string) {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const todayStr = today.toISOString().split('T')[0];
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  const todayShift = shifts?.find((s: any) => s.shiftDate === todayStr);
+  const tomorrowShift = shifts?.find((s: any) => s.shiftDate === tomorrowStr);
+  
+  // Use fallback shift types if no shifts found
+  const todayShiftType = todayShift?.shiftType || 'G';
+  const tomorrowShiftType = tomorrowShift?.shiftType || 'G';
+  
+  // Get shift display info (simplified version)
+  const getShiftDisplay = (shiftType: string) => {
+    // Default shift mappings
+    const shiftMappings: { [key: string]: any } = {
+      'G': { name: 'General', color: 'text-green-600', icon: 'Sun' },
+      'N': { name: 'Night', color: 'text-blue-600', icon: 'Moon' },
+      'E': { name: 'Evening', color: 'text-orange-600', icon: 'Sun' },
+      'H': { name: 'Holiday', color: 'text-red-600', icon: 'Sun' },
+      'M': { name: 'Morning', color: 'text-yellow-600', icon: 'Sun' }
+    };
+    
+    return shiftMappings[shiftType] || shiftMappings['G'];
+  };
+
+  const todayShiftInfo = getShiftDisplay(todayShiftType);
+  const tomorrowShiftInfo = getShiftDisplay(tomorrowShiftType);
+
+  return {
+    todayShift: todayShiftType,
+    tomorrowShift: tomorrowShiftType,
+    todayShiftName: todayShiftInfo.name,
+    tomorrowShiftName: tomorrowShiftInfo.name,
+    todayShiftColor: todayShiftInfo.color,
+    tomorrowShiftColor: tomorrowShiftInfo.color,
+    todayShiftTime: undefined,
+    tomorrowShiftTime: undefined,
+    todayShiftIcon: todayShiftInfo.icon,
+    tomorrowShiftIcon: tomorrowShiftInfo.icon,
+    projectId: todayShift?.projectId,
+    teamId: todayShift?.teamId
+  };
 }
 
 // Helper function to load work logs data
@@ -314,8 +367,8 @@ async function loadTeamAvailabilityData() {
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    // Fetch all teams with their members and today's shifts in parallel
-    const [teamsResponse, allTeamMembersResponse, allShiftsResponse] = await Promise.all([
+    // Fetch all teams with their members, today's shifts, and project assignments in parallel
+    const [teamsResponse, allTeamMembersResponse, allShiftsResponse, projectAssignmentsResponse] = await Promise.all([
       supabaseClient.getTeams(),
       supabaseClient.query({
         table: 'team_members',
@@ -324,16 +377,31 @@ async function loadTeamAvailabilityData() {
       }),
       supabaseClient.getShiftSchedules({
         filters: { shift_date: today }
+      }),
+      supabaseClient.query({
+        table: 'team_project_assignments',
+        action: 'select',
+        select: 'team_id,project_id,projects(name)'
       })
     ]);
 
-    if (teamsResponse.error || allTeamMembersResponse.error || allShiftsResponse.error) {
+    if (teamsResponse.error || allTeamMembersResponse.error || allShiftsResponse.error || projectAssignmentsResponse.error) {
       throw new Error('Failed to fetch team data');
     }
 
     const teams = teamsResponse.data || [];
     const allTeamMembers = allTeamMembersResponse.data || [];
     const allShifts = allShiftsResponse.data || [];
+    const projectAssignments = projectAssignmentsResponse.data || [];
+
+    // Create a map of team_id to project data for quick lookup
+    const teamProjectMap = new Map();
+    projectAssignments.forEach((assignment: any) => {
+      teamProjectMap.set(assignment.team_id, {
+        projectId: assignment.project_id,
+        projectName: assignment.projects?.name || 'Unknown Project'
+      });
+    });
 
     // Process teams efficiently
     const availability = [];
@@ -342,6 +410,7 @@ async function loadTeamAvailabilityData() {
       try {
         const teamMembers = allTeamMembers.filter((member: any) => member.team_id === team.id);
         const shifts = allShifts.filter((shift: any) => shift.team_id === team.id);
+        const projectData = teamProjectMap.get(team.id) || { projectId: '', projectName: 'Unknown Project' };
 
         // Group users by shift type
         const shiftGroups: { [key: string]: { users: string[], count: number } } = {};
@@ -360,13 +429,37 @@ async function loadTeamAvailabilityData() {
           shiftGroups[shiftType].count++;
         });
 
+        // Get custom shift enums for this team
+        let customEnums: any[] = [];
+        try {
+          const enumsResponse = await supabaseClient.query({
+            table: 'custom_shift_enums',
+            action: 'select',
+            select: 'shift_identifier, shift_name, start_time, end_time, is_default, color',
+            filters: { team_id: team.id }
+          });
+
+          if (!enumsResponse.error && enumsResponse.data) {
+            customEnums = enumsResponse.data.map((enum_: any) => ({
+              shiftIdentifier: enum_.shift_identifier,
+              shiftName: enum_.shift_name,
+              startTime: enum_.start_time,
+              endTime: enum_.end_time,
+              isDefault: enum_.is_default,
+              color: enum_.color
+            }));
+          }
+        } catch (enumError) {
+          console.error(`Error loading custom enums for team ${team.id}:`, enumError);
+        }
+
         availability.push({
           teamName: team.name,
-          projectName: 'Unknown Project', // Will be enhanced with project data
-          projectId: '',
+          projectName: projectData.projectName,
+          projectId: projectData.projectId,
           teamId: team.id,
           shifts: shiftGroups,
-          customEnums: []
+          customEnums
         });
       } catch (error) {
         console.error(`Error processing team ${team.id}:`, error);

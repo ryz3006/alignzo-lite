@@ -85,7 +85,18 @@ export async function getUserShiftsWithCache(date?: string): Promise<any[]> {
 
 export async function getUserProjectsWithCache(): Promise<any[]> {
   try {
-    const response = await fetch(`${API_BASE}/projects-with-cache`);
+    // Get current user email
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.email) {
+      console.error('No authenticated user found');
+      return [];
+    }
+
+    const response = await fetch(`${API_BASE}/projects-with-cache`, {
+      headers: {
+        'x-user-email': currentUser.email
+      }
+    });
     if (response.ok) {
       const result = await response.json();
       return result.success && result.data ? result.data : [];

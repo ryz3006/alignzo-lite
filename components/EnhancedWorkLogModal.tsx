@@ -6,6 +6,7 @@ import { Project, ProjectCategory } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getJiraCredentials } from '@/lib/jira';
 import { getProjectCategoriesWithCache } from '@/lib/kanban-api-enhanced-client';
+import { getUserProjectsWithCache } from '@/lib/user-api-client';
 import { X, Save, Search, Plus, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -161,51 +162,9 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
 
   const loadProjects = async () => {
     try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.email) return;
-
-      // Get user's team memberships
-      const teamResponse = await supabaseClient.get('team_members', {
-        select: 'team_id,users!inner(*)',
-        filters: { 'users.email': currentUser.email }
-      });
-
-      if (teamResponse.error) throw new Error(teamResponse.error);
-
-      // Get projects assigned to user's teams
-      const userTeamIds = teamResponse.data?.map((membership: any) => membership.team_id) || [];
-      
-      if (userTeamIds.length > 0) {
-        // Get projects assigned to user's teams
-        const assignedResponse = await supabaseClient.get('team_project_assignments', {
-          select: 'project_id,projects(*)',
-          filters: { team_id: userTeamIds }
-        });
-
-        if (assignedResponse.error) throw new Error(assignedResponse.error);
-
-        const projectIds = assignedResponse.data?.map((assignment: any) => assignment.project_id) || [];
-        
-        if (projectIds.length > 0) {
-          const response = await supabaseClient.get('projects', {
-            select: '*',
-            filters: { id: projectIds },
-            order: { column: 'name', ascending: true }
-          });
-          if (response.error) throw new Error(response.error);
-          setProjects(response.data || []);
-        } else {
-          setProjects([]);
-        }
-      } else {
-        // If user is not in any teams, show all projects (fallback)
-        const response = await supabaseClient.get('projects', {
-          select: '*',
-          order: { column: 'name', ascending: true }
-        });
-        if (response.error) throw new Error(response.error);
-        setProjects(response.data || []);
-      }
+      // Use enhanced cached API for user projects
+      const projects = await getUserProjectsWithCache();
+      setProjects(projects);
     } catch (error) {
       console.error('Error loading projects:', error);
       toast.error('Failed to load projects');
