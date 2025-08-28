@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { getCurrentUser, getUserIdFromEmail } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
 import { getDashboardDataWithCache } from '@/lib/user-api-client';
@@ -55,8 +55,6 @@ interface UserShift {
   tomorrowShiftColor: string;
   todayShiftTime?: string;
   tomorrowShiftTime?: string;
-  todayShiftIcon: any;
-  tomorrowShiftIcon: any;
   projectId?: string;
   teamId?: string;
 }
@@ -90,6 +88,18 @@ interface DashboardData {
   userShift: UserShift | null;
   teamAvailability: TeamAvailability[];
 }
+
+// Function to get shift icon component
+const getShiftIcon = (shiftType: string) => {
+  const iconMap: { [key: string]: any } = {
+    'G': Sun,
+    'N': Moon,
+    'E': Sun,
+    'H': Calendar,
+    'M': Clock
+  };
+  return iconMap[shiftType] || Sun;
+};
 
 // Dynamic shift type mapping function
 const getShiftTypeInfo = (shiftType: string, customEnums: any[] = []) => {
@@ -811,7 +821,7 @@ export default function UserDashboardPage() {
                     <div className="w-8 h-8 bg-white/20 rounded"></div>
                   </div>
                 ) : dashboardData.userShift ? (
-                  <dashboardData.userShift.todayShiftIcon className="h-8 w-8" />
+                  React.createElement(getShiftIcon(dashboardData.userShift.todayShift), { className: "h-8 w-8" })
                 ) : (
                   <Sun className="h-8 w-8" />
                 )}
@@ -865,7 +875,7 @@ export default function UserDashboardPage() {
                     <div className="w-8 h-8 bg-white/20 rounded"></div>
                   </div>
                 ) : dashboardData.userShift ? (
-                  <dashboardData.userShift.tomorrowShiftIcon className="h-8 w-8" />
+                  React.createElement(getShiftIcon(dashboardData.userShift.tomorrowShift), { className: "h-8 w-8" })
                 ) : (
                   <Sun className="h-8 w-8" />
                 )}

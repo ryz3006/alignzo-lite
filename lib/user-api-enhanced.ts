@@ -308,8 +308,6 @@ function processShiftsForDashboard(shifts: any[], userEmail: string) {
     tomorrowShiftColor: tomorrowShiftInfo.color,
     todayShiftTime: undefined,
     tomorrowShiftTime: undefined,
-    todayShiftIcon: todayShiftInfo.icon,
-    tomorrowShiftIcon: tomorrowShiftInfo.icon,
     projectId: todayShift?.projectId,
     teamId: todayShift?.teamId
   };
