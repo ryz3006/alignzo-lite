@@ -46,6 +46,9 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
 
   // Memoized task age calculation and styling
   const taskAgeInfo = useMemo(() => {
+    // Debug logging
+    console.log('TaskCard render - task:', task.id, 'created_at:', task.created_at);
+    
     const createdDate = new Date(task.created_at);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
@@ -77,6 +80,7 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
       ageColor = 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
     }
 
+    console.log('TaskCard age calculation - ageText:', ageText, 'ageColor:', ageColor);
     return { ageText, ageColor };
   }, [task.created_at]);
 
@@ -230,6 +234,8 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
             <span className={`text-xs px-2 py-1 rounded-full ${taskAgeInfo.ageColor}`}>
               {taskAgeInfo.ageText}
             </span>
+            {/* Debug: Show what's being rendered */}
+            <span className="text-xs text-red-500 ml-1">DEBUG: Age</span>
           </div>
 
           {/* Task Description */}
@@ -287,6 +293,8 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
               <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
                 {task.priority}
               </span>
+              {/* Debug: Show what's being rendered */}
+              <span className="text-xs text-red-500 ml-1">DEBUG: Priority</span>
               
               {/* Scope Badge */}
               <span className={`text-xs px-2 py-1 rounded-full ${scopeColor}`}>
