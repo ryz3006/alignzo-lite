@@ -257,6 +257,35 @@ export default function UserDashboardPage() {
     if (!currentUser?.email) {
       throw new Error('No user email found');
     }
+    
+    // Fetch user's complete profile from database including full_name
+    try {
+      const response = await supabaseClient.get('users', {
+        select: 'id, email, full_name, phone_number',
+        filters: { email: currentUser.email }
+      });
+
+      if (response.error) {
+        console.error('Error fetching user profile:', response.error);
+        // Return Firebase user data as fallback
+        return currentUser;
+      }
+
+      const userProfile = response.data?.[0];
+      if (userProfile) {
+        // Merge Firebase user data with database profile
+        return {
+          ...currentUser,
+          full_name: userProfile.full_name,
+          phone_number: userProfile.phone_number,
+          user_id: userProfile.id
+        } as any; // Use any to avoid type conflicts
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+    
+    // Return Firebase user data as fallback
     return currentUser;
   };
 

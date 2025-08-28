@@ -3,6 +3,17 @@ import { userCache, UserTeamData, UserShiftData, UserProjectData, UserDashboardD
 import { getCurrentUser } from './auth';
 import { Sun, Moon, Clock, Calendar } from 'lucide-react';
 
+// Extended user type that includes database fields
+interface ExtendedUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  full_name?: string;
+  phone_number?: string;
+  user_id?: string;
+}
+
 // Enhanced user teams API with caching
 export async function getUserTeamsWithCache(userEmail: string): Promise<UserTeamData[]> {
   try {
@@ -224,7 +235,7 @@ export async function getDashboardDataWithCache(userEmail: string): Promise<User
     console.log(`[Cache] Dashboard data miss for ${userEmail}, fetching from database`);
     
     const [
-      user,
+      firebaseUser,
       teams,
       shifts,
       projects,
@@ -236,6 +247,29 @@ export async function getDashboardDataWithCache(userEmail: string): Promise<User
       getUserProjectsWithCache(userEmail),
       loadWorkLogsData(userEmail)
     ]);
+
+    // Fetch user's complete profile from database including full_name
+    let user: ExtendedUser = firebaseUser as ExtendedUser;
+    try {
+      const userResponse = await supabaseClient.get('users', {
+        select: 'id, email, full_name, phone_number',
+        filters: { email: userEmail }
+      });
+
+      if (!userResponse.error && userResponse.data && userResponse.data.length > 0) {
+        const userProfile = userResponse.data[0];
+        // Merge Firebase user data with database profile
+        user = {
+          ...firebaseUser,
+          full_name: userProfile.full_name,
+          phone_number: userProfile.phone_number,
+          user_id: userProfile.id
+        } as ExtendedUser;
+      }
+    } catch (error) {
+      console.error('Error fetching user profile for dashboard:', error);
+      // Keep Firebase user data as fallback
+    }
 
     // Load team availability data
     const teamAvailability = await loadTeamAvailabilityData();
