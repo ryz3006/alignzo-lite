@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserProjectsWithCache } from '@/lib/kanban-api-enhanced';
+import { getUserAccessibleProjects } from '@/lib/kanban-api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,9 +13,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const projects = await getUserProjectsWithCache(userEmail);
+    const response = await getUserAccessibleProjects(userEmail);
     
-    return NextResponse.json(projects);
+    if (response.success) {
+      return NextResponse.json(response.data);
+    } else {
+      return NextResponse.json(
+        { error: response.error || 'Failed to fetch user projects' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error fetching user projects with cache:', error);
     return NextResponse.json(
