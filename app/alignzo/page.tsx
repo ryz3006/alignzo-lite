@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getCurrentUser, getUserIdFromEmail } from '@/lib/auth';
 import { supabaseClient } from '@/lib/supabase-client';
+import { getDashboardDataWithCache } from '@/lib/user-api-client';
 import { WorkLog, Project, Team, ShiftSchedule, ShiftType } from '@/lib/supabase';
 import { 
   Clock, 
@@ -170,6 +171,22 @@ export default function UserDashboardPage() {
     try {
       setIsLoading(true);
 
+      console.log('🔄 Loading dashboard data with cache...');
+      
+      // Try to load from cache first
+      const cachedData = await getDashboardDataWithCache();
+      
+      if (cachedData) {
+        console.log('✅ Dashboard data loaded from cache');
+        setDashboardData(cachedData);
+        setGreetingLoaded(true);
+        setIsLoading(false);
+        setIsLoadingShifts(false);
+        return;
+      }
+
+      console.log('🔄 Cache miss, loading from database...');
+
       // Load user first for quick greeting display
       const userResult = await loadUser();
       if (userResult) {
@@ -197,10 +214,10 @@ export default function UserDashboardPage() {
         newData.recentWorkLogs = recentWorkLogs;
       }
       
-             if (shiftsResult.status === 'fulfilled') {
-         console.log('✅ Shift result fulfilled:', shiftsResult.value);
-         newData.userShift = shiftsResult.value;
-       } else if (shiftsResult.status === 'rejected') {
+      if (shiftsResult.status === 'fulfilled') {
+        console.log('✅ Shift result fulfilled:', shiftsResult.value);
+        newData.userShift = shiftsResult.value;
+      } else if (shiftsResult.status === 'rejected') {
         console.error('❌ Failed to load shift information:', shiftsResult.reason);
         // Set default shift only if loading fails due to error
         newData.userShift = {

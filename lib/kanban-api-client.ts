@@ -32,9 +32,9 @@ export async function getKanbanColumnsWithCache(projectId: string): Promise<any[
   }
 }
 
-export async function getUserProjectsWithCache(userId: string): Promise<any[]> {
+export async function getUserProjectsWithCache(userEmail: string): Promise<any[]> {
   try {
-    const response = await fetch(`/api/kanban/user-projects-with-cache?userId=${userId}`);
+    const response = await fetch(`/api/kanban/user-projects-with-cache?userEmail=${encodeURIComponent(userEmail)}`);
     if (response.ok) {
       const data = await response.json();
       return data.data || [];

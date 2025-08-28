@@ -28,8 +28,8 @@ export class KanbanCache {
     return `kanban:project-categories:${projectId}`;
   }
 
-  private getUserProjectsKey(userId: string): string {
-    return `kanban:user-projects:${userId}`;
+  private getUserProjectsKey(userEmail: string): string {
+    return `kanban:user-projects:${userEmail}`;
   }
 
   // Board data caching
@@ -82,13 +82,13 @@ export class KanbanCache {
   }
 
   // User projects caching
-  async getUserProjects(userId: string): Promise<any[] | null> {
-    const key = this.getUserProjectsKey(userId);
+  async getUserProjects(userEmail: string): Promise<any[] | null> {
+    const key = this.getUserProjectsKey(userEmail);
     return await cacheStrategy.get<any[]>(key);
   }
 
-  async setUserProjects(userId: string, data: any[]): Promise<boolean> {
-    const key = this.getUserProjectsKey(userId);
+  async setUserProjects(userEmail: string, data: any[]): Promise<boolean> {
+    const key = this.getUserProjectsKey(userEmail);
     return await cacheStrategy.set(key, data, 'user');
   }
 
@@ -105,8 +105,8 @@ export class KanbanCache {
     }
   }
 
-  async invalidateUser(userId: string): Promise<void> {
-    const key = this.getUserProjectsKey(userId);
+  async invalidateUser(userEmail: string): Promise<void> {
+    const key = this.getUserProjectsKey(userEmail);
     await cacheStrategy.delete(key);
   }
 }

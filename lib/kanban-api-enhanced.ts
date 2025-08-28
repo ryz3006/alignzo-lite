@@ -70,15 +70,15 @@ export async function getKanbanColumnsWithCache(projectId: string): Promise<any[
   }
 }
 
-export async function getUserProjectsWithCache(userId: string): Promise<any[]> {
+export async function getUserProjectsWithCache(userEmail: string): Promise<any[]> {
   try {
-    const cached = await kanbanCache.getUserProjects(userId);
+    const cached = await kanbanCache.getUserProjects(userEmail);
     if (cached) return cached;
 
-    const response = await getOriginalProjects(userId);
+    const response = await getOriginalProjects(userEmail);
     
     if (response.success && response.data) {
-      kanbanCache.setUserProjects(userId, response.data)
+      kanbanCache.setUserProjects(userEmail, response.data)
         .catch(error => console.warn('Failed to cache user projects:', error));
       
       return response.data;
@@ -88,7 +88,7 @@ export async function getUserProjectsWithCache(userId: string): Promise<any[]> {
   } catch (error) {
     console.error('Error in cached user projects fetch:', error);
     try {
-      const response = await getOriginalProjects(userId);
+      const response = await getOriginalProjects(userEmail);
       return response.success && response.data ? response.data : [];
     } catch (fallbackError) {
       console.error('Fallback API also failed:', fallbackError);

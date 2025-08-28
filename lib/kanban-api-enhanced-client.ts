@@ -40,10 +40,10 @@ export async function getKanbanColumnsWithCache(projectId: string): Promise<any[
   }
 }
 
-export async function getUserProjectsWithCache(userId: string): Promise<any[]> {
+export async function getUserProjectsWithCache(userEmail: string): Promise<any[]> {
   try {
-    const params = new URLSearchParams({ userEmail: userId });
-    const response = await fetch(`${API_BASE}/project-categories?${params}`);
+    const params = new URLSearchParams({ userEmail });
+    const response = await fetch(`${API_BASE}/user-projects-with-cache?${params}`);
     
     if (response.ok) {
       const result = await response.json();
