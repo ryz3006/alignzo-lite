@@ -1089,64 +1089,43 @@ async function deleteKanbanColumnFromDatabase(columnId: string): Promise<ApiResp
 
 async function getProjectCategoriesFromDatabase(projectId: string): Promise<ApiResponse<ProjectCategory[]>> {
   try {
-    // Use the direct Supabase client that's already imported at the top
-    console.log(`🔍 Fetching categories for project: ${projectId}`);
+    console.log(`🔍 Fetching categories for project: ${projectId} using RPC functions`);
     
-    // First, get categories
-    const { data: categories, error: categoriesError } = await supabase
-      .from('project_categories')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('is_active', true)
-      .order('sort_order');
+    // Use RPC function to get categories with options for this project
+    const { data: categoriesWithOptions, error: rpcError } = await supabase
+      .rpc('get_project_categories_with_options_api', { 
+        project_uuid: projectId 
+      });
 
-    if (categoriesError) {
-      console.error('❌ Error fetching categories:', categoriesError);
-      throw new Error(categoriesError.message);
-    }
-
-    const categoriesData = categories || [];
-    console.log(`✅ Found ${categoriesData.length} categories`);
-    
-    // If no categories found, return empty array
-    if (categoriesData.length === 0) {
-      console.log('⚠️ No categories found for project');
+    if (!rpcError && categoriesWithOptions && Array.isArray(categoriesWithOptions)) {
+      // The RPC function returns categories with their options already attached
+      console.log(`✅ RPC function returned ${categoriesWithOptions.length} categories with options`);
       return {
-        data: [],
+        data: categoriesWithOptions,
         success: true
       };
+    } else {
+      // Fallback to direct RPC function if the first one fails
+      console.log('⚠️ First RPC function failed, trying fallback...');
+      const { data: directCategories, error: directError } = await supabase
+        .rpc('get_project_categories_direct', { 
+          project_uuid: projectId 
+        });
+
+      if (!directError && directCategories && Array.isArray(directCategories)) {
+        console.log(`✅ Fallback RPC function returned ${directCategories.length} categories with options`);
+        return {
+          data: directCategories,
+          success: true
+        };
+      } else {
+        console.warn('Both RPC functions failed for project:', projectId, rpcError || directError);
+        return {
+          data: [],
+          success: true
+        };
+      }
     }
-
-    // Get options for all categories
-    const categoryIds = categoriesData.map((cat: any) => cat.id);
-    console.log(`🔍 Fetching options for ${categoryIds.length} categories`);
-    
-    // Use the 'in' filter like the project-options API does
-    const { data: options, error: optionsError } = await supabase
-      .from('category_options')
-      .select('*')
-      .in('category_id', categoryIds)
-      .eq('is_active', true)
-      .order('sort_order');
-
-    if (optionsError) {
-      console.error('❌ Error fetching options:', optionsError);
-    }
-
-    const optionsData = options || [];
-    console.log(`✅ Found ${optionsData.length} options`);
-
-    // Attach options to categories
-    const categoriesWithOptions = categoriesData.map((category: any) => ({
-      ...category,
-      options: optionsData.filter((option: any) => option.category_id === category.id)
-    }));
-
-    console.log(`✅ Returning ${categoriesWithOptions.length} categories with options`);
-    return {
-      data: categoriesWithOptions,
-      success: true
-    };
   } catch (error) {
     console.error('❌ Error in getProjectCategoriesFromDatabase:', error);
     return {
