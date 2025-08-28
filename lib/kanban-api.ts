@@ -641,8 +641,8 @@ export async function addTaskTimelineEntry(
       task_id: taskId,
       action,
       details,
-      user_id: userId,
-      timestamp: new Date().toISOString()
+      user_email: userId,
+      created_at: new Date().toISOString()
     };
 
     const { data, error } = await supabase
@@ -669,17 +669,11 @@ export async function addTaskTimelineEntry(
 
 export async function getTaskTimeline(taskId: string): Promise<ApiResponse<TaskTimeline[]>> {
   try {
-    const queryOptions = {
-      select: '*',
-      filters: { task_id: taskId },
-      order: { column: 'timestamp', ascending: false }
-    };
-
     const { data, error } = await supabase
       .from('task_timeline')
       .select('*')
       .eq('task_id', taskId)
-      .order('timestamp', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
 
@@ -707,7 +701,6 @@ export async function getTaskComments(taskId: string): Promise<ApiResponse<TaskC
       .from('task_comments')
       .select('*')
       .eq('task_id', taskId)
-      .eq('is_active', true)
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -735,7 +728,7 @@ export async function addTaskComment(
     const commentData = {
       task_id: taskId,
       comment,
-      user_id: userId,
+      user_email: userId,
       created_at: new Date().toISOString()
     };
 

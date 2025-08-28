@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await createTaskTimeline(taskId, currentUser.email, action, details);
+    const response = await createTaskTimeline(taskId, action, details, currentUser.email);
     
     if (response.success) {
       return NextResponse.json({
