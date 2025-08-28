@@ -58,13 +58,13 @@ export async function GET(request: NextRequest) {
         success: !rpcError,
         categoriesCount: rpcData?.length || 0,
         categories: rpcData || [],
-        error: rpcError?.message
+        error: rpcError ? (rpcError as any).message : undefined
       },
       directFunction: {
         success: !directError,
         categoriesCount: directData?.length || 0,
         categories: directData || [],
-        error: directError?.message
+        error: directError ? (directError as any).message : undefined
       }
     });
 
