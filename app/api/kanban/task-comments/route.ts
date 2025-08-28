@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 import { getTaskComments, createTaskComment } from '@/lib/kanban-api';
-import { getCurrentUser } from '@/lib/auth';
+
 
 export async function GET(request: NextRequest) {
   try {

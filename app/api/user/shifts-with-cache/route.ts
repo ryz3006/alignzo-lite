@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserShiftsWithCache } from '@/lib/user-api-enhanced';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUserServer } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
 
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUserServer(request);
     if (!currentUser?.email) {
       return NextResponse.json(
         { error: 'User not authenticated' },

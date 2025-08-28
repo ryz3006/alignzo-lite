@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardDataWithCache } from '@/lib/user-api-enhanced';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUserServer } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUserServer(request);
     if (!currentUser?.email) {
       return NextResponse.json(
         { error: 'User not authenticated' },

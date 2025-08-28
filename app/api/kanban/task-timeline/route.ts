@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 import { getTaskTimeline, createTaskTimeline } from '@/lib/kanban-api';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUserServer } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUserServer(request);
     if (!currentUser?.email) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
