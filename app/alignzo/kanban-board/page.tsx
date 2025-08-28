@@ -74,6 +74,7 @@ import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 import ColumnMenu from '@/components/kanban/ColumnMenu';
 import EditColumnModal from '@/components/kanban/EditColumnModal';
 import ConfirmationModal from '@/components/kanban/ConfirmationModal';
+import TaskCard from '@/components/kanban/TaskCard';
 
 
 export default function KanbanBoardPage() {
@@ -525,25 +526,7 @@ export default function KanbanBoardPage() {
   };
   const openCreateColumnModal = () => setShowCreateColumnModal(true);
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
-    }
-  };
 
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return <AlertCircle className="h-3 w-3" />;
-      case 'high': return <AlertCircle className="h-3 w-3" />;
-      case 'medium': return <Clock className="h-3 w-3" />;
-      case 'low': return <CheckCircle className="h-3 w-3" />;
-      default: return <Clock className="h-3 w-3" />;
-    }
-  };
 
   const filteredTasks = (tasks: KanbanTaskWithDetails[] | undefined) => {
     if (!tasks || !Array.isArray(tasks)) {
@@ -772,126 +755,14 @@ export default function KanbanBoardPage() {
                             }`}
                           >
                             {filteredTasks(column.tasks).map((task, index) => (
-                              <Draggable key={task.id} draggableId={task.id} index={index}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-xl p-4 mb-3 cursor-grab active:cursor-grabbing hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${
-                                      snapshot.isDragging 
-                                        ? 'shadow-2xl rotate-2 scale-110 z-50 bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600' 
-                                        : ''
-                                    } ${
-                                      movingTaskId === task.id 
-                                        ? 'opacity-75 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-600' 
-                                        : ''
-                                    }`}
-                                    onClick={() => openTaskDetailModal(task)}
-                                  >
-                                    {/* Task Header */}
-                                    <div className="flex items-start justify-between mb-3">
-                                      <h4 className="font-semibold text-neutral-900 dark:text-white text-sm leading-tight line-clamp-2 flex-1 mr-3">
-                                        {task.title}
-                                      </h4>
-                                      <div className="flex items-center space-x-1 flex-shrink-0">
-                                        {movingTaskId === task.id && (
-                                          <div className="flex items-center space-x-1 text-yellow-600 dark:text-yellow-400">
-                                            <div className="animate-spin h-3 w-3 border border-yellow-600 dark:border-yellow-400 border-t-transparent rounded-full"></div>
-                                            <span className="text-xs">Moving...</span>
-                                          </div>
-                                        )}
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                                          {getPriorityIcon(task.priority)}
-                                          <span className="ml-1 capitalize">{task.priority}</span>
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Task Description */}
-                                    {task.description && (
-                                      <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4 line-clamp-2 leading-relaxed">
-                                        {task.description}
-                                      </p>
-                                    )}
-
-                                    {/* Task Meta */}
-                                    <div className="space-y-3">
-                                      {/* Task Details */}
-                                      <div className="flex flex-col space-y-2 text-xs text-neutral-500 dark:text-neutral-400">
-                                        <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
-                                          {task.assigned_to && (
-                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
-                                              <User className="h-3 w-3" />
-                                              <span className="truncate max-w-16 lg:max-w-20 text-xs">{task.assigned_to_user?.full_name || task.assigned_to}</span>
-                                            </div>
-                                          )}
-                                          {task.due_date && (
-                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
-                                              <Calendar className="h-3 w-3" />
-                                              <span className="text-xs">{new Date(task.due_date).toLocaleDateString()}</span>
-                                            </div>
-                                          )}
-                                          {task.estimated_hours && (
-                                            <div className="flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-600 px-2 py-1 rounded-lg">
-                                              <Clock className="h-3 w-3" />
-                                              <span className="text-xs">{task.estimated_hours}h</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {/* JIRA Link */}
-                                      {task.jira_ticket_key && (
-                                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg">
-                                          <Link className="h-3 w-3" />
-                                          <span className="truncate">{task.jira_ticket_key}</span>
-                                        </div>
-                                      )}
-
-                                      {/* Scope Badge and Actions */}
-                                      <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-600">
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                                          task.priority === 'urgent'
-                                            ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
-                                            : task.priority === 'high'
-                                            ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800'
-                                            : task.priority === 'medium'
-                                            ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
-                                            : 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
-                                        }`}>
-                                          {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
-                                        </span>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center space-x-1">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openEditTaskModal(task);
-                                            }}
-                                            className="p-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded transition-colors"
-                                          >
-                                            <Edit3 className="h-3.5 w-3.5" />
-                                          </button>
-                                                                                     {user?.email === task.created_by && (
-                                             <button
-                                               onClick={(e) => {
-                                                 e.stopPropagation();
-                                                 setTaskToDelete(task.id);
-                                                 setShowDeleteConfirmModal(true);
-                                               }}
-                                               className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                             >
-                                               <Trash2 className="h-3.5 w-3.5" />
-                                             </button>
-                                           )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </Draggable>
+                              <TaskCard
+                                key={task.id}
+                                task={task}
+                                index={index}
+                                onClick={() => openTaskDetailModal(task)}
+                                viewMode="kanban"
+                                isMoving={movingTaskId === task.id}
+                              />
                             ))}
                             {provided.placeholder}
                           </div>
@@ -928,51 +799,14 @@ export default function KanbanBoardPage() {
                   <div className="space-y-4">
                     {kanbanBoard.flatMap(column => 
                       filteredTasks(column.tasks).map(task => (
-                        <div key={task.id} className="flex items-center justify-between p-4 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl hover:bg-neutral-50/50 dark:hover:bg-neutral-700/50 transition-all duration-200">
-                          <div className="flex items-center space-x-6">
-                            <div className="flex items-center space-x-3">
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ backgroundColor: column.color }}
-                              ></div>
-                              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-3 py-1 rounded-full">{column.name}</span>
-                            </div>
-                            <h4 className="font-semibold text-neutral-900 dark:text-white flex-1">{task.title}</h4>
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                              {task.priority}
-                            </span>
-                            {task.assigned_to && (
-                              <span className="text-sm text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-3 py-1 rounded-full">
-                                {task.assigned_to_user?.full_name || task.assigned_to}
-                              </span>
-                            )}
-                          </div>
-                                                     <div className="flex items-center space-x-2">
-                             <button
-                               onClick={() => openTaskDetailModal(task)}
-                               className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-                             >
-                               <Eye className="h-4 w-4" />
-                             </button>
-                             <button
-                               onClick={() => openEditTaskModal(task)}
-                               className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-                             >
-                               <Edit3 className="h-4 w-4" />
-                             </button>
-                             {user?.email === task.created_by && (
-                               <button
-                                 onClick={() => {
-                                   setTaskToDelete(task.id);
-                                   setShowDeleteConfirmModal(true);
-                                 }}
-                                 className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
-                               >
-                                 <Trash2 className="h-4 w-4" />
-                               </button>
-                             )}
-                           </div>
-                        </div>
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          index={0}
+                          onClick={() => openTaskDetailModal(task)}
+                          viewMode="list"
+                          isMoving={false}
+                        />
                       ))
                     )}
                   </div>
