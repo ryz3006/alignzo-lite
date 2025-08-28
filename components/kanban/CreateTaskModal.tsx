@@ -279,6 +279,19 @@ export default function CreateTaskModal({
     }
   }, [isOpen, projectData, selectedTeam, columnId, loadCategoriesForProject, loadTeamMembers, checkJiraIntegration, loadJiraProjectMappings]);
 
+  // Auto-select first category and option when categories are loaded
+  useEffect(() => {
+    if (localCategories.length > 0 && Object.keys(categorySelections).length === 0) {
+      const firstCategory = localCategories[0];
+      if (firstCategory.options && firstCategory.options.length > 0) {
+        const firstOption = firstCategory.options[0];
+        setCategorySelections({
+          [firstCategory.id]: firstOption.id
+        });
+      }
+    }
+  }, [localCategories, categorySelections]);
+
   // Update form data when project data changes
   useEffect(() => {
     if (projectData) {
@@ -289,6 +302,24 @@ export default function CreateTaskModal({
       }));
     }
   }, [projectData, columnId]);
+
+  // Update formData.category_id and category_option_id when categorySelections change
+  useEffect(() => {
+    const selectedCategoryIds = Object.keys(categorySelections).filter(catId => 
+      categorySelections[catId] && categorySelections[catId].trim() !== ''
+    );
+    
+    if (selectedCategoryIds.length > 0) {
+      const firstCategoryId = selectedCategoryIds[0];
+      const firstCategoryOptionId = categorySelections[firstCategoryId];
+      
+      setFormData(prev => ({
+        ...prev,
+        category_id: firstCategoryId,
+        category_option_id: firstCategoryOptionId
+      }));
+    }
+  }, [categorySelections]);
 
   // Get available categories (prioritize local state as it has the latest data with options)
   const availableCategories = localCategories.length > 0 
@@ -488,7 +519,9 @@ export default function CreateTaskModal({
       categorySelections[catId] && categorySelections[catId].trim() !== ''
     );
     
-    if (selectedCategoryIds.length !== availableCategoryIds.length) {
+    if (selectedCategoryIds.length === 0) {
+      newErrors.category_id = 'At least one category must be selected';
+    } else if (selectedCategoryIds.length !== availableCategoryIds.length) {
       newErrors.category_id = 'All categories are mandatory and must be selected';
     }
 
@@ -514,9 +547,20 @@ export default function CreateTaskModal({
         sort_order: index
       }));
 
+      // Ensure we have at least one category selected for backward compatibility
+      if (categories.length === 0) {
+        toast.error('At least one category must be selected');
+        return;
+      }
+
+      // Set the first selected category as the primary category_id for backward compatibility
+      const primaryCategory = categories[0];
+
       // Prepare the form data to submit
       const formDataToSubmit: CreateTaskForm = {
         ...formData,
+        category_id: primaryCategory.category_id, // Ensure category_id is set for backward compatibility
+        category_option_id: primaryCategory.category_option_id, // Set the primary option
         categories
       };
 

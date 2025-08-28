@@ -355,22 +355,29 @@ export default function KanbanBoardPage() {
   const handleCreateTask = async (taskData: CreateTaskForm) => {
     if (!user || !selectedProject || !selectedTeam) return;
 
-         try {
-       const response = await createKanbanTaskWithRedis({
-         ...taskData,
-         project_id: selectedProject.id,
-         created_by: user.email
-       }, selectedProject.id, selectedTeam, user.email);
-       
-       if (response.success) {
-         setShowCreateTaskModal(false);
-         loadKanbanBoard(true); // Force refresh to show new task
-       } else {
-         // Handle error silently
-       }
-     } catch (error) {
-       // Handle error silently
-     }
+    try {
+      const response = await createKanbanTaskWithRedis({
+        ...taskData,
+        project_id: selectedProject.id,
+        created_by: user.email
+      }, selectedProject.id, selectedTeam, user.email);
+      
+      if (response.success) {
+        setShowCreateTaskModal(false);
+        loadKanbanBoard(true); // Force refresh to show new task
+        setToast({ type: 'success', message: 'Task created successfully!' });
+      } else {
+        // Show error to user
+        const errorMessage = response.error || 'Failed to create task';
+        setToast({ type: 'error', message: errorMessage });
+        console.error('Task creation failed:', response.error);
+      }
+    } catch (error) {
+      // Show error to user
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create task';
+      setToast({ type: 'error', message: errorMessage });
+      console.error('Error creating task:', error);
+    }
   };
 
   const handleUpdateTask = async (taskId: string, updates: UpdateTaskForm) => {
