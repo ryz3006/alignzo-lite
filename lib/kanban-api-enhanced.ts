@@ -99,8 +99,10 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<any[]
       const projectsWithCategories = await Promise.all(
         response.data.map(async (project: any) => {
           try {
-            // Load categories for this project
-            const categoriesResponse = await supabaseClient.get('project_categories', {
+            // Load categories for this project using service role to bypass RLS
+            const categoriesResponse = await supabaseClient.query({
+              table: 'project_categories',
+              action: 'select',
               select: '*',
               filters: { project_id: project.id },
               order: { column: 'sort_order', ascending: true }
@@ -112,7 +114,9 @@ export async function getUserProjectsWithCache(userEmail: string): Promise<any[]
               let categoryOptions: any[] = [];
               
               if (categoryIds.length > 0) {
-                const optionsResponse = await supabaseClient.get('category_options', {
+                const optionsResponse = await supabaseClient.query({
+                  table: 'category_options',
+                  action: 'select',
                   select: '*',
                   filters: { category_id: categoryIds },
                   order: { column: 'sort_order', ascending: true }

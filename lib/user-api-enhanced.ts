@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase-client';
 import { userCache, UserTeamData, UserShiftData, UserProjectData, UserDashboardData } from './user-cache';
 import { getCurrentUser } from './auth';
+import { Sun, Moon, Clock, Calendar } from 'lucide-react';
 
 // Enhanced user teams API with caching
 export async function getUserTeamsWithCache(userEmail: string): Promise<UserTeamData[]> {
@@ -283,13 +284,13 @@ function processShiftsForDashboard(shifts: any[], userEmail: string) {
   
   // Get shift display info (simplified version)
   const getShiftDisplay = (shiftType: string) => {
-    // Default shift mappings
+    // Default shift mappings with actual icon components
     const shiftMappings: { [key: string]: any } = {
-      'G': { name: 'General', color: 'text-green-600', icon: 'Sun' },
-      'N': { name: 'Night', color: 'text-blue-600', icon: 'Moon' },
-      'E': { name: 'Evening', color: 'text-orange-600', icon: 'Sun' },
-      'H': { name: 'Holiday', color: 'text-red-600', icon: 'Sun' },
-      'M': { name: 'Morning', color: 'text-yellow-600', icon: 'Sun' }
+      'G': { name: 'General', color: 'text-green-600', icon: Sun },
+      'N': { name: 'Night', color: 'text-blue-600', icon: Moon },
+      'E': { name: 'Evening', color: 'text-orange-600', icon: Sun },
+      'H': { name: 'Holiday', color: 'text-red-600', icon: Calendar },
+      'M': { name: 'Morning', color: 'text-yellow-600', icon: Clock }
     };
     
     return shiftMappings[shiftType] || shiftMappings['G'];
