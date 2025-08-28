@@ -1491,43 +1491,35 @@ export async function getUserAccessibleProjects(userEmail: string): Promise<ApiR
       columns: []
     }));
 
-    // Load categories and their options for each project
+    // Load categories and their options for each project using RPC functions
     for (const project of projectsWithCategories) {
       try {
-        // Load categories for this project
-        const { data: categories, error: categoriesError } = await supabase
-          .from('project_categories')
-          .select('*')
-          .eq('project_id', project.id)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
+        // Use RPC function to get categories with options for this project
+        const { data: categoriesWithOptions, error: rpcError } = await supabase
+          .rpc('get_project_categories_with_options_api', { 
+            project_uuid: project.id 
+          });
 
-        if (!categoriesError && categories) {
-          // Load options for all categories
-          const categoryIds = categories.map((cat: any) => cat.id);
-          let categoryOptions: CategoryOption[] = [];
-          
-          if (categoryIds.length > 0) {
-            const { data: options, error: optionsError } = await supabase
-              .from('category_options')
-              .select('*')
-              .in('category_id', categoryIds)
-              .eq('is_active', true)
-              .order('sort_order', { ascending: true });
+        if (!rpcError && categoriesWithOptions && Array.isArray(categoriesWithOptions)) {
+          // The RPC function returns categories with their options already attached
+          project.categories = categoriesWithOptions;
+        } else {
+          // Fallback to direct RPC function if the first one fails
+          const { data: directCategories, error: directError } = await supabase
+            .rpc('get_project_categories_direct', { 
+              project_uuid: project.id 
+            });
 
-            if (!optionsError && options) {
-              categoryOptions = options;
-            }
+          if (!directError && directCategories && Array.isArray(directCategories)) {
+            project.categories = directCategories;
+          } else {
+            console.warn('Both RPC functions failed for project:', project.id, rpcError || directError);
+            project.categories = [];
           }
-
-          // Attach options to categories
-          project.categories = categories.map((category: ProjectCategory) => ({
-            ...category,
-            options: categoryOptions.filter((option: CategoryOption) => option.category_id === category.id)
-          }));
         }
       } catch (error) {
         console.warn('Error loading categories for project:', project.id, error);
+        project.categories = [];
       }
     }
 
