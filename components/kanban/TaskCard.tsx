@@ -44,6 +44,42 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
     return colors[scope as keyof typeof colors] || colors.project;
   }, []);
 
+  // Memoized task age calculation and styling
+  const taskAgeInfo = useMemo(() => {
+    const createdDate = new Date(task.created_at);
+    const now = new Date();
+    const diffTime = now.getTime() - createdDate.getTime();
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    let ageText: string;
+    let ageColor: string;
+
+    if (diffMinutes < 1) {
+      ageText = 'Just now';
+      ageColor = 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    } else if (diffMinutes < 60) {
+      ageText = `${diffMinutes} min ago`;
+      ageColor = 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+    } else if (diffHours < 24) {
+      ageText = `${diffHours} hr ago`;
+      ageColor = diffHours < 6 
+        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+    } else if (diffDays < 7) {
+      ageText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      ageColor = diffDays < 3 
+        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+        : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400';
+    } else {
+      ageText = `${diffDays} days ago`;
+      ageColor = 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+    }
+
+    return { ageText, ageColor };
+  }, [task.created_at]);
+
   // Memoized priority color
   const priorityColor = useMemo(() => getPriorityColor(task.priority), [task.priority, getPriorityColor]);
 
@@ -183,15 +219,16 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
               </div>
             </div>
           )}
+          
           {/* Task Header */}
           <div className="flex items-start justify-between mb-2">
             <h4 className="font-medium text-neutral-900 dark:text-white text-sm leading-tight flex-1 mr-2">
               {task.title}
             </h4>
             
-            {/* Priority Badge */}
-            <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
-              {task.priority}
+            {/* Task Age Badge (replaces duplicate priority) */}
+            <span className={`text-xs px-2 py-1 rounded-full ${taskAgeInfo.ageColor}`}>
+              {taskAgeInfo.ageText}
             </span>
           </div>
 
@@ -244,8 +281,14 @@ const TaskCard = memo(({ task, index, onClick, viewMode, isMoving }: TaskCardPro
               </div>
             )}
 
-            {/* Scope Badge */}
+            {/* Priority and Scope Row */}
             <div className="flex items-center justify-between">
+              {/* Priority Badge */}
+              <span className={`text-xs px-2 py-1 rounded-full ${priorityColor}`}>
+                {task.priority}
+              </span>
+              
+              {/* Scope Badge */}
               <span className={`text-xs px-2 py-1 rounded-full ${scopeColor}`}>
                 {task.scope}
               </span>
