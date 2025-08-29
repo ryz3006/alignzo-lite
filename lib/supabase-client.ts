@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // This prevents environment variable exposure to the client
 export interface SupabaseQuery {
   table: string;
-  action: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
+  action: 'select' | 'insert' | 'update' | 'delete' | 'upsert' | 'rpc';
   data?: any;
   filters?: Record<string, any>;
   select?: string;
@@ -15,6 +15,8 @@ export interface SupabaseQuery {
   limit?: number;
   offset?: number;
   userEmail?: string;
+  functionName?: string;
+  params?: Record<string, any>;
 }
 
 export interface SupabaseResponse<T = any> {
@@ -80,6 +82,12 @@ class SupabaseClient {
                   }
                 }
               });
+            }
+            
+            // Apply user-specific filtering for work_logs on server side
+            if (query.userEmail && query.table === 'work_logs') {
+              console.log('🔍 [SERVER] Applying user filter for work_logs:', query.userEmail);
+              supabaseQuery = supabaseQuery.eq('user_email', query.userEmail);
             }
             
             // Apply ordering

@@ -196,6 +196,7 @@ export async function POST(request: NextRequest) {
         }
         
         result = await query;
+        
         break;
 
       case 'insert':
