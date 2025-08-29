@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, User, Calendar, Clock, Tag, Link, MessageSquare, AlertCircle, CheckCircle, Edit3, Trash2, Loader2, FolderOpen, Settings, Eye, FileText, Users, Target, Zap } from 'lucide-react';
 import { KanbanTaskWithDetails, TaskTimeline, TaskComment, ProjectCategory, CategoryOption, TaskCategoryWithDetails } from '@/lib/kanban-types';
 import toast from 'react-hot-toast';
@@ -34,6 +34,42 @@ export default function TaskDetailModal({
   const [taskCategories, setTaskCategories] = useState<TaskCategoryWithDetails[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingTaskCategories, setLoadingTaskCategories] = useState(false);
+
+  // Calculate task age (memoized)
+  const taskAgeInfo = useMemo(() => {
+    const createdDate = new Date(task.created_at);
+    const now = new Date();
+    const diffTime = now.getTime() - createdDate.getTime();
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    let ageText: string;
+    let ageColor: string;
+
+    if (diffMinutes < 1) {
+      ageText = 'Just now';
+      ageColor = 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
+    } else if (diffMinutes < 60) {
+      ageText = `${diffMinutes} min ago`;
+      ageColor = 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
+    } else if (diffHours < 24) {
+      ageText = `${diffHours} hr ago`;
+      ageColor = diffHours < 6 
+        ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
+        : 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800';
+    } else if (diffDays < 7) {
+      ageText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      ageColor = diffDays < 3 
+        ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+        : 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800';
+    } else {
+      ageText = `${diffDays} days ago`;
+      ageColor = 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
+    }
+
+    return { ageText, ageColor };
+  }, [task.created_at]);
 
   // Load categories and task-specific categories when modal opens
   useEffect(() => {
@@ -301,10 +337,6 @@ export default function TaskDetailModal({
                 {task.id}
               </p>
             </div>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(task.priority)}`}>
-              {getPriorityIcon(task.priority)}
-              <span className="ml-1 capitalize">{task.priority}</span>
-            </span>
           </div>
           <button
             onClick={onClose}
@@ -395,6 +427,16 @@ export default function TaskDetailModal({
                             : 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
                         }`}>
                           {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Not specified'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <Clock className="h-5 w-5 text-neutral-400" />
+                      <div className="flex-1">
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">Age</p>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${taskAgeInfo.ageColor}`}>
+                          {taskAgeInfo.ageText}
                         </span>
                       </div>
                     </div>
