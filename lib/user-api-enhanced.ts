@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase-client';
 import { userCache, UserTeamData, UserShiftData, UserProjectData, UserDashboardData } from './user-cache';
 import { getCurrentUser } from './auth';
 import { Sun, Moon, Clock, Calendar } from 'lucide-react';
+import { getTodayString, getTomorrowString } from './utils';
 
 // Extended user type that includes database fields
 interface ExtendedUser {
@@ -302,12 +303,8 @@ export async function getDashboardDataWithCache(userEmail: string): Promise<User
 
 // Helper function to process shifts for dashboard display
 function processShiftsForDashboard(shifts: any[], userEmail: string) {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  
-  const todayStr = today.toISOString().split('T')[0];
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const todayStr = getTodayString();
+  const tomorrowStr = getTomorrowString();
 
   const todayShift = shifts?.find((s: any) => s.shiftDate === todayStr);
   const tomorrowShift = shifts?.find((s: any) => s.shiftDate === tomorrowStr);
@@ -406,7 +403,7 @@ async function loadWorkLogsData(userEmail: string) {
 // Helper function to load team availability data
 async function loadTeamAvailabilityData() {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayString();
     
     // Fetch all teams with their members, today's shifts, and project assignments in parallel
     const [teamsResponse, allTeamMembersResponse, allShiftsResponse, projectAssignmentsResponse] = await Promise.all([

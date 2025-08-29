@@ -29,6 +29,26 @@ export function formatTime(date: Date | string): string {
   });
 }
 
+// Timezone-safe date formatting to avoid date shifting issues
+export function formatDateToYYYYMMDD(date: Date): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Get today's date in YYYY-MM-DD format (timezone-safe)
+export function getTodayString(): string {
+  return formatDateToYYYYMMDD(new Date());
+}
+
+// Get tomorrow's date in YYYY-MM-DD format (timezone-safe)
+export function getTomorrowString(): string {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return formatDateToYYYYMMDD(tomorrow);
+}
+
 export function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

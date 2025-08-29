@@ -28,7 +28,7 @@ import {
   Timer,
   RefreshCw
 } from 'lucide-react';
-import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange } from '@/lib/utils';
+import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRange, getMonthRange, getTodayString, getTomorrowString } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import toast from 'react-hot-toast';
 import { useDashboardRefresh } from '@/components/DashboardRefreshContext';
@@ -374,12 +374,8 @@ export default function UserDashboardPage() {
       };
     }
     
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const todayStr = getTodayString();
+    const tomorrowStr = getTomorrowString();
 
     console.log('🔄 Loading shift information for:', currentUser.email);
     console.log('📅 Date range:', { today: todayStr, tomorrow: tomorrowStr });
@@ -507,7 +503,7 @@ export default function UserDashboardPage() {
   };
 
   const loadTeamAvailability = async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayString();
     
     try {
       // Fetch all teams with their members and today's shifts in parallel

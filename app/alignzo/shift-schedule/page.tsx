@@ -259,8 +259,8 @@ export default function ShiftSchedulePage() {
         const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
         for (let day = 1; day <= daysInMonth; day++) {
           // Create date object for the current day (month is 0-indexed, so subtract 1)
-          const date = new Date(selectedYear, selectedMonth - 1, day);
-          const dateStr = date.toISOString().split('T')[0];
+          // Use local date formatting to avoid timezone issues
+          const dateStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
           
           const shift = userShifts.find((s: any) => s.shift_date === dateStr);
           
@@ -368,7 +368,8 @@ export default function ShiftSchedulePage() {
       // Create date object for the current day (month is 0-indexed, so subtract 1)
       const date = new Date(selectedYear, selectedMonth - 1, day);
       const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-      const dateStr = date.toISOString().split('T')[0];
+      // Use local date formatting to avoid timezone issues
+      const dateStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
       days.push({ day, dayName, date: dateStr });
     }
     

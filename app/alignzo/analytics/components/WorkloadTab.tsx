@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/lib/supabase-client';
+import { formatDateToYYYYMMDD } from '@/lib/utils';
 import { 
   BarChart, 
   Bar, 
@@ -222,7 +223,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
   const groupByDay = (logs: any[]) => {
     return logs.reduce((groups: any, log: any) => {
       const date = new Date(log.start_time);
-      const day = date.toISOString().split('T')[0];
+      const day = formatDateToYYYYMMDD(date);
       groups[day] = groups[day] || [];
       groups[day].push(log);
       return groups;
@@ -236,7 +237,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     for (let i = 0; i < workingDays; i++) {
       const date = new Date(filters.dateRange.start);
       date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatDateToYYYYMMDD(date);
       
       const dayLogs = dailyData[dateStr] || [];
       const hours = dayLogs.reduce((sum: number, log: any) => sum + (log.logged_duration_seconds || 0), 0) / 3600;
@@ -282,7 +283,7 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
       for (let i = 0; i < workingDaysInPeriod; i++) {
         const date = new Date(filters.dateRange.start);
         date.setDate(date.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatDateToYYYYMMDD(date);
         
         const shiftType = userShiftData[dateStr] || 'G'; // Default to General if no shift assigned
         if (shiftType === 'L') {
