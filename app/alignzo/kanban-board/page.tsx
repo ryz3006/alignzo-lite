@@ -699,38 +699,38 @@ export default function KanbanBoardPage() {
               <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0">
                 {kanbanBoard.map((column) => (
                   <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
-                    <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
-                      {/* Column Header */}
-                      <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
-                                                  <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ backgroundColor: column.color }}
-                              ></div>
-                              <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
-                                {column.name}
-                              </h3>
-                              <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
-                                {filteredTasks(column.tasks).length}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => openCreateTaskModal(column.id)}
-                                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
-                              >
-                                <Plus className="h-5 w-5" />
-                              </button>
-                              <ColumnMenu
-                                column={column}
-                                taskCount={filteredTasks(column.tasks).length}
-                                onEdit={handleEditColumn}
-                                onDelete={handleDeleteColumn}
-                                isOwner={user?.role === 'owner'}
-                              />
-                            </div>
+                    <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column">
+                      {/* Column Header - Fixed Floating */}
+                      <div className="p-6 kanban-column-header rounded-t-2xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div 
+                              className="w-4 h-4 rounded-full shadow-sm"
+                              style={{ backgroundColor: column.color }}
+                            ></div>
+                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
+                              {column.name}
+                            </h3>
+                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
+                              {filteredTasks(column.tasks).length}
+                            </span>
                           </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => openCreateTaskModal(column.id)}
+                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
+                            >
+                              <Plus className="h-5 w-5" />
+                            </button>
+                            <ColumnMenu
+                              column={column}
+                              taskCount={filteredTasks(column.tasks).length}
+                              onEdit={handleEditColumn}
+                              onDelete={handleDeleteColumn}
+                              isOwner={user?.role === 'owner'}
+                            />
+                          </div>
+                        </div>
                         {column.description && (
                           <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
                             {column.description}
@@ -738,13 +738,13 @@ export default function KanbanBoardPage() {
                         )}
                       </div>
 
-                      {/* Column Tasks */}
+                      {/* Column Tasks - Scrollable Area */}
                       <Droppable droppableId={column.id}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.droppableProps}
-                            className={`p-4 min-h-[300px] transition-all duration-200 ${
+                            className={`kanban-task-list p-4 transition-all duration-200 ${
                               snapshot.isDraggingOver 
                                 ? 'bg-blue-100/80 dark:bg-blue-900/20 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg' 
                                 : ''
@@ -783,7 +783,7 @@ export default function KanbanBoardPage() {
                 <div className="flex-shrink-0 w-80">
                   <button
                     onClick={openCreateColumnModal}
-                    className="w-full h-32 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm"
+                    className="w-full kanban-column border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm"
                   >
                     <Plus className="h-8 w-8 mr-3" />
                     <span className="font-medium">Add New Column</span>
