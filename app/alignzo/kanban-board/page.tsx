@@ -55,7 +55,7 @@ import {
   getUserProjectsWithCache,
   invalidateKanbanCache
 } from '@/lib/kanban-api-enhanced-client';
-import CacheStatus from '@/components/CacheStatus';
+
 import {
   KanbanColumnWithTasks,
   KanbanTaskWithDetails,
@@ -566,10 +566,7 @@ export default function KanbanBoardPage() {
                   </p>
                 </div>
                 
-                {/* Cache Status for Phase 2 */}
-                <div className="flex items-center space-x-4">
-                  <CacheStatus />
-                </div>
+                
               </div>
             </div>
 
@@ -677,26 +674,26 @@ export default function KanbanBoardPage() {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      {boardLoaded && (
-                <div className="px-6 pb-6 relative">
-          {/* Global loading overlay */}
-          {movingTaskId && (
-            <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
-              <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
-                <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
-              </div>
-            </div>
-          )}
-          
-          {viewMode === 'kanban' ? (
-            <DragDropContext 
-              onDragStart={handleDragStart}
-              onDragUpdate={handleDragUpdate}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0">
+                    {/* Kanban Board */}
+       {boardLoaded && (
+                 <div className="px-6 pb-6 relative">
+           {/* Global loading overlay */}
+           {movingTaskId && (
+             <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
+               <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
+                 <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                 <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
+               </div>
+             </div>
+           )}
+           
+           {viewMode === 'kanban' ? (
+             <DragDropContext 
+               onDragStart={handleDragStart}
+               onDragUpdate={handleDragUpdate}
+               onDragEnd={handleDragEnd}
+             >
+               <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0 h-[calc(100vh-280px)]">
                 {kanbanBoard.map((column) => (
                   <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
                     <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column">

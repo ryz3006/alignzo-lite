@@ -443,11 +443,15 @@ body {
   .kanban-column {
     @apply flex flex-col;
     height: calc(100vh - 280px);
+    position: relative;
   }
   
   .kanban-column-header {
-    @apply sticky top-0 z-10 bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm;
+    @apply z-10 bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm;
     border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
   
   .dark .kanban-column-header {
