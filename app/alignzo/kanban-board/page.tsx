@@ -1,26 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { 
   Plus, 
   Search, 
-  Settings, 
-  User, 
-  Calendar, 
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  X,
-  Edit3,
-  Trash2,
-  Link,
-  Eye,
+  Filter,
   Users,
   FolderOpen,
   Grid3X3,
   List,
-  RefreshCw
+  RefreshCw,
+  Archive,
+  Settings,
+  MoreHorizontal,
+  Zap,
+  Eye,
+  TrendingUp,
+  Calendar as CalendarIcon,
+  Clock,
+  Target,
+  Sparkles
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getUserWithRole } from '@/lib/user-role';
@@ -48,7 +48,6 @@ import {
   deleteKanbanColumnWithRedis,
   getProjectCategoriesWithRedis
 } from '@/lib/kanban-client-api';
-// Add enhanced cached APIs for Phase 2 (client-safe version)
 import { 
   getKanbanBoardWithCache,
   getKanbanColumnsWithCache,
@@ -74,10 +73,13 @@ import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 import ColumnMenu from '@/components/kanban/ColumnMenu';
 import EditColumnModal from '@/components/kanban/EditColumnModal';
 import ConfirmationModal from '@/components/kanban/ConfirmationModal';
-import TaskCard from '@/components/kanban/TaskCard';
 
+// Modern redesigned components
+import ModernTaskCard from '@/components/kanban/ModernTaskCard';
+import ModernKanbanColumn from '@/components/kanban/ModernKanbanColumn';
+import { SimpleToast, PageTransition } from '@/components/kanban/SimpleAnimations';
 
-export default function KanbanBoardPage() {
+export default function KanbanBoardPageRedesigned() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<ProjectWithCategories | null>(null);
@@ -103,7 +105,6 @@ export default function KanbanBoardPage() {
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
   const [showEditColumnModal, setShowEditColumnModal] = useState(false);
-
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   
   // Column management
@@ -116,14 +117,31 @@ export default function KanbanBoardPage() {
   const [editingTask, setEditingTask] = useState<KanbanTaskWithDetails | null>(null);
   const [selectedColumnForTask, setSelectedColumnForTask] = useState<string>('');
   
-  // Search
+  // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  
-
+  const [filterPriority, setFilterPriority] = useState<string>('');
+  const [filterAssignee, setFilterAssignee] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
   
   // Toast notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Board statistics
+  const boardStats = useMemo(() => {
+    if (!kanbanBoard.length) return { total: 0, completed: 0, inProgress: 0, overdue: 0 };
+    
+    const allTasks = kanbanBoard.flatMap(column => column.tasks || []);
+    const total = allTasks.length;
+    const completed = allTasks.filter(task => task.status === 'completed').length;
+    const inProgress = allTasks.filter(task => task.status === 'active').length;
+    const now = new Date();
+    const overdue = allTasks.filter(task => 
+      task.due_date && new Date(task.due_date) < now && task.status !== 'completed'
+    ).length;
+    
+    return { total, completed, inProgress, overdue };
+  }, [kanbanBoard]);
 
   useEffect(() => {
     initializePage();
@@ -144,7 +162,6 @@ export default function KanbanBoardPage() {
       const currentUser = await getCurrentUser();
       if (!currentUser) return;
       
-      // Get user with role information
       const userWithRole = await getUserWithRole(currentUser.email!);
       if (userWithRole) {
         setUser(userWithRole);
@@ -152,25 +169,18 @@ export default function KanbanBoardPage() {
         setUser(currentUser);
       }
       
-      // Get user's accessible projects with cache for Phase 2
       const projectsResponse = await getUserProjectsWithCache(currentUser.email!);
       if (projectsResponse && projectsResponse.length > 0) {
         setProjects(projectsResponse);
         setSelectedProject(projectsResponse[0] as ProjectWithCategories);
       }
       
-      // Load user's teams
       await loadUserTeams(currentUser.email!);
-      
-      
-      
       setLoading(false);
-         } catch (error) {
-       setLoading(false);
-     }
+    } catch (error) {
+      setLoading(false);
+    }
   };
-
-  
 
   const loadUserTeams = async (userEmail: string) => {
     try {
@@ -179,9 +189,9 @@ export default function KanbanBoardPage() {
         const data = await response.json();
         setTeams(data.teams || []);
       }
-         } catch (error) {
-       // Handle error silently
-     }
+    } catch (error) {
+      // Handle error silently
+    }
   };
 
   const updateUserRoleForTeam = async (teamId: string) => {
@@ -193,9 +203,9 @@ export default function KanbanBoardPage() {
       if (userWithRole) {
         setUser(userWithRole);
       }
-         } catch (error) {
-       // Handle error silently
-     }
+    } catch (error) {
+      // Handle error silently
+    }
   };
 
   useEffect(() => {
@@ -207,95 +217,83 @@ export default function KanbanBoardPage() {
   const loadKanbanBoard = async (forceRefresh = false) => {
     if (!selectedProject || !selectedTeam) return;
     
-           // Cache check: only fetch if data is older than 30 seconds or forced refresh
-       const now = Date.now();
-       const cacheAge = now - lastFetchTime;
-       const cacheValid = cacheAge < 30000; // 30 seconds cache
-       
-       if (!forceRefresh && cacheValid && boardLoaded) {
-         return;
-       }
+    const now = Date.now();
+    const cacheAge = now - lastFetchTime;
+    const cacheValid = cacheAge < 30000;
     
-           try {
-         setLoading(true);
-         setIsRefreshing(true);
-         
-         // Use enhanced cached API for Phase 2
-         const response = await getKanbanBoardWithCache(selectedProject.id, selectedTeam);
-         
-         if (response && response.length > 0) {
-           setKanbanBoard(response);
-           setCategories([]); // Categories will be loaded separately if needed
-           
-           // Update selectedProject with the fetched data
-           setSelectedProject({
-             ...selectedProject,
-             categories: [],
-             columns: response
-           });
-           
-           setBoardLoaded(true);
-           setLastFetchTime(now);
-         } else {
-           // Handle error silently
-         }
-       } catch (error) {
-         // Handle error silently
-       } finally {
-         setLoading(false);
-         setIsRefreshing(false);
-       }
+    if (!forceRefresh && cacheValid && boardLoaded) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setIsRefreshing(true);
+      
+      const response = await getKanbanBoardWithCache(selectedProject.id, selectedTeam);
+      
+      if (response && response.length > 0) {
+        setKanbanBoard(response);
+        setCategories([]);
+        
+        setSelectedProject({
+          ...selectedProject,
+          categories: [],
+          columns: response
+        });
+        
+        setBoardLoaded(true);
+        setLastFetchTime(now);
+      }
+    } catch (error) {
+      // Handle error silently
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
   };
 
   const handleRefresh = () => {
-    loadKanbanBoard(true); // Force refresh
+    loadKanbanBoard(true);
   };
 
   // Optimistic update function
   const performOptimisticUpdate = (taskId: string, sourceColumnId: string, destinationColumnId: string, newIndex: number) => {
     const currentBoard = [...kanbanBoard];
     
-    // Find the task in the source column
     const sourceColumn = currentBoard.find(col => col.id === sourceColumnId);
     const destinationColumn = currentBoard.find(col => col.id === destinationColumnId);
     
     if (!sourceColumn || !destinationColumn) return currentBoard;
     
-    // Find and remove the task from source column
     const taskIndex = sourceColumn.tasks.findIndex(task => task.id === taskId);
     if (taskIndex === -1) return currentBoard;
     
     const [movedTask] = sourceColumn.tasks.splice(taskIndex, 1);
     
-    // Add the task to destination column at the new index
     if (sourceColumnId === destinationColumnId) {
-      // Same column, just reorder
       destinationColumn.tasks.splice(newIndex, 0, movedTask);
     } else {
-      // Different column, add to new column
       destinationColumn.tasks.splice(newIndex, 0, movedTask);
-      // Update the task's column_id
       movedTask.column_id = destinationColumnId;
     }
     
     return currentBoard;
   };
 
-  // Revert optimistic update
   const revertOptimisticUpdate = () => {
     setOptimisticBoard([]);
     setMovingTaskId(null);
   };
 
-     const handleDragStart = (result: any) => {
-     setIsDragging(true);
-     setDragStartTime(Date.now());
-     setMovingTaskId(result.draggableId);
-   };
+  const handleDragStart = (result: any) => {
+    setIsDragging(true);
+    setDragStartTime(Date.now());
+    setMovingTaskId(result.draggableId);
+  };
 
-     const handleDragUpdate = (result: any) => {
-     // Handle drag update silently
-   };
+  const handleDragUpdate = (result: any) => {
+    // Handle drag update silently
+  };
 
   const handleDragEnd = async (result: DropResult) => {
     setIsDragging(false);
@@ -311,54 +309,34 @@ export default function KanbanBoardPage() {
     const destinationColumnId = destination.droppableId;
     const newSortOrder = destination.index;
 
-    // Calculate drag duration for UX feedback
-    const dragDuration = Date.now() - dragStartTime;
-
-    // SAFETY CHECK: Validate task still exists before moving
     const taskExists = kanbanBoard.some(column => 
       column.tasks.some(task => task.id === taskId)
     );
     
     if (!taskExists) {
-      console.error('❌ Task not found during move operation:', taskId);
       setToast({ type: 'error', message: 'Task not found. Please refresh the board.' });
       return;
     }
 
-    // Perform optimistic update immediately
     const optimisticBoardData = performOptimisticUpdate(taskId, sourceColumnId, destinationColumnId, newSortOrder);
     setOptimisticBoard(optimisticBoardData);
     setKanbanBoard(optimisticBoardData);
 
     try {
-      console.log(`🔄 Moving task ${taskId} from ${sourceColumnId} to ${destinationColumnId}`);
-      
       const response = await moveTaskWithRedis(taskId, destinationColumnId, newSortOrder, selectedProject.id, selectedTeam, user.email);
       
       if (response.success) {
-        // Clear optimistic state since the server confirmed the move
         setOptimisticBoard([]);
-        // Invalidate cache for Phase 2
         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-        // Show success toast
         setToast({ type: 'success', message: 'Task moved successfully!' });
-        console.log(`✅ Task ${taskId} moved successfully`);
       } else {
-        // Revert optimistic update on failure
         revertOptimisticUpdate();
-        // Show error toast
         setToast({ type: 'error', message: `Failed to move task: ${response.error}` });
-        console.error(`❌ Failed to move task ${taskId}:`, response.error);
-        // Refresh board to get the correct state
         loadKanbanBoard(true);
       }
     } catch (error) {
-      // Revert optimistic update on error
       revertOptimisticUpdate();
-      // Show error toast
       setToast({ type: 'error', message: 'An error occurred while moving the task' });
-      console.error(`❌ Error moving task ${taskId}:`, error);
-      // Refresh board to get the correct state
       loadKanbanBoard(true);
     }
   };
@@ -375,47 +353,39 @@ export default function KanbanBoardPage() {
       
       if (response.success) {
         setShowCreateTaskModal(false);
-        // Invalidate cache for Phase 2
         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-        loadKanbanBoard(true); // Force refresh to show new task
+        loadKanbanBoard(true);
         setToast({ type: 'success', message: 'Task created successfully!' });
       } else {
-        // Show error to user
         const errorMessage = response.error || 'Failed to create task';
         setToast({ type: 'error', message: errorMessage });
-        console.error('Task creation failed:', response.error);
       }
     } catch (error) {
-      // Show error to user
       const errorMessage = error instanceof Error ? error.message : 'Failed to create task';
       setToast({ type: 'error', message: errorMessage });
-      console.error('Error creating task:', error);
     }
   };
 
   const handleUpdateTask = async (taskId: string, updates: UpdateTaskForm) => {
     if (!user || !selectedProject || !selectedTeam) return;
 
-         try {
-       const response = await updateKanbanTaskWithRedis(taskId, updates, selectedProject.id, selectedTeam, user.email);
-       
-       if (response.success) {
-         setShowEditTaskModal(false);
-         setEditingTask(null);
-         // Invalidate cache for Phase 2
-         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-         loadKanbanBoard(true); // Force refresh to show updated task
-       } else {
-         // Handle error silently
-       }
-     } catch (error) {
-       // Handle error silently
-     }
+    try {
+      const response = await updateKanbanTaskWithRedis(taskId, updates, selectedProject.id, selectedTeam, user.email);
+      
+      if (response.success) {
+        setShowEditTaskModal(false);
+        setEditingTask(null);
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        loadKanbanBoard(true);
+        setToast({ type: 'success', message: 'Task updated successfully!' });
+      } else {
+        setToast({ type: 'error', message: 'Failed to update task' });
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: 'An error occurred while updating the task' });
+    }
   };
 
-  
-
-  // Column Management Handlers
   const handleEditColumn = (column: any) => {
     setEditingColumn(column);
     setShowEditColumnModal(true);
@@ -424,21 +394,21 @@ export default function KanbanBoardPage() {
   const handleUpdateColumn = async (columnId: string, updates: { name: string; description?: string; color: string; sort_order?: number }) => {
     if (!selectedProject || !selectedTeam) return;
     
-         try {
-       const response = await updateKanbanColumnWithRedis(columnId, updates, selectedProject.id, selectedTeam);
-       
-       if (response.success) {
-         setShowEditColumnModal(false);
-         setEditingColumn(null);
-         // Invalidate cache for Phase 2
-         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-         loadKanbanBoard(true); // Force refresh to get updated column order
-       } else {
-         // Handle error silently
-       }
-     } catch (error) {
-       // Handle error silently
-     }
+    try {
+      const response = await updateKanbanColumnWithRedis(columnId, updates, selectedProject.id, selectedTeam);
+      
+      if (response.success) {
+        setShowEditColumnModal(false);
+        setEditingColumn(null);
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        loadKanbanBoard(true);
+        setToast({ type: 'success', message: 'Column updated successfully!' });
+      } else {
+        setToast({ type: 'error', message: 'Failed to update column' });
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: 'An error occurred while updating the column' });
+    }
   };
 
   const handleDeleteColumn = (columnId: string) => {
@@ -449,84 +419,80 @@ export default function KanbanBoardPage() {
   const confirmDeleteColumn = async () => {
     if (!columnToDelete || !selectedProject || !selectedTeam) return;
     
-         try {
-       const response = await deleteKanbanColumnWithRedis(columnToDelete, selectedProject.id, selectedTeam);
-       
-       if (response.success) {
-         setShowDeleteConfirmModal(false);
-         setColumnToDelete('');
-         // Invalidate cache for Phase 2
-         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-         loadKanbanBoard(true); // Force refresh to get updated column order
-       } else {
-         // Handle error silently
-       }
-     } catch (error) {
-       // Handle error silently
-     }
+    try {
+      const response = await deleteKanbanColumnWithRedis(columnToDelete, selectedProject.id, selectedTeam);
+      
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setColumnToDelete('');
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        loadKanbanBoard(true);
+        setToast({ type: 'success', message: 'Column deleted successfully!' });
+      } else {
+        setToast({ type: 'error', message: 'Failed to delete column' });
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: 'An error occurred while deleting the column' });
+    }
   };
 
-     const confirmDeleteTask = async () => {
-     if (!taskToDelete || !user || !selectedProject || !selectedTeam) return;
-     
-     try {
-       const response = await deleteKanbanTaskWithRedis(taskToDelete, selectedProject.id, selectedTeam, user.email);
-       
-       if (response.success) {
-         setShowDeleteConfirmModal(false);
-         setTaskToDelete('');
-         // Invalidate cache for Phase 2
-         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-         loadKanbanBoard(true); // Force refresh to show task removed
-         setToast({ type: 'success', message: 'Task deleted successfully!' });
-       } else {
-         setToast({ type: 'error', message: `Failed to delete task: ${response.error}` });
-       }
-     } catch (error) {
-       setToast({ type: 'error', message: 'An error occurred while deleting the task' });
-     }
-   };
-
-
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete || !user || !selectedProject || !selectedTeam) return;
+    
+    try {
+      const response = await deleteKanbanTaskWithRedis(taskToDelete, selectedProject.id, selectedTeam, user.email);
+      
+      if (response.success) {
+        setShowDeleteConfirmModal(false);
+        setTaskToDelete('');
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        loadKanbanBoard(true);
+        setToast({ type: 'success', message: 'Task deleted successfully!' });
+      } else {
+        setToast({ type: 'error', message: `Failed to delete task: ${response.error}` });
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: 'An error occurred while deleting the task' });
+    }
+  };
 
   const handleCreateColumn = async (columnData: CreateColumnForm) => {
     if (!selectedProject || !selectedTeam) return;
 
-         try {
-       const response = await createKanbanColumnWithRedis(columnData, selectedProject.id, selectedTeam);
-       
-       if (response.success) {
-         setShowCreateColumnModal(false);
-         // Invalidate cache for Phase 2
-         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-         loadKanbanBoard(true); // Force refresh to get updated column order
-       } else {
-         // Handle error silently
-       }
-     } catch (error) {
-       // Handle error silently
-     }
+    try {
+      const response = await createKanbanColumnWithRedis(columnData, selectedProject.id, selectedTeam);
+      
+      if (response.success) {
+        setShowCreateColumnModal(false);
+        await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        loadKanbanBoard(true);
+        setToast({ type: 'success', message: 'Column created successfully!' });
+      } else {
+        setToast({ type: 'error', message: 'Failed to create column' });
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: 'An error occurred while creating the column' });
+    }
   };
 
   const openCreateTaskModal = async (columnId?: string) => {
     if (columnId) {
       setSelectedColumnForTask(columnId);
     }
-    
-    // Show modal immediately - it will handle its own loading state
     setShowCreateTaskModal(true);
   };
+
   const openEditTaskModal = (task: KanbanTaskWithDetails) => {
     setEditingTask(task);
     setShowEditTaskModal(true);
   };
+
   const openTaskDetailModal = (task: KanbanTaskWithDetails) => {
     setSelectedTask(task);
     setShowTaskDetailModal(true);
   };
+
   const openCreateColumnModal = () => setShowCreateColumnModal(true);
-
-
 
   const filteredTasks = (tasks: KanbanTaskWithDetails[] | undefined) => {
     if (!tasks || !Array.isArray(tasks)) {
@@ -537,149 +503,296 @@ export default function KanbanBoardPage() {
           !task.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
+      if (filterPriority && task.priority !== filterPriority) {
+        return false;
+      }
+      if (filterAssignee && task.assigned_to !== filterAssignee) {
+        return false;
+      }
       return true;
     });
   };
 
   if (loading && !boardLoaded) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-neutral-50 dark:bg-neutral-900">
-        <div className="text-center">
-          <div className="loading-spinner h-12 w-12 mx-auto mb-4"></div>
-          <p className="text-neutral-600 dark:text-neutral-400 font-medium">Loading Kanban Board...</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
+        <div className="text-center p-8 rounded-2xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 shadow-2xl">
+          <div className="relative mx-auto mb-6 w-16 h-16">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-spin">
+              <div className="absolute inset-2 rounded-full bg-white dark:bg-slate-800"></div>
+            </div>
+            <div className="absolute inset-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
+          </div>
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Loading Kanban Board</h3>
+          <p className="text-slate-600 dark:text-slate-400">Setting up your workspace...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
-      {/* Filter Section */}
-      <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 rounded-2xl mb-6">
-        <div className="px-6 py-4">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
-                <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                  Visual workflow management for your team
-                </p>
+    <PageTransition>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900">
+      {/* Modern Header */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10 dark:from-blue-500/20 dark:to-purple-500/20"></div>
+        <div className="relative backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-b border-white/20 dark:border-slate-700/50">
+          <div className="px-6 py-8">
+            {/* Hero Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Grid3X3 className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></div>
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                      Kanban Board
+                    </h1>
+                    <p className="text-slate-600 dark:text-slate-400 mt-1 text-lg">
+                      Visual workflow management reimagined
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Quick Stats */}
+                <div className="hidden lg:flex items-center space-x-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-slate-900 dark:text-white">{boardStats.total}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Tasks</div>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">{boardStats.completed}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Completed</div>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{boardStats.inProgress}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">In Progress</div>
+                    </div>
+                    {boardStats.overdue > 0 && (
+                      <>
+                        <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{boardStats.overdue}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Overdue</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Project and Team Selector */}
-          <div className="bg-neutral-50/80 dark:bg-neutral-700/80 backdrop-blur-sm rounded-2xl p-6 border border-neutral-200/50 dark:border-neutral-600/50">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-4 lg:space-y-0 lg:space-x-6">
-              <div className="flex items-center space-x-3">
-                <FolderOpen className="h-5 w-5 text-neutral-500" />
-                <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Project:</label>
-                <select
-                  value={selectedProject?.id || ''}
-                  onChange={(e) => {
-                    const project = projects.find(p => p.id === e.target.value);
-                    setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
-                    setCategories([]);
-                    setBoardLoaded(false);
-                  }}
-                  className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            {/* Project and Team Selector */}
+            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-lg rounded-2xl p-6 border border-white/30 dark:border-slate-700/50 shadow-xl mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <FolderOpen className="h-4 w-4 mr-2 text-blue-500" />
+                    Project
+                  </label>
+                  <select
+                    value={selectedProject?.id || ''}
+                    onChange={(e) => {
+                      const project = projects.find(p => p.id === e.target.value);
+                      setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
+                      setCategories([]);
+                      setBoardLoaded(false);
+                    }}
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-sm"
+                  >
+                    <option value="">Select Project</option>
+                    {projects.map(project => (
+                      <option key={project.id} value={project.id}>
+                        {project.name} - {project.product} ({project.country})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <Users className="h-4 w-4 mr-2 text-purple-500" />
+                    Team
+                  </label>
+                  <select
+                    value={selectedTeam}
+                    onChange={async (e) => {
+                      const teamId = e.target.value;
+                      setSelectedTeam(teamId);
+                      setBoardLoaded(false);
+                      
+                      if (teamId) {
+                        await updateUserRoleForTeam(teamId);
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all shadow-sm"
+                  >
+                    <option value="">Select Team</option>
+                    {teams.map(team => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <Zap className="h-4 w-4 mr-2 text-amber-500" />
+                    Actions
+                  </label>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="flex-1 flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={openCreateColumnModal}
+                      className="flex-1 flex items-center justify-center px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Column
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Controls */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between space-y-4 lg:space-y-0">
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search tasks, descriptions, or JIRA keys..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-12 pr-4 py-3 w-80 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-xl text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-sm"
+                  />
+                </div>
+                
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                    showFilters 
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm' 
+                      : 'bg-white/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
+                  } backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60`}
                 >
-                  <option value="">Select Project</option>
-                  {projects.map(project => (
-                    <option key={project.id} value={project.id}>
-                      {project.name} - {project.product} ({project.country})
-                    </option>
-                  ))}
-                </select>
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
+                </button>
               </div>
 
-              <div className="flex items-center space-x-3">
-                <Users className="h-5 w-5 text-neutral-500" />
-                <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Team:</label>
-                <select
-                  value={selectedTeam}
-                  onChange={async (e) => {
-                    const teamId = e.target.value;
-                    setSelectedTeam(teamId);
-                    setBoardLoaded(false);
-                    
-                    // Update user role for the selected team
-                    if (teamId) {
-                      await updateUserRoleForTeam(teamId);
-                    }
-                  }}
-                  className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                    viewMode === 'kanban' 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
+                      : 'bg-white/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
+                  } backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60`}
                 >
-                  <option value="">Select Team</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-              >
-                <RefreshCw className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Search and View Mode */}
-          <div className="flex items-center justify-between mt-6">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-12 pr-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white w-72 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
+                  <Grid3X3 className="h-4 w-4 mr-2" />
+                  Kanban
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                    viewMode === 'list' 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
+                      : 'bg-white/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
+                  } backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60`}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  List
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={`p-3 rounded-xl transition-all duration-200 ${
-                  viewMode === 'kanban' 
-                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
-                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600'
-                }`}
-              >
-                <Grid3X3 className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-3 rounded-xl transition-all duration-200 ${
-                  viewMode === 'list' 
-                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 shadow-sm' 
-                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600'
-                }`}
-              >
-                <List className="h-5 w-5" />
-              </button>
-            </div>
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="mt-6 p-6 bg-white/60 dark:bg-slate-800/60 backdrop-blur-lg rounded-2xl border border-white/30 dark:border-slate-700/50 shadow-lg">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
+                  <Filter className="h-5 w-5 mr-2" />
+                  Filters
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Priority</label>
+                    <select
+                      value={filterPriority}
+                      onChange={(e) => setFilterPriority(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                    >
+                      <option value="">All Priorities</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Assignee</label>
+                    <select
+                      value={filterAssignee}
+                      onChange={(e) => setFilterAssignee(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                    >
+                      <option value="">All Assignees</option>
+                      {Array.from(new Set(kanbanBoard.flatMap(col => col.tasks?.map(task => task.assigned_to).filter(Boolean) || []))).map(assignee => (
+                        <option key={assignee} value={assignee}>{assignee}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        setFilterPriority('');
+                        setFilterAssignee('');
+                      }}
+                      className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-500 transition-colors"
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Kanban Board Content */}
-      <div className="relative">
+      {/* Board Content */}
+      <div className="relative px-6 py-8">
         {boardLoaded && (
-          <div className="h-full px-6 pb-6 relative">
+          <div className="relative">
             {/* Global loading overlay */}
             {movingTaskId && (
-              <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
-                <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
-                  <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
+              <div className="absolute inset-0 bg-slate-900/20 dark:bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
+                <div className="flex items-center space-x-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl px-8 py-6 shadow-2xl border border-white/50 dark:border-slate-700/50">
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-spin">
+                      <div className="absolute inset-1 rounded-full bg-white dark:bg-slate-800"></div>
+                    </div>
+                    <div className="absolute inset-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-slate-900 dark:text-white">Moving task</div>
+                    <div className="text-sm text-slate-600 dark:text-slate-400">Updating board state...</div>
+                  </div>
                 </div>
               </div>
             )}
@@ -690,117 +803,61 @@ export default function KanbanBoardPage() {
                 onDragUpdate={handleDragUpdate}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex space-x-4 lg:space-x-6 overflow-x-auto overflow-y-hidden h-[calc(100vh-400px)] pb-4 px-2 lg:px-0">
+                <div className="flex space-x-6 overflow-x-auto pb-6">
                   {kanbanBoard.map((column) => (
-                    <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
-                      <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column h-full flex flex-col">
-                        {/* Column Header - Fixed */}
-                        <div className="p-6 kanban-column-header rounded-t-2xl flex-shrink-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ backgroundColor: column.color }}
-                              ></div>
-                              <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
-                                {column.name}
-                              </h3>
-                              <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
-                                {filteredTasks(column.tasks).length}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => openCreateTaskModal(column.id)}
-                                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
-                              >
-                                <Plus className="h-5 w-5" />
-                              </button>
-                              <ColumnMenu
-                                column={column}
-                                taskCount={filteredTasks(column.tasks).length}
-                                onEdit={handleEditColumn}
-                                onDelete={handleDeleteColumn}
-                                isOwner={user?.role === 'owner'}
-                              />
-                            </div>
-                          </div>
-                          {column.description && (
-                            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
-                              {column.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Column Tasks - Scrollable Area */}
-                        <Droppable droppableId={column.id}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className={`kanban-task-list p-4 flex-1 overflow-y-auto transition-all duration-200 ${
-                                snapshot.isDraggingOver 
-                                  ? 'bg-blue-100/80 dark:bg-blue-900/20 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg' 
-                                  : ''
-                              } ${
-                                isDragging && !snapshot.isDraggingOver 
-                                  ? 'bg-neutral-50/50 dark:bg-neutral-800/20' 
-                                  : ''
-                              }`}
-                            >
-                              {filteredTasks(column.tasks).map((task, index) => (
-                                <TaskCard
-                                  key={task.id}
-                                  task={task}
-                                  index={index}
-                                  onClick={() => openTaskDetailModal(task)}
-                                  viewMode="kanban"
-                                  isMoving={movingTaskId === task.id}
-                                  onEdit={openEditTaskModal}
-                                  onDelete={(taskId) => {
-                                    setTaskToDelete(taskId);
-                                    setShowDeleteConfirmModal(true);
-                                  }}
-                                  canEdit={true}
-                                  canDelete={user?.email === task.created_by}
-                                />
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-                      </div>
-                    </div>
+                    <ModernKanbanColumn
+                      key={column.id}
+                      column={column}
+                      onTaskClick={openTaskDetailModal}
+                      onAddTask={openCreateTaskModal}
+                      onColumnMenu={(column, event) => {
+                        event.stopPropagation();
+                        handleEditColumn(column);
+                      }}
+                      searchQuery={searchQuery}
+                      viewMode={viewMode}
+                      movingTaskId={movingTaskId}
+                    />
                   ))}
                   
                   {/* Add New Column Button */}
                   <div className="flex-shrink-0 w-80">
                     <button
                       onClick={openCreateColumnModal}
-                      className="w-full kanban-column border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm h-full"
+                      className="w-full h-full min-h-[600px] border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-all duration-300 backdrop-blur-sm group"
                     >
-                      <Plus className="h-8 w-8 mr-3" />
-                      <span className="font-medium">Add New Column</span>
+                      <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-2xl flex items-center justify-center mb-4 shadow-sm group-hover:shadow-md transition-shadow">
+                        <Plus className="h-8 w-8" />
+                      </div>
+                      <span className="font-semibold text-lg">Add New Column</span>
+                      <span className="text-sm opacity-70 mt-1">Organize your workflow</span>
                     </button>
                   </div>
                 </div>
               </DragDropContext>
             ) : (
               // List View
-              <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 h-[calc(100vh-400px)] overflow-y-auto">
-                <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
-                  <h3 className="font-bold text-xl text-neutral-900 dark:text-white">All Tasks</h3>
+              <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl rounded-2xl shadow-xl border border-white/30 dark:border-slate-700/50">
+                <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+                  <h3 className="font-bold text-xl text-slate-900 dark:text-white flex items-center">
+                    <List className="h-6 w-6 mr-3 text-blue-500" />
+                    All Tasks
+                  </h3>
                 </div>
                 <div className="p-6">
                   {kanbanBoard.flatMap(column => filteredTasks(column.tasks)).length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-neutral-500 dark:text-neutral-400">No tasks found</p>
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                        <Sparkles className="h-10 w-10 text-slate-400" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No tasks found</h3>
+                      <p className="text-slate-500 dark:text-slate-400">Create your first task to get started</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {kanbanBoard.flatMap(column => 
                         filteredTasks(column.tasks).map(task => (
-                          <TaskCard
+                          <ModernTaskCard
                             key={task.id}
                             task={task}
                             index={0}
@@ -827,23 +884,23 @@ export default function KanbanBoardPage() {
 
         {/* Empty State */}
         {!boardLoaded && !loading && (
-          <div className="flex items-center justify-center min-h-[500px]">
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <Grid3X3 className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-center justify-center min-h-[600px]">
+            <div className="text-center p-12 bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 dark:border-slate-700/50">
+              <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg">
+                <Grid3X3 className="h-12 w-12 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">
+              <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
                 Select Project and Team
               </h3>
-              <p className="text-neutral-600 dark:text-neutral-400 text-lg">
-                Choose a project and team to load the Kanban board
+              <p className="text-slate-600 dark:text-slate-400 text-lg leading-relaxed max-w-md mx-auto">
+                Choose a project and team to load your Kanban board and start managing your workflow
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modals */}
+      {/* Modals - Keep existing modals for now */}
       {showCreateTaskModal && (
         <CreateTaskModal
           isOpen={showCreateTaskModal}
@@ -914,7 +971,6 @@ export default function KanbanBoardPage() {
         />
       )}
 
-      {/* Edit Column Modal */}
       {showEditColumnModal && (
         <EditColumnModal
           isOpen={showEditColumnModal}
@@ -928,7 +984,6 @@ export default function KanbanBoardPage() {
         />
       )}
 
-      {/* Confirmation Modal */}
       <ConfirmationModal
         isOpen={showDeleteConfirmModal}
         onClose={() => {
@@ -947,30 +1002,14 @@ export default function KanbanBoardPage() {
         type="danger"
       />
 
-      
-      
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg border transition-all duration-300 ${
-          toast.type === 'success' 
-            ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
-            : toast.type === 'error'
-            ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
-            : 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400'
-        }`}>
-          <div className="flex items-center space-x-2">
-            {toast.type === 'success' && <CheckCircle className="h-4 w-4" />}
-            {toast.type === 'error' && <AlertCircle className="h-4 w-4" />}
-            <span className="text-sm font-medium">{toast.message}</span>
-            <button
-              onClick={() => setToast(null)}
-              className="ml-2 text-current hover:opacity-70"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      {/* Modern Toast Notification */}
+      <SimpleToast
+        message={toast?.message || ''}
+        type={toast?.type || 'info'}
+        isVisible={!!toast}
+        onClose={() => setToast(null)}
+      />
+      </div>
+    </PageTransition>
   );
 }
