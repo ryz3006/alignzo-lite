@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJiraCredentials, createJiraIssue } from '@/lib/jira';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,47 +31,81 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Creating JIRA ticket in project: ${projectKey} for user: ${userEmail}`);
-    console.log('Getting actual accountId from /rest/api/3/myself for assignment');
-    console.log('JIRA credentials:', {
-      base_url: credentials.base_url,
-      user_email_integration: credentials.user_email_integration,
-      hasApiToken: !!credentials.api_token
-    });
 
-    // Step 1: Get the actual accountId from /rest/api/3/myself
-    const myselfResponse = await fetch(`${credentials.base_url}/rest/api/3/myself`, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-        'Accept': 'application/json'
+    // Step 1: Try to get the actual user's JIRA accountId from user mappings
+    let assigneeAccountId = null;
+    let assigneeDisplayName = null;
+    
+    try {
+      // First, try to get user's JIRA mapping
+      const { data: userMappings, error: mappingError } = await supabase
+        .from('jira_user_mappings')
+        .select('jira_assignee_name, jira_reporter_name')
+        .eq('user_email', userEmail)
+        .eq('jira_project_key', projectKey)
+        .single();
+
+      if (!mappingError && userMappings) {
+        console.log('Found project-specific user mapping:', userMappings);
+        // Try to get the user's JIRA accountId by searching for them
+        const searchResponse = await fetch(`${credentials.base_url}/rest/api/3/user/search?query=${encodeURIComponent(userMappings.jira_assignee_name || userMappings.jira_reporter_name)}`, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData && searchData.length > 0) {
+            const user = searchData[0];
+            assigneeAccountId = user.accountId;
+            assigneeDisplayName = user.displayName;
+            console.log('Found JIRA user for assignment:', { accountId: assigneeAccountId, displayName: assigneeDisplayName });
+          }
+        }
+      } else {
+        // Try to get any user mapping for this user
+        const { data: fallbackMappings, error: fallbackError } = await supabase
+          .from('jira_user_mappings')
+          .select('jira_assignee_name, jira_reporter_name')
+          .eq('user_email', userEmail)
+          .limit(1)
+          .single();
+
+        if (!fallbackError && fallbackMappings) {
+          console.log('Found fallback user mapping:', fallbackMappings);
+          // Try to get the user's JIRA accountId
+          const searchResponse = await fetch(`${credentials.base_url}/rest/api/3/user/search?query=${encodeURIComponent(fallbackMappings.jira_assignee_name || fallbackMappings.jira_reporter_name)}`, {
+            headers: {
+              'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData && searchData.length > 0) {
+              const user = searchData[0];
+              assigneeAccountId = user.accountId;
+              assigneeDisplayName = user.displayName;
+              console.log('Found JIRA user for assignment (fallback):', { accountId: assigneeAccountId, displayName: assigneeDisplayName });
+            }
+          }
+        }
       }
-    });
-
-    if (!myselfResponse.ok) {
-      const errorText = await myselfResponse.text();
-      console.error(`JIRA myself API error: ${myselfResponse.status} - ${errorText}`);
-      return NextResponse.json(
-        { error: `Failed to get user accountId: ${myselfResponse.status}` },
-        { status: myselfResponse.status }
-      );
+    } catch (error) {
+      console.log('Error looking up user mapping, will create ticket without assignment:', error);
     }
 
-    const userData = await myselfResponse.json();
-    const accountId = userData.accountId;
-    
-    console.log('JIRA user data:', {
-      accountId: userData.accountId,
-      displayName: userData.displayName,
-      emailAddress: userData.emailAddress
-    });
-
-    // Step 2: Create ticket with the actual accountId
+    // Step 2: Create ticket with or without assignee
     const result = await createJiraIssue(credentials, {
       projectKey,
       summary,
       description,
       issueType,
       priority,
-      assignee: accountId // Use the actual accountId for assignment
+      assignee: assigneeAccountId // Use the actual user's accountId if found
     });
 
     if (!result.success) {
@@ -105,19 +140,33 @@ export async function POST(request: NextRequest) {
     }
 
     const ticket = result.data;
-    console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to accountId: ${accountId}`);
     
-    return NextResponse.json({
-      success: true,
-      ticket: {
-        key: ticket?.key,
-        id: ticket?.id
-      },
-      message: `JIRA ticket ${ticket?.key} created successfully and assigned to accountId: ${accountId} (${userData.displayName})! Please update the ticket in JIRA for closure or reassignments.`,
-      accountId: accountId,
-      displayName: userData.displayName,
-      rateLimitInfo: result.rateLimitInfo
-    });
+    if (assigneeAccountId && assigneeDisplayName) {
+      console.log(`JIRA ticket created successfully: ${ticket?.key} assigned to user: ${assigneeDisplayName} (${assigneeAccountId})`);
+      return NextResponse.json({
+        success: true,
+        ticket: {
+          key: ticket?.key,
+          id: ticket?.id
+        },
+        message: `JIRA ticket ${ticket?.key} created successfully and assigned to ${assigneeDisplayName}!`,
+        assignee: {
+          accountId: assigneeAccountId,
+          displayName: assigneeDisplayName
+        }
+      });
+    } else {
+      console.log(`JIRA ticket created successfully: ${ticket?.key} without assignment (no user mapping found)`);
+      return NextResponse.json({
+        success: true,
+        ticket: {
+          key: ticket?.key,
+          id: ticket?.id
+        },
+        message: `JIRA ticket ${ticket?.key} created successfully without assignment. Please assign it manually in JIRA.`,
+        note: 'No user mapping found for automatic assignment'
+      });
+    }
 
   } catch (error) {
     console.error('JIRA create ticket error:', error);
