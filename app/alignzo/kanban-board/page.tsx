@@ -75,6 +75,7 @@ import EditColumnModal from '@/components/kanban/EditColumnModal';
 import ConfirmationModal from '@/components/kanban/ConfirmationModal';
 import ModernCreateTaskModal from '@/components/kanban/ModernCreateTaskModal';
 import ModernEditColumnModal from '@/components/kanban/ModernEditColumnModal';
+import ModernEditTaskModal from '@/components/kanban/ModernEditTaskModal';
 
 // Modern redesigned components
 import ModernTaskCard from '@/components/kanban/ModernTaskCard';
@@ -128,22 +129,6 @@ export default function KanbanBoardPageRedesigned() {
   
   // Toast notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-
-  // Board statistics
-  const boardStats = useMemo(() => {
-    if (!kanbanBoard.length) return { total: 0, completed: 0, inProgress: 0, overdue: 0 };
-    
-    const allTasks = kanbanBoard.flatMap(column => column.tasks || []);
-    const total = allTasks.length;
-    const completed = allTasks.filter(task => task.status === 'completed').length;
-    const inProgress = allTasks.filter(task => task.status === 'active').length;
-    const now = new Date();
-    const overdue = allTasks.filter(task => 
-      task.due_date && new Date(task.due_date) < now && task.status !== 'completed'
-    ).length;
-    
-    return { total, completed, inProgress, overdue };
-  }, [kanbanBoard]);
 
   useEffect(() => {
     initializePage();
@@ -559,35 +544,6 @@ export default function KanbanBoardPageRedesigned() {
                     </p>
                   </div>
                 </div>
-                
-                {/* Quick Stats */}
-                <div className="hidden lg:flex items-center space-x-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-slate-900 dark:text-white">{boardStats.total}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Tasks</div>
-                    </div>
-                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">{boardStats.completed}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Completed</div>
-                    </div>
-                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{boardStats.inProgress}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">In Progress</div>
-                    </div>
-                    {boardStats.overdue > 0 && (
-                      <>
-                        <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{boardStats.overdue}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Overdue</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -819,6 +775,14 @@ export default function KanbanBoardPageRedesigned() {
                       searchQuery={searchQuery}
                       viewMode={viewMode}
                       movingTaskId={movingTaskId}
+                      onEditTask={openEditTaskModal}
+                      onDeleteTask={(taskId) => {
+                        setTaskToDelete(taskId);
+                        setShowDeleteConfirmModal(true);
+                      }}
+                      canEdit={true}
+                      canDelete={true}
+                      userEmail={user?.email}
                     />
                   ))}
                   
@@ -923,7 +887,7 @@ export default function KanbanBoardPageRedesigned() {
       )}
 
       {showEditTaskModal && editingTask && (
-        <EditTaskModal
+        <ModernEditTaskModal
           isOpen={showEditTaskModal}
           onClose={() => {
             setShowEditTaskModal(false);

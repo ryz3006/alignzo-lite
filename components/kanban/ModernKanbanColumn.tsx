@@ -30,6 +30,11 @@ interface ModernKanbanColumnProps {
   searchQuery: string;
   viewMode: 'kanban' | 'list';
   movingTaskId?: string | null;
+  onEditTask?: (task: any) => void;
+  onDeleteTask?: (taskId: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  userEmail?: string;
 }
 
 const ModernKanbanColumn = memo(({ 
@@ -39,7 +44,12 @@ const ModernKanbanColumn = memo(({
   onColumnMenu,
   searchQuery,
   viewMode,
-  movingTaskId 
+  movingTaskId,
+  onEditTask,
+  onDeleteTask,
+  canEdit = true,
+  canDelete = true,
+  userEmail
 }: ModernKanbanColumnProps) => {
   
   // Memoized filtered tasks
@@ -272,6 +282,10 @@ const ModernKanbanColumn = memo(({
                   onClick={() => onTaskClick(task)}
                   viewMode={viewMode}
                   isMoving={movingTaskId === task.id}
+                  onEdit={onEditTask}
+                  onDelete={onDeleteTask}
+                  canEdit={canEdit}
+                  canDelete={canDelete && userEmail === task.created_by}
                 />
               ))}
               {provided.placeholder}
