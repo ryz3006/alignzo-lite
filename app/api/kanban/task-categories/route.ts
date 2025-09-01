@@ -364,7 +364,9 @@ function compareCategories(currentCategories: any[], newCategories: any[]): bool
   }
 
   // Check if any current categories are missing from new categories
-  for (const [key] of currentMap) {
+  // Use Array.from() to convert Map keys to array for iteration
+  const currentKeys = Array.from(currentMap.keys());
+  for (const key of currentKeys) {
     if (!newMap.has(key)) {
       return true;
     }

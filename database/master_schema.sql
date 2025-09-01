@@ -1508,6 +1508,19 @@ COMMENT ON TABLE session_activities IS 'Tracks user activities within sessions';
 COMMENT ON COLUMN session_activities.activity_type IS 'Type of activity performed';
 COMMENT ON COLUMN session_activities.endpoint IS 'API endpoint accessed';
 
+-- Add comments for task category functions
+COMMENT ON TABLE task_category_mappings IS 'Maps tasks to multiple categories with options';
+COMMENT ON COLUMN task_category_mappings.task_id IS 'Reference to the kanban task';
+COMMENT ON COLUMN task_category_mappings.category_id IS 'Reference to the project category';
+COMMENT ON COLUMN task_category_mappings.category_option_id IS 'Optional reference to a specific category option';
+COMMENT ON COLUMN task_category_mappings.is_primary IS 'Whether this is the primary category for the task';
+COMMENT ON COLUMN task_category_mappings.sort_order IS 'Order for displaying categories';
+
+COMMENT ON FUNCTION get_task_categories_with_options_json(UUID) IS 'Get task categories with full details in JSON format';
+COMMENT ON FUNCTION get_task_categories_with_options(UUID) IS 'Get task categories with full details in table format';
+COMMENT ON FUNCTION get_task_categories_simple_json(UUID) IS 'Get task categories with basic details in JSON format';
+COMMENT ON FUNCTION update_task_categories(UUID, JSONB, TEXT) IS 'Update task categories by replacing all existing mappings with new ones';
+
 -- =====================================================
 -- SCHEMA COMPLETE
 -- =====================================================
