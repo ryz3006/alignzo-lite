@@ -153,9 +153,13 @@ export default function CreateTaskModal({
       if (response.ok) {
         const data = await response.json();
         setTeamMembers(data.teamMembers || []);
+      } else {
+        console.error('Failed to load team members');
+        setTeamMembers([]);
       }
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     } finally {
       setIsLoadingTeamMembers(false);
     }
@@ -850,6 +854,8 @@ export default function CreateTaskModal({
                     <option value="">Unassigned</option>
                     {isLoadingTeamMembers ? (
                       <option value="" disabled>Loading team members...</option>
+                    ) : teamMembers.length === 0 ? (
+                      <option value="" disabled>No team members found</option>
                     ) : (
                       teamMembers.map((member) => (
                         <option key={member.id} value={member.email}>

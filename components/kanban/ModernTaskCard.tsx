@@ -287,7 +287,7 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
             )}
             
             {/* Assignee */}
-            {task.assigned_to && (
+            {task.assigned_to && task.assigned_to.trim() !== '' && (
               <div className="flex items-center space-x-2 px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
                 <User className="h-3 w-3 text-slate-500" />
                 <span className="text-xs text-slate-700 dark:text-slate-300">{task.assigned_to}</span>
@@ -403,7 +403,7 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
             )}
 
             {/* Assignee */}
-            {task.assigned_to && (
+            {task.assigned_to && task.assigned_to.trim() !== '' && (
               <div className="flex items-center space-x-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                 <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {task.assigned_to.charAt(0).toUpperCase()}
@@ -453,7 +453,7 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               </div>
               
               {/* Action Buttons */}
-              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
+              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300 relative z-10">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

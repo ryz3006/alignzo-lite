@@ -13,17 +13,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Team ID parameter is required' }, { status: 400 });
     }
 
-    // Get team members with user details
-    const teamResponse = await supabaseClient.get('team_members', {
-      select: 'user_id,users(id,email,full_name)',
-      filters: { team_id: teamId }
+    // Get team members with user details using a proper join
+    const teamResponse = await supabaseClient.query({
+      table: 'team_members',
+      action: 'select',
+      select: 'id, user_id, users(id, email, full_name)',
+      filters: { team_id: teamId },
+      order: { column: 'created_at', ascending: true }
     });
 
     if (teamResponse.error) {
       throw new Error(teamResponse.error);
     }
 
-    const teamMembers = teamResponse.data?.map((membership: any) => membership.users).filter(Boolean) || [];
+    // Transform the data to match the expected format
+    const teamMembers = teamResponse.data?.map((membership: any) => ({
+      id: membership.id,
+      email: membership.users?.email || '',
+      full_name: membership.users?.full_name || ''
+    })).filter((member: any) => member.email) || [];
 
     return NextResponse.json({ teamMembers });
   } catch (error) {

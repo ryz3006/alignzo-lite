@@ -35,11 +35,8 @@ interface JiraTicket {
 
 interface TeamMember {
   id: string;
-  user_id: string;
-  users: {
-    full_name: string;
-    email: string;
-  };
+  email: string;
+  full_name?: string;
 }
 
 export default function EditTaskModal({
@@ -362,26 +359,29 @@ export default function EditTaskModal({
     setIsLoadingTeamMembers(true);
     try {
       if (teamId) {
-        // Use a join query to get team members with user information
-        const teamMembersResponse = await supabaseClient.query({
-          table: 'team_members',
-          action: 'select',
-          select: 'id, user_id, users(full_name, email)',
-          filters: { team_id: teamId },
-          order: { column: 'created_at', ascending: true }
-        });
+        // Use the API endpoint to get team members
+        const response = await fetch(`/api/teams/team-members?teamId=${teamId}`);
         
-        if (teamMembersResponse.data) {
-          setTeamMembers(teamMembersResponse.data);
-          
-          // Ensure assigned_to is properly set if it exists in the task
-          if (task.assigned_to && teamMembersResponse.data.some((member: TeamMember) => member.users.email === task.assigned_to)) {
-            setFormData(prev => ({ ...prev, assigned_to: task.assigned_to }));
+        if (response.ok) {
+          const data = await response.json();
+          if (data.teamMembers && data.teamMembers.length > 0) {
+            setTeamMembers(data.teamMembers);
+            
+            // Ensure assigned_to is properly set if it exists in the task
+            if (task.assigned_to && data.teamMembers.some((member: any) => member.email === task.assigned_to)) {
+              setFormData(prev => ({ ...prev, assigned_to: task.assigned_to }));
+            }
+          } else {
+            setTeamMembers([]);
           }
+        } else {
+          console.error('Failed to load team members');
+          setTeamMembers([]);
         }
       }
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     } finally {
       setIsLoadingTeamMembers(false);
     }
@@ -979,18 +979,32 @@ export default function EditTaskModal({
                     <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                       Assigned To
                     </label>
-                    <select
-                      value={formData.assigned_to || ''}
-                      onChange={(e) => handleInputChange('assigned_to', e.target.value)}
-                      className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-                    >
-                      <option value="">Unassigned</option>
-                      {teamMembers.map((member) => (
-                        <option key={member.id} value={member.users.email}>
-                          {member.users?.full_name || member.users.email}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formData.assigned_to || ''}
+                        onChange={(e) => handleInputChange('assigned_to', e.target.value)}
+                        className="w-full px-4 py-3 border border-neutral-300 dark:border-neutral-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
+                        disabled={isLoadingTeamMembers}
+                      >
+                        <option value="">Unassigned</option>
+                        {isLoadingTeamMembers ? (
+                          <option value="" disabled>Loading team members...</option>
+                        ) : teamMembers.length === 0 ? (
+                          <option value="" disabled>No team members found</option>
+                        ) : (
+                          teamMembers.map((member) => (
+                            <option key={member.id} value={member.email}>
+                              {member.full_name || member.email}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      {isLoadingTeamMembers && (
+                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                          <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

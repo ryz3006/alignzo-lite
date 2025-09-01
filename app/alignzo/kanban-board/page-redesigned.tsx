@@ -752,7 +752,7 @@ export default function KanbanBoardPageRedesigned() {
                       className="w-full px-3 py-2 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                     >
                       <option value="">All Assignees</option>
-                      {Array.from(new Set(kanbanBoard.flatMap(col => col.tasks?.map(task => task.assigned_to).filter(Boolean) || []))).map(assignee => (
+                      {Array.from(new Set(kanbanBoard.flatMap(col => col.tasks?.map(task => task.assigned_to).filter(assignee => assignee && assignee.trim() !== '') || []))).map(assignee => (
                         <option key={assignee} value={assignee}>{assignee}</option>
                       ))}
                     </select>
