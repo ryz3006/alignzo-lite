@@ -66,6 +66,25 @@ export default function EditTaskModal({
     assigned_to: ''
   });
 
+  // Store original form data for change detection
+  const [originalFormData, setOriginalFormData] = useState<UpdateTaskForm>({
+    title: '',
+    description: '',
+    category_id: '',
+    category_option_id: '',
+    column_id: '',
+    priority: 'medium',
+    status: 'active',
+    estimated_hours: undefined,
+    actual_hours: undefined,
+    due_date: '',
+    jira_ticket_key: '',
+    assigned_to: ''
+  });
+
+  // Store original categories for change detection
+  const [originalCategories, setOriginalCategories] = useState<TaskCategorySelection[]>([]);
+
   const [errors, setErrors] = useState<Record<keyof UpdateTaskForm, string | undefined>>({} as Record<keyof UpdateTaskForm, string | undefined>);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
@@ -218,16 +237,20 @@ export default function EditTaskModal({
           }));
           
           setSelectedCategories(categorySelections);
+          setOriginalCategories(categorySelections);
         } else {
           setSelectedCategories([]);
+          setOriginalCategories([]);
         }
       } else {
         console.error('API failed to load task categories');
         setSelectedCategories([]);
+        setOriginalCategories([]);
       }
     } catch (error) {
       console.error('Error loading task categories:', error);
       setSelectedCategories([]);
+      setOriginalCategories([]);
     }
   }, [task?.id]);
 
@@ -266,6 +289,21 @@ export default function EditTaskModal({
         jira_ticket_key: task.jira_ticket_key || '',
         assigned_to: task.assigned_to || ''
       });
+      setOriginalFormData({
+        title: task.title || '',
+        description: task.description || '',
+        category_id: task.category_id || '',
+        category_option_id: task.category_option_id || '',
+        column_id: task.column_id || '',
+        priority: task.priority || 'medium',
+        status: task.status || 'active',
+        estimated_hours: task.estimated_hours || undefined,
+        actual_hours: task.actual_hours || undefined,
+        due_date: formatDateForInput(task.due_date),
+        jira_ticket_key: task.jira_ticket_key || '',
+        assigned_to: task.assigned_to || ''
+      });
+             // Original categories will be set when loadTaskCategories is called
       setErrors({} as Record<keyof UpdateTaskForm, string | undefined>);
       
       // Then load additional data
@@ -560,8 +598,44 @@ export default function EditTaskModal({
     return Object.values(newErrors).every(error => !error);
   };
 
+  // Check if there are any changes in the form
+  const hasChanges = useMemo(() => {
+    // Check form data changes
+    const formDataChanged = Object.keys(formData).some(key => {
+      const field = key as keyof UpdateTaskForm;
+      const originalValue = originalFormData[field];
+      const currentValue = formData[field];
+      
+      // Handle undefined/null comparisons
+      if (originalValue === undefined && currentValue === undefined) return false;
+      if (originalValue === null && currentValue === null) return false;
+      if (originalValue === '' && currentValue === '') return false;
+      
+      return originalValue !== currentValue;
+    });
+
+    // Check categories changes
+    const categoriesChanged = selectedCategories.length !== originalCategories.length ||
+      selectedCategories.some((cat, index) => {
+        const originalCat = originalCategories[index];
+        if (!originalCat) return true;
+        return cat.category_id !== originalCat.category_id ||
+               cat.category_option_id !== originalCat.category_option_id ||
+               cat.is_primary !== originalCat.is_primary ||
+               cat.sort_order !== originalCat.sort_order;
+      });
+
+    return formDataChanged || categoriesChanged;
+  }, [formData, originalFormData, selectedCategories, originalCategories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!hasChanges) {
+      toast('No changes detected. Task remains unchanged.');
+      onClose();
+      return;
+    }
     
     if (validateForm()) {
       setIsLoading(true);
@@ -635,6 +709,15 @@ export default function EditTaskModal({
               <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                 Update task details and settings
               </p>
+              {/* Change indicator */}
+              {hasChanges && (
+                <div className="flex items-center space-x-2 mt-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                    Changes detected
+                  </span>
+                </div>
+              )}
             </div>
             
             {/* Task Age Badge */}
@@ -1213,13 +1296,18 @@ export default function EditTaskModal({
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !hasChanges}
               className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Updating...</span>
+                </>
+              ) : !hasChanges ? (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <span>No Changes</span>
                 </>
               ) : (
                 <>
