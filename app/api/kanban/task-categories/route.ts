@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
-import { supabaseClient } from '@/lib/supabase-client';
+
+// Create direct Supabase client for this API
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase environment variables not configured');
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // GET: Retrieve categories for a specific task
 export async function GET(request: NextRequest) {
@@ -18,12 +28,13 @@ export async function GET(request: NextRequest) {
     }
 
     // First, check if the task exists and user has access
-    const { data: taskData, error: taskError } = await supabaseClient.get('kanban_tasks', {
-      select: 'id, title, project_id',
-      filters: { id: taskId }
-    });
+    const { data: taskData, error: taskError } = await supabase
+      .from('kanban_tasks')
+      .select('id, title, project_id')
+      .eq('id', taskId)
+      .single();
 
-    if (taskError || !taskData || taskData.length === 0) {
+    if (taskError || !taskData) {
       console.error('Error checking task access:', taskError);
       return NextResponse.json(
         { error: 'Task not found or access denied', details: taskError || 'Task not found' },
@@ -32,35 +43,25 @@ export async function GET(request: NextRequest) {
     }
 
     // Use the database function to get task categories with options
-    let { data, error } = await supabaseClient.rpc('get_task_categories_with_options', {
+    let { data, error } = await supabase.rpc('get_task_categories_with_options_json', {
       p_task_id: taskId
     });
 
-    // If the TABLE function fails, try the JSON function as fallback
+    // If the JSON function fails, try the simple JSON function as fallback
     if (error) {
-      const jsonResult = await supabaseClient.rpc('get_task_categories_with_options_json', {
+      const simpleJsonResult = await supabase.rpc('get_task_categories_simple_json', {
         p_task_id: taskId
       });
       
-      if (jsonResult.error) {
-        const simpleJsonResult = await supabaseClient.rpc('get_task_categories_simple_json', {
-          p_task_id: taskId
-        });
-        
-        if (simpleJsonResult.error) {
-          console.error('All functions failed:', { tableError: error, jsonError: jsonResult.error, simpleJsonError: simpleJsonResult.error });
-          return NextResponse.json(
-            { error: 'Failed to fetch task categories', details: `Table function: ${error}, JSON function: ${jsonResult.error}, Simple JSON function: ${simpleJsonResult.error}` },
-            { status: 500 }
-          );
-        }
-        data = simpleJsonResult.data;
-        error = simpleJsonResult.error;
-      } else {
-        // Use the JSON function result
-        data = jsonResult.data;
-        error = jsonResult.error;
+      if (simpleJsonResult.error) {
+        console.error('All functions failed:', { jsonError: error, simpleJsonError: simpleJsonResult.error });
+        return NextResponse.json(
+          { error: 'Failed to fetch task categories', details: `JSON function: ${error}, Simple JSON function: ${simpleJsonResult.error}` },
+          { status: 500 }
+        );
       }
+      data = simpleJsonResult.data;
+      error = simpleJsonResult.error;
     }
 
     return NextResponse.json({
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     // Get current categories for comparison BEFORE updating
     let currentCategories = [];
     try {
-      const currentCategoriesResponse = await supabaseClient.rpc('get_task_categories_with_options_json', {
+      const currentCategoriesResponse = await supabase.rpc('get_task_categories_with_options_json', {
         p_task_id: taskId
       });
       currentCategories = currentCategoriesResponse.data || [];
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the database function to update task categories
-    const { data, error } = await supabaseClient.rpc('update_task_categories', {
+    const { data, error } = await supabase.rpc('update_task_categories', {
       p_task_id: taskId,
       p_categories: categories,
       p_user_email: userEmail || 'system'
@@ -233,17 +234,21 @@ export async function POST(request: NextRequest) {
         // Import the createTaskTimeline function
         const { createTaskTimeline } = await import('@/lib/kanban-api');
         
-        await createTaskTimeline(
-          taskId,
-          'categories_updated',
-          JSON.stringify({
-            categories: categoryNames,
-            count: categories.length,
-            previous_count: currentCategories.length,
-            category_details: categoryDetails
-          }),
-          userEmail || 'system'
-        );
+        try {
+          await createTaskTimeline(
+            taskId,
+            'categories_updated',
+            JSON.stringify({
+              categories: categoryNames,
+              count: categories.length,
+              previous_count: currentCategories.length,
+              category_details: categoryDetails
+            }),
+            userEmail || 'system'
+          );
+        } catch (timelineError) {
+          console.warn('Timeline creation failed, but continuing with category update:', timelineError);
+        }
       } catch (timelineError) {
         console.warn('Failed to create timeline entry for category changes:', timelineError);
         // Don't fail the operation if timeline creation fails
@@ -284,7 +289,7 @@ export async function DELETE(request: NextRequest) {
     // Delete all category mappings for the task
     // Since we can't delete by filters directly, we'll use the database function
     // which handles the deletion in the transaction
-    const { error } = await supabaseClient.rpc('update_task_categories', {
+    const { error } = await supabase.rpc('update_task_categories', {
       p_task_id: taskId,
       p_categories: '[]', // Empty array to clear all categories
       p_user_email: userEmail || 'system'
@@ -300,17 +305,21 @@ export async function DELETE(request: NextRequest) {
 
     // Create timeline entry for category removal
     try {
-      // Import the createTaskTimeline function
-      const { createTaskTimeline } = await import('@/lib/kanban-api');
-      
-      await createTaskTimeline(
-        taskId,
-        'categories_removed',
-        JSON.stringify({
-          action: 'All categories removed from task'
-        }),
-        userEmail || 'system'
-      );
+              // Import the createTaskTimeline function
+        const { createTaskTimeline } = await import('@/lib/kanban-api');
+        
+        try {
+          await createTaskTimeline(
+            taskId,
+            'categories_removed',
+            JSON.stringify({
+              action: 'All categories removed from task'
+            }),
+            userEmail || 'system'
+          );
+        } catch (timelineError) {
+          console.warn('Timeline creation failed, but continuing with category removal:', timelineError);
+        }
     } catch (timelineError) {
       console.warn('Failed to create timeline entry for category removal:', timelineError);
       // Don't fail the operation if timeline creation fails
