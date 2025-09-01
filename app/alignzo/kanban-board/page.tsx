@@ -553,22 +553,20 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
-             {/* Header */}
-       <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-20">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 flex flex-col">
+      {/* Fixed Header with Filters */}
+      <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-20 flex-shrink-0">
         <div className="px-6 py-4">
-                      <div className="mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
-                  <p className="text-neutral-600 dark:text-neutral-400 mt-2">
-                    Visual workflow management for your team
-                  </p>
-                </div>
-                
-                
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Kanban Board</h1>
+                <p className="text-neutral-600 dark:text-neutral-400 mt-2">
+                  Visual workflow management for your team
+                </p>
               </div>
             </div>
+          </div>
 
           {/* Project and Team Selector */}
           <div className="bg-neutral-50/80 dark:bg-neutral-700/80 backdrop-blur-sm rounded-2xl p-6 border border-neutral-200/50 dark:border-neutral-600/50">
@@ -580,8 +578,8 @@ export default function KanbanBoardPage() {
                   value={selectedProject?.id || ''}
                   onChange={(e) => {
                     const project = projects.find(p => p.id === e.target.value);
-                            setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
-        setCategories([]);
+                    setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
+                    setCategories([]);
                     setBoardLoaded(false);
                   }}
                   className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -624,9 +622,9 @@ export default function KanbanBoardPage() {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                 className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
-               >
-                 <RefreshCw className="h-5 w-5" />
+                className="p-2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-600 rounded-lg transition-all duration-200"
+              >
+                <RefreshCw className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -634,8 +632,6 @@ export default function KanbanBoardPage() {
           {/* Search and View Mode */}
           <div className="flex items-center justify-between mt-6">
             <div className="flex items-center space-x-4">
-              
-
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-neutral-400" />
                 <input
@@ -674,176 +670,178 @@ export default function KanbanBoardPage() {
         </div>
       </div>
 
-                    {/* Kanban Board */}
-       {boardLoaded && (
-                 <div className="px-6 pb-6 relative">
-           {/* Global loading overlay */}
-           {movingTaskId && (
-             <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
-               <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
-                 <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                 <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
-               </div>
-             </div>
-           )}
-           
-           {viewMode === 'kanban' ? (
-             <DragDropContext 
-               onDragStart={handleDragStart}
-               onDragUpdate={handleDragUpdate}
-               onDragEnd={handleDragEnd}
-             >
-               <div className="flex space-x-4 lg:space-x-6 overflow-x-auto pb-4 px-2 lg:px-0 h-[calc(100vh-280px)]">
-                {kanbanBoard.map((column) => (
-                  <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
-                    <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column">
-                      {/* Column Header - Fixed Floating */}
-                      <div className="p-6 kanban-column-header rounded-t-2xl">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm"
-                              style={{ backgroundColor: column.color }}
-                            ></div>
-                            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
-                              {column.name}
-                            </h3>
-                            <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
-                              {filteredTasks(column.tasks).length}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => openCreateTaskModal(column.id)}
-                              className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
-                            >
-                              <Plus className="h-5 w-5" />
-                            </button>
-                            <ColumnMenu
-                              column={column}
-                              taskCount={filteredTasks(column.tasks).length}
-                              onEdit={handleEditColumn}
-                              onDelete={handleDeleteColumn}
-                              isOwner={user?.role === 'owner'}
-                            />
-                          </div>
-                        </div>
-                        {column.description && (
-                          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
-                            {column.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Column Tasks - Scrollable Area */}
-                      <Droppable droppableId={column.id}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className={`kanban-task-list p-4 transition-all duration-200 ${
-                              snapshot.isDraggingOver 
-                                ? 'bg-blue-100/80 dark:bg-blue-900/20 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg' 
-                                : ''
-                            } ${
-                              isDragging && !snapshot.isDraggingOver 
-                                ? 'bg-neutral-50/50 dark:bg-neutral-800/20' 
-                                : ''
-                            }`}
-                          >
-                            {filteredTasks(column.tasks).map((task, index) => (
-                              <TaskCard
-                                key={task.id}
-                                task={task}
-                                index={index}
-                                onClick={() => openTaskDetailModal(task)}
-                                viewMode="kanban"
-                                isMoving={movingTaskId === task.id}
-                                onEdit={openEditTaskModal}
-                                onDelete={(taskId) => {
-                                  setTaskToDelete(taskId);
-                                  setShowDeleteConfirmModal(true);
-                                }}
-                                canEdit={true}
-                                canDelete={user?.email === task.created_by}
-                              />
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </div>
-                  </div>
-                ))}
-                
-                {/* Add New Column Button */}
-                <div className="flex-shrink-0 w-80">
-                  <button
-                    onClick={openCreateColumnModal}
-                    className="w-full kanban-column border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm"
-                  >
-                    <Plus className="h-8 w-8 mr-3" />
-                    <span className="font-medium">Add New Column</span>
-                  </button>
+      {/* Scrollable Kanban Board Content */}
+      <div className="flex-1 overflow-hidden">
+        {boardLoaded && (
+          <div className="h-full px-6 pb-6 relative">
+            {/* Global loading overlay */}
+            {movingTaskId && (
+              <div className="absolute inset-0 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm z-40 flex items-center justify-center">
+                <div className="flex items-center space-x-3 bg-white dark:bg-neutral-800 rounded-lg px-6 py-4 shadow-lg border border-neutral-200 dark:border-neutral-700">
+                  <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span className="text-neutral-700 dark:text-neutral-300 font-medium">Moving task...</span>
                 </div>
               </div>
-            </DragDropContext>
-          ) : (
-            // List View
-            <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50">
-              <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
-                <h3 className="font-bold text-xl text-neutral-900 dark:text-white">All Tasks</h3>
-              </div>
-              <div className="p-6">
-                {kanbanBoard.flatMap(column => filteredTasks(column.tasks)).length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-neutral-500 dark:text-neutral-400">No tasks found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {kanbanBoard.flatMap(column => 
-                      filteredTasks(column.tasks).map(task => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          index={0}
-                          onClick={() => openTaskDetailModal(task)}
-                          viewMode="list"
-                          isMoving={false}
-                          onEdit={openEditTaskModal}
-                          onDelete={(taskId) => {
-                            setTaskToDelete(taskId);
-                            setShowDeleteConfirmModal(true);
-                          }}
-                          canEdit={true}
-                          canDelete={user?.email === task.created_by}
-                        />
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+            
+            {viewMode === 'kanban' ? (
+              <DragDropContext 
+                onDragStart={handleDragStart}
+                onDragUpdate={handleDragUpdate}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="flex space-x-4 lg:space-x-6 overflow-x-auto overflow-y-hidden h-full pb-4 px-2 lg:px-0">
+                  {kanbanBoard.map((column) => (
+                    <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
+                      <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column h-full flex flex-col">
+                        {/* Column Header - Fixed */}
+                        <div className="p-6 kanban-column-header rounded-t-2xl flex-shrink-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm"
+                                style={{ backgroundColor: column.color }}
+                              ></div>
+                              <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
+                                {column.name}
+                              </h3>
+                              <span className="bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400 text-sm px-3 py-1 rounded-full font-medium">
+                                {filteredTasks(column.tasks).length}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={() => openCreateTaskModal(column.id)}
+                                className="p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-all duration-200"
+                              >
+                                <Plus className="h-5 w-5" />
+                              </button>
+                              <ColumnMenu
+                                column={column}
+                                taskCount={filteredTasks(column.tasks).length}
+                                onEdit={handleEditColumn}
+                                onDelete={handleDeleteColumn}
+                                isOwner={user?.role === 'owner'}
+                              />
+                            </div>
+                          </div>
+                          {column.description && (
+                            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">
+                              {column.description}
+                            </p>
+                          )}
+                        </div>
 
-      {/* Empty State */}
-      {!boardLoaded && !loading && (
-        <div className="flex items-center justify-center min-h-[500px]">
-          <div className="text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <Grid3X3 className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">
-              Select Project and Team
-            </h3>
-            <p className="text-neutral-600 dark:text-neutral-400 text-lg">
-              Choose a project and team to load the Kanban board
-            </p>
+                        {/* Column Tasks - Scrollable Area */}
+                        <Droppable droppableId={column.id}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              className={`kanban-task-list p-4 flex-1 overflow-y-auto transition-all duration-200 ${
+                                snapshot.isDraggingOver 
+                                  ? 'bg-blue-100/80 dark:bg-blue-900/20 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg' 
+                                  : ''
+                              } ${
+                                isDragging && !snapshot.isDraggingOver 
+                                  ? 'bg-neutral-50/50 dark:bg-neutral-800/20' 
+                                  : ''
+                              }`}
+                            >
+                              {filteredTasks(column.tasks).map((task, index) => (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  index={index}
+                                  onClick={() => openTaskDetailModal(task)}
+                                  viewMode="kanban"
+                                  isMoving={movingTaskId === task.id}
+                                  onEdit={openEditTaskModal}
+                                  onDelete={(taskId) => {
+                                    setTaskToDelete(taskId);
+                                    setShowDeleteConfirmModal(true);
+                                  }}
+                                  canEdit={true}
+                                  canDelete={user?.email === task.created_by}
+                                />
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Add New Column Button */}
+                  <div className="flex-shrink-0 w-80">
+                    <button
+                      onClick={openCreateColumnModal}
+                      className="w-full kanban-column border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-2xl flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 backdrop-blur-sm h-full"
+                    >
+                      <Plus className="h-8 w-8 mr-3" />
+                      <span className="font-medium">Add New Column</span>
+                    </button>
+                  </div>
+                </div>
+              </DragDropContext>
+            ) : (
+              // List View
+              <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 h-full overflow-y-auto">
+                <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
+                  <h3 className="font-bold text-xl text-neutral-900 dark:text-white">All Tasks</h3>
+                </div>
+                <div className="p-6">
+                  {kanbanBoard.flatMap(column => filteredTasks(column.tasks)).length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-neutral-500 dark:text-neutral-400">No tasks found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {kanbanBoard.flatMap(column => 
+                        filteredTasks(column.tasks).map(task => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={0}
+                            onClick={() => openTaskDetailModal(task)}
+                            viewMode="list"
+                            isMoving={false}
+                            onEdit={openEditTaskModal}
+                            onDelete={(taskId) => {
+                              setTaskToDelete(taskId);
+                              setShowDeleteConfirmModal(true);
+                            }}
+                            canEdit={true}
+                            canDelete={user?.email === task.created_by}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Empty State */}
+        {!boardLoaded && !loading && (
+          <div className="flex items-center justify-center min-h-[500px]">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <Grid3X3 className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">
+                Select Project and Team
+              </h3>
+              <p className="text-neutral-600 dark:text-neutral-400 text-lg">
+                Choose a project and team to load the Kanban board
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Modals */}
       {showCreateTaskModal && (
