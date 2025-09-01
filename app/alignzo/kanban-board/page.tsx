@@ -73,6 +73,8 @@ import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 import ColumnMenu from '@/components/kanban/ColumnMenu';
 import EditColumnModal from '@/components/kanban/EditColumnModal';
 import ConfirmationModal from '@/components/kanban/ConfirmationModal';
+import ModernCreateTaskModal from '@/components/kanban/ModernCreateTaskModal';
+import ModernEditColumnModal from '@/components/kanban/ModernEditColumnModal';
 
 // Modern redesigned components
 import ModernTaskCard from '@/components/kanban/ModernTaskCard';
@@ -902,7 +904,7 @@ export default function KanbanBoardPageRedesigned() {
 
       {/* Modals - Keep existing modals for now */}
       {showCreateTaskModal && (
-        <CreateTaskModal
+        <ModernCreateTaskModal
           isOpen={showCreateTaskModal}
           onClose={() => {
             setShowCreateTaskModal(false);
@@ -972,7 +974,7 @@ export default function KanbanBoardPageRedesigned() {
       )}
 
       {showEditColumnModal && (
-        <EditColumnModal
+        <ModernEditColumnModal
           isOpen={showEditColumnModal}
           onClose={() => {
             setShowEditColumnModal(false);

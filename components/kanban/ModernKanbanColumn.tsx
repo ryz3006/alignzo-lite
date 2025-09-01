@@ -83,7 +83,7 @@ const ModernKanbanColumn = memo(({
       totalActualHours,
       completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
     };
-  }, [filteredTasks]);
+  }, [filteredTasks, column.tasks]); // Added column.tasks dependency to ensure stats update when tasks change
 
   // Enhanced column color configuration
   const getColumnTheme = useMemo(() => {

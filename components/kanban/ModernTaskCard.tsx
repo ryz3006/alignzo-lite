@@ -405,10 +405,10 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
             {/* Assignee */}
             {task.assigned_to && (
               <div className="flex items-center space-x-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {task.assigned_to.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-sm text-slate-700 dark:text-slate-300">{task.assigned_to}</span>
+                <span className="text-sm text-slate-700 dark:text-slate-300 truncate min-w-0 flex-1">{task.assigned_to}</span>
               </div>
             )}
 
