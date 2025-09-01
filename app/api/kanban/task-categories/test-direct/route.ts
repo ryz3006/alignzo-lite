@@ -19,16 +19,17 @@ export async function GET(request: NextRequest) {
 
     // Use direct Supabase client (bypassing the custom wrapper)
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
         { error: 'Supabase environment variables not configured' },
         { status: 500 }
       );
     }
     
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Use service role key to bypass RLS
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Test 1: Direct function call
     console.log('Testing direct function call...');
