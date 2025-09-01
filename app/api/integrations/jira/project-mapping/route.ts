@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const mappingId = searchParams.get('id');
+    const mappingId = searchParams.get('mappingId') || searchParams.get('id');
 
     if (!mappingId) {
       return NextResponse.json(

@@ -178,6 +178,10 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
 
       if (response.error) throw new Error(response.error);
       setJiraProjectMappings(response.data || []);
+      console.log('🔍 JIRA Project Mappings loaded:', response.data);
+      if (response.data && response.data.length > 0) {
+        console.log('📋 Available JIRA project keys:', response.data.map((m: any) => m.jira_project_key));
+      }
     } catch (error) {
       console.error('Error loading Jira project mappings:', error);
     }

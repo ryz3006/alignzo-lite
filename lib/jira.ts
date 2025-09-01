@@ -301,21 +301,100 @@ export class JiraIntegration {
     maxResults: number = 20
   ): Promise<any[]> {
     try {
-      const jql = `project = ${projectKey} AND (summary ~ "${searchTerm}" OR description ~ "${searchTerm}") ORDER BY updated DESC`;
+      // Try multiple search strategies for better results
+      let issues: any[] = [];
       
-      const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-          'Accept': 'application/json'
+      // Strategy 1: Exact ticket key match (most specific)
+      if (searchTerm.includes('-')) {
+        const exactKeyJql = `key = "${searchTerm}"`;
+        try {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(exactKeyJql)}&maxResults=${maxResults}`, {
+            headers: {
+              'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.issues && data.issues.length > 0) {
+              console.log(`Found ${data.issues.length} tickets with exact key match: ${searchTerm}`);
+              return data.issues;
+            }
+          }
+        } catch (error) {
+          console.log('Exact key search failed, trying other strategies:', error);
         }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Jira API error: ${response.status}`);
       }
-
-      const data = await response.json();
-      return data.issues || [];
+      
+      // Strategy 2: Project + ticket key pattern match
+      if (searchTerm.includes('-')) {
+        const keyPatternJql = `project = ${projectKey} AND key ~ "${searchTerm}"`;
+        try {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(keyPatternJql)}&maxResults=${maxResults}`, {
+            headers: {
+              'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.issues && data.issues.length > 0) {
+              console.log(`Found ${data.issues.length} tickets with key pattern match in project ${projectKey}`);
+              return data.issues;
+            }
+          }
+        } catch (error) {
+          console.log('Key pattern search failed, trying other strategies:', error);
+        }
+      }
+      
+      // Strategy 3: Project + summary/description search (original strategy)
+      const summaryDescJql = `project = ${projectKey} AND (summary ~ "${searchTerm}" OR description ~ "${searchTerm}") ORDER BY updated DESC`;
+      try {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(summaryDescJql)}&maxResults=${maxResults}`, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.issues && data.issues.length > 0) {
+            console.log(`Found ${data.issues.length} tickets with summary/description match in project ${projectKey}`);
+            return data.issues;
+          }
+        }
+      } catch (error) {
+        console.log('Summary/description search failed:', error);
+      }
+      
+      // Strategy 4: Global search without project restriction (fallback)
+      const globalJql = `(summary ~ "${searchTerm}" OR description ~ "${searchTerm}" OR key ~ "${searchTerm}") ORDER BY updated DESC`;
+      try {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(globalJql)}&maxResults=${maxResults}`, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.issues && data.issues.length > 0) {
+            console.log(`Found ${data.issues.length} tickets with global search (including outside project ${projectKey})`);
+            return data.issues;
+          }
+        }
+      } catch (error) {
+        console.log('Global search failed:', error);
+      }
+      
+      console.log(`No tickets found with any search strategy for term: "${searchTerm}" in project: ${projectKey}`);
+      return [];
+      
     } catch (error) {
       console.error('Error searching Jira tickets:', error);
       throw error;

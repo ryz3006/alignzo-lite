@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { getJiraProjects } from '@/lib/jira';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userEmail = searchParams.get('userEmail');
+    const query = searchParams.get('query') || '';
 
     if (!userEmail) {
       return NextResponse.json(
@@ -16,29 +18,44 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's Jira project mappings
-    const { data, error } = await supabase
-      .from('jira_project_mappings')
-      .select('*')
-      .eq('integration_user_email', userEmail);
+    // Get user's JIRA credentials
+    const { data: credentials, error: credentialsError } = await supabase
+      .from('user_integrations')
+      .select('base_url, user_email_integration, api_token, is_verified')
+      .eq('user_email', userEmail)
+      .eq('integration_type', 'jira')
+      .eq('is_verified', true)
+      .single();
 
-    if (error) {
-      console.error('Error fetching Jira project mappings:', error);
+    if (credentialsError || !credentials) {
       return NextResponse.json(
-        { error: 'Failed to fetch project mappings' },
-        { status: 500 }
+        { error: 'JIRA integration not found or not verified' },
+        { status: 404 }
+      );
+    }
+
+    // Fetch JIRA projects from JIRA API
+    const jiraProjects = await getJiraProjects(userEmail);
+
+    // Filter projects based on query if provided
+    let filteredProjects = jiraProjects;
+    if (query) {
+      const queryLower = query.toLowerCase();
+      filteredProjects = jiraProjects.filter(project => 
+        project.key.toLowerCase().includes(queryLower) || 
+        project.name.toLowerCase().includes(queryLower)
       );
     }
 
     return NextResponse.json({
       success: true,
-      mappings: data || []
+      projects: filteredProjects
     });
 
   } catch (error) {
-    console.error('Error in Jira project mappings API:', error);
+    console.error('Error fetching JIRA projects:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch JIRA projects' },
       { status: 500 }
     );
   }
