@@ -30,6 +30,7 @@
     "dotenv": "^17.2.1",
     "express-rate-limit": "^8.0.1",
     "firebase": "^9.22.0",
+    "framer-motion": "^12.23.12",
     "googleapis": "^158.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
