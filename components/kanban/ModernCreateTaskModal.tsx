@@ -379,6 +379,22 @@ export default function ModernCreateTaskModal({
           </div>
         </div>
 
+        {/* JIRA Ticket */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            JIRA Ticket Key
+          </label>
+          <input
+            type="text"
+            value={formData.jira_ticket_key}
+            onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+            placeholder="e.g., PROJ-123"
+          />
+        </div>
+
+
+
         {/* Action Buttons */}
         <div className="flex items-center justify-end space-x-3 pt-6 border-t border-slate-200/60 dark:border-slate-700/60">
           <button

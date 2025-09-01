@@ -229,20 +229,20 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
         
         {/* Task Content */}
         <div className="flex-1 min-w-0 space-y-2">
-          <div className="flex items-start justify-between">
-            <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 flex-1 min-w-0">
               {task.title}
             </h4>
-            <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               {canEdit && onEdit && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onEdit(task);
                   }}
-                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                 >
-                  <Edit3 className="h-4 w-4" />
+                  <Edit3 className="h-3.5 w-3.5" />
                 </button>
               )}
               {canDelete && onDelete && (
@@ -251,9 +251,9 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
                     e.stopPropagation();
                     onDelete(task.id);
                   }}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>

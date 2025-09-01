@@ -27,6 +27,33 @@ interface TeamMember {
   };
 }
 
+interface JiraProjectMapping {
+  id: string;
+  dashboard_project_id: string;
+  jira_project_key: string;
+  jira_project_name?: string;
+  integration_user_email: string;
+  project?: {
+    id: string;
+    name: string;
+    product: string;
+    country: string;
+  };
+}
+
+interface JiraTicket {
+  key: string;
+  fields: {
+    summary: string;
+    status: {
+      name: string;
+    };
+    priority?: {
+      name: string;
+    };
+  };
+}
+
 export default function ModernEditTaskModal({
   isOpen,
   onClose,
@@ -60,6 +87,18 @@ export default function ModernEditTaskModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
+
+  // JIRA Integration states
+  const [hasJiraIntegration, setHasJiraIntegration] = useState(false);
+  const [jiraProjectMappings, setJiraProjectMappings] = useState<JiraProjectMapping[]>([]);
+  const [selectedJiraProject, setSelectedJiraProject] = useState<string>('');
+  const [jiraTicketType, setJiraTicketType] = useState<'new' | 'existing'>('existing');
+  const [showJiraSearch, setShowJiraSearch] = useState(false);
+  const [jiraSearchQuery, setJiraSearchQuery] = useState('');
+  const [jiraSearchResults, setJiraSearchResults] = useState<JiraTicket[]>([]);
+  const [jiraSearching, setJiraSearching] = useState(false);
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [ticketCreated, setTicketCreated] = useState(false);
 
   // Reset form when modal opens
   useEffect(() => {
