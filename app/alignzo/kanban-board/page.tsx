@@ -553,9 +553,9 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800 flex flex-col">
-      {/* Fixed Header with Filters */}
-      <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 fixed top-0 left-0 right-0 z-20">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-800">
+      {/* Filter Section */}
+      <div className="bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-b border-neutral-200 dark:border-neutral-700 rounded-2xl mb-6">
         <div className="px-6 py-4">
           <div className="mb-6">
             <div className="flex items-center justify-between">
@@ -670,8 +670,8 @@ export default function KanbanBoardPage() {
         </div>
       </div>
 
-      {/* Scrollable Kanban Board Content */}
-      <div className="flex-1 overflow-hidden mt-[280px]">
+      {/* Kanban Board Content */}
+      <div className="relative">
         {boardLoaded && (
           <div className="h-full px-6 pb-6 relative">
             {/* Global loading overlay */}
@@ -690,7 +690,7 @@ export default function KanbanBoardPage() {
                 onDragUpdate={handleDragUpdate}
                 onDragEnd={handleDragEnd}
               >
-                <div className="flex space-x-4 lg:space-x-6 overflow-x-auto overflow-y-hidden h-[calc(100vh-320px)] pb-4 px-2 lg:px-0">
+                <div className="flex space-x-4 lg:space-x-6 overflow-x-auto overflow-y-hidden h-[calc(100vh-400px)] pb-4 px-2 lg:px-0">
                   {kanbanBoard.map((column) => (
                     <div key={column.id} className="flex-shrink-0 w-72 lg:w-80">
                       <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 kanban-column h-full flex flex-col">
@@ -787,7 +787,7 @@ export default function KanbanBoardPage() {
               </DragDropContext>
             ) : (
               // List View
-              <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 h-[calc(100vh-320px)] overflow-y-auto">
+              <div className="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm rounded-2xl shadow-lg border border-neutral-200/50 dark:border-neutral-700/50 h-[calc(100vh-400px)] overflow-y-auto">
                 <div className="p-6 border-b border-neutral-200/50 dark:border-neutral-700/50">
                   <h3 className="font-bold text-xl text-neutral-900 dark:text-white">All Tasks</h3>
                 </div>
