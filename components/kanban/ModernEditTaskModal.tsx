@@ -181,7 +181,7 @@ export default function ModernEditTaskModal({
     // Validation
     const newErrors: Record<keyof UpdateTaskForm, string | undefined> = {} as Record<keyof UpdateTaskForm, string | undefined>;
     
-    if (!formData.title.trim()) {
+    if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
     }
     if (!formData.category_id) {
