@@ -48,6 +48,8 @@ interface JiraAssigneeReporterTabProps {
     dateRange?: {
       start: string;
       end: string;
+      startTime: string;
+      endTime: string;
     };
   };
 }
@@ -221,9 +223,15 @@ export default function JiraAssigneeReporterTab({ chartRefs, downloadChartAsImag
 
       // Add date range filter if provided
       if (filters?.dateRange) {
-        const startDate = filters.dateRange.start;
-        const endDate = filters.dateRange.end;
-        jql += ` AND updated >= "${startDate}" AND updated <= "${endDate}"`;
+        // Combine date and time for JIRA filtering
+        const startDateTime = filters.dateRange.startTime 
+          ? `${filters.dateRange.start}T${filters.dateRange.startTime}` 
+          : filters.dateRange.start;
+        const endDateTime = filters.dateRange.endTime 
+          ? `${filters.dateRange.end}T${filters.dateRange.endTime}` 
+          : filters.dateRange.end;
+        
+        jql += ` AND updated >= "${startDateTime}" AND updated <= "${endDateTime}"`;
       }
 
       jql += ' ORDER BY updated DESC';

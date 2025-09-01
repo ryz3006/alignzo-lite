@@ -44,6 +44,8 @@ interface FilterState {
   dateRange: {
     start: string;
     end: string;
+    startTime: string;
+    endTime: string;
   };
   selectedTeams: string[];
   selectedProjects: string[];
@@ -64,7 +66,9 @@ export default function AnalyticsPage() {
   const [filters, setFilters] = useState<FilterState>({
     dateRange: {
       start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Yesterday
-      end: new Date().toISOString().split('T')[0] // Today
+      end: new Date().toISOString().split('T')[0], // Today
+      startTime: '00:00',
+      endTime: '23:59'
     },
     selectedTeams: [],
     selectedProjects: [],
@@ -82,6 +86,11 @@ export default function AnalyticsPage() {
 
   // Chart refs for download
   const chartRefs = useRef<{ [key: string]: any }>({});
+
+  // Helper function to combine date and time for filtering
+  const combineDateTime = (date: string, time: string): string => {
+    return date && time ? `${date}T${time}` : date;
+  };
 
   useEffect(() => {
     initializeAnalytics();
@@ -349,7 +358,7 @@ export default function AnalyticsPage() {
             Apply Filters
           </button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Start Date</label>
             <input
@@ -363,6 +372,18 @@ export default function AnalyticsPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Start Time</label>
+            <input
+              type="time"
+              value={filters.dateRange.startTime}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, startTime: e.target.value }
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">End Date</label>
             <input
               type="date"
@@ -370,6 +391,18 @@ export default function AnalyticsPage() {
               onChange={(e) => setFilters(prev => ({
                 ...prev,
                 dateRange: { ...prev.dateRange, end: e.target.value }
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">End Time</label>
+            <input
+              type="time"
+              value={filters.dateRange.endTime}
+              onChange={(e) => setFilters(prev => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, endTime: e.target.value }
               }))}
               className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             />

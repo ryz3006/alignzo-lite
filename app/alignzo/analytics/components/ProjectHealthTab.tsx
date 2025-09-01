@@ -54,6 +54,8 @@ interface ProjectHealthTabProps {
     dateRange: {
       start: string;
       end: string;
+      startTime: string;
+      endTime: string;
     };
     selectedTeams: string[];
     selectedProjects: string[];
@@ -124,11 +126,19 @@ export default function ProjectHealthTab({ filters, chartRefs, downloadChartAsIm
 
   const loadWorkLogs = async () => {
     try {
+      // Combine date and time for filtering
+      const startDateTime = filters.dateRange.start && filters.dateRange.startTime 
+        ? `${filters.dateRange.start}T${filters.dateRange.startTime}` 
+        : filters.dateRange.start;
+      const endDateTime = filters.dateRange.end && filters.dateRange.endTime 
+        ? `${filters.dateRange.end}T${filters.dateRange.endTime}` 
+        : filters.dateRange.end;
+
       const response = await supabaseClient.get('work_logs', {
         select: '*,project:projects(*)',
         filters: {
-          start_time_gte: filters.dateRange.start,
-          start_time_lte: filters.dateRange.end,
+          start_time_gte: startDateTime,
+          start_time_lte: endDateTime,
           ...(filters.selectedUsers.length > 0 && { user_email: filters.selectedUsers }),
           ...(filters.selectedProjects.length > 0 && { 'project.name': filters.selectedProjects })
         },

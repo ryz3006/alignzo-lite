@@ -54,6 +54,8 @@ interface OperationalEfficiencyTabProps {
     dateRange?: {
       start: string;
       end: string;
+      startTime: string;
+      endTime: string;
     };
   };
   chartRefs: React.MutableRefObject<{ [key: string]: any }>;
@@ -173,8 +175,16 @@ export default function OperationalEfficiencyTab({ filters, chartRefs, downloadC
 
       // Apply date filters
       if (filters?.dateRange) {
-        queryFilters.start_time_gte = filters.dateRange.start;
-        queryFilters.end_time_lte = filters.dateRange.end;
+        // Combine date and time for filtering
+        const startDateTime = filters.dateRange.start && filters.dateRange.startTime 
+          ? `${filters.dateRange.start}T${filters.dateRange.startTime}` 
+          : filters.dateRange.start;
+        const endDateTime = filters.dateRange.end && filters.dateRange.endTime 
+          ? `${filters.dateRange.end}T${filters.dateRange.endTime}` 
+          : filters.dateRange.end;
+        
+        queryFilters.start_time_gte = startDateTime;
+        queryFilters.end_time_lte = endDateTime;
       }
 
       if (filters?.selectedProjects && filters.selectedProjects.length > 0) {

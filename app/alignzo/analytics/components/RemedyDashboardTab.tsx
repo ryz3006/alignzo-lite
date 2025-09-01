@@ -105,6 +105,8 @@ interface RemedyDashboardTabProps {
     dateRange: {
       start: string;
       end: string;
+      startTime: string;
+      endTime: string;
     };
     selectedTeams: string[];
     selectedProjects: string[];
@@ -757,8 +759,16 @@ export default function RemedyDashboardTab({ filters, chartRefs, downloadChartAs
 
       // Apply date range filter
       if (filters.dateRange.start && filters.dateRange.end) {
-        queryFilters.reported_date1_gte = filters.dateRange.start;
-        queryFilters.reported_date1_lte = filters.dateRange.end;
+        // Combine date and time for filtering
+        const startDateTime = filters.dateRange.startTime 
+          ? `${filters.dateRange.start}T${filters.dateRange.startTime}` 
+          : filters.dateRange.start;
+        const endDateTime = filters.dateRange.endTime 
+          ? `${filters.dateRange.end}T${filters.dateRange.endTime}` 
+          : filters.dateRange.end;
+        
+        queryFilters.reported_date1_gte = startDateTime;
+        queryFilters.reported_date1_lte = endDateTime;
       }
 
       // Apply project filter if selected
