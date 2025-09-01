@@ -100,6 +100,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Get current categories for comparison BEFORE updating
+    let currentCategories = [];
+    try {
+      const currentCategoriesResponse = await supabaseClient.rpc('get_task_categories_with_options_json', {
+        p_task_id: taskId
+      });
+      currentCategories = currentCategoriesResponse.data || [];
+    } catch (error) {
+      console.warn('Failed to get current categories for comparison:', error);
+      // Continue with the update even if we can't get current categories
+    }
+
     // Use the database function to update task categories
     const { data, error } = await supabaseClient.rpc('update_task_categories', {
       p_task_id: taskId,
@@ -122,123 +134,122 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create timeline entry for category changes
-    try {
-      // Get current categories for comparison
-      const currentCategoriesResponse = await supabaseClient.rpc('get_task_categories_with_options_json', {
-        p_task_id: taskId
-      });
-      
-      const currentCategories = currentCategoriesResponse.data || [];
-      const newCategories = categories;
-      
-      // Get category and option names for better timeline display
-      const categoryDetails = [];
-      
-      // Get category names directly from the database
-      for (const cat of newCategories) {
-        try {
-          console.log(`[DEBUG] Processing category for timeline: category_id=${cat.category_id}, option_id=${cat.category_option_id}`);
-          
-          // Use direct Supabase client for better reliability
-          const { createClient } = require('@supabase/supabase-js');
-          const supabaseUrl = process.env.SUPABASE_URL;
-          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-          
-          console.log(`[DEBUG] Supabase environment check - URL: ${!!supabaseUrl}, Service Key: ${!!supabaseServiceKey}`);
-          
-          if (!supabaseUrl || !supabaseServiceKey) {
-            console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
+    // Compare current and new categories to determine if there are actual changes
+    const hasChanges = compareCategories(currentCategories, categories);
+
+    // Only create timeline entry if there are actual changes
+    if (hasChanges) {
+      try {
+        // Get category and option names for better timeline display
+        const categoryDetails = [];
+        
+        // Get category names directly from the database
+        for (const cat of categories) {
+          try {
+            console.log(`[DEBUG] Processing category for timeline: category_id=${cat.category_id}, option_id=${cat.category_option_id}`);
+            
+            // Use direct Supabase client for better reliability
+            const { createClient } = require('@supabase/supabase-js');
+            const supabaseUrl = process.env.SUPABASE_URL;
+            const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            
+            console.log(`[DEBUG] Supabase environment check - URL: ${!!supabaseUrl}, Service Key: ${!!supabaseServiceKey}`);
+            
+            if (!supabaseUrl || !supabaseServiceKey) {
+              console.warn(`[DEBUG] Supabase environment variables not available for category resolution`);
+              categoryDetails.push({
+                categoryName: cat.category_id,
+                optionName: cat.category_option_id,
+                displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
+              });
+              continue;
+            }
+            
+            const supabase = createClient(supabaseUrl, supabaseServiceKey);
+            
+            // Get category name
+            console.log(`[DEBUG] Fetching category name from project_categories for ID: ${cat.category_id}`);
+            const { data: categoryData, error: categoryError } = await supabase
+              .from('project_categories')
+              .select('name')
+              .eq('id', cat.category_id)
+              .single();
+            
+            if (categoryError) {
+              console.warn(`[DEBUG] Error fetching category name for ${cat.category_id}:`, categoryError);
+            } else {
+              console.log(`[DEBUG] Category name fetched successfully: ${categoryData?.name || 'NOT_FOUND'}`);
+            }
+            
+            const categoryName = categoryData?.name || cat.category_id;
+            
+            // Get option name if category_option_id is provided
+            let optionName = null;
+            if (cat.category_option_id) {
+              console.log(`[DEBUG] Fetching option name from category_options for ID: ${cat.category_option_id}`);
+              const { data: optionData, error: optionError } = await supabase
+                .from('category_options')
+                .select('option_name')
+                .eq('id', cat.category_option_id)
+                .single();
+              
+              if (optionError) {
+                console.warn(`[DEBUG] Error fetching option name for ${cat.category_option_id}:`, optionError);
+              } else {
+                console.log(`[DEBUG] Option name fetched successfully: ${optionData?.option_name || 'NOT_FOUND'}`);
+              }
+              
+              optionName = optionData?.option_name || cat.category_option_id;
+            }
+            
+            const categoryDetail = {
+              categoryName,
+              optionName,
+              displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
+            };
+            
+            console.log(`[DEBUG] Final category detail for timeline:`, {
+              originalCategoryId: cat.category_id,
+              resolvedCategoryName: categoryDetail.categoryName,
+              originalOptionId: cat.category_option_id,
+              resolvedOptionName: categoryDetail.optionName,
+              displayText: categoryDetail.displayText
+            });
+            
+            categoryDetails.push(categoryDetail);
+          } catch (error) {
+            console.warn(`[DEBUG] Error getting names for category ${cat.category_id}:`, error);
+            // Fallback to ID if name lookup fails
             categoryDetails.push({
               categoryName: cat.category_id,
               optionName: cat.category_option_id,
               displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
             });
-            continue;
           }
-          
-          const supabase = createClient(supabaseUrl, supabaseServiceKey);
-          
-          // Get category name
-          console.log(`[DEBUG] Fetching category name from project_categories for ID: ${cat.category_id}`);
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('project_categories')
-            .select('name')
-            .eq('id', cat.category_id)
-            .single();
-          
-          if (categoryError) {
-            console.warn(`[DEBUG] Error fetching category name for ${cat.category_id}:`, categoryError);
-          } else {
-            console.log(`[DEBUG] Category name fetched successfully: ${categoryData?.name || 'NOT_FOUND'}`);
-          }
-          
-          const categoryName = categoryData?.name || cat.category_id;
-          
-          // Get option name if category_option_id is provided
-          let optionName = null;
-          if (cat.category_option_id) {
-            console.log(`[DEBUG] Fetching option name from category_options for ID: ${cat.category_option_id}`);
-            const { data: optionData, error: optionError } = await supabase
-              .from('category_options')
-              .select('option_name')
-              .eq('id', cat.category_option_id)
-              .single();
-            
-            if (optionError) {
-              console.warn(`[DEBUG] Error fetching option name for ${cat.category_option_id}:`, optionError);
-            } else {
-              console.log(`[DEBUG] Option name fetched successfully: ${optionData?.option_name || 'NOT_FOUND'}`);
-            }
-            
-            optionName = optionData?.option_name || cat.category_option_id;
-          }
-          
-          const categoryDetail = {
-            categoryName,
-            optionName,
-            displayText: optionName ? `${categoryName}: ${optionName}` : categoryName
-          };
-          
-          console.log(`[DEBUG] Final category detail for timeline:`, {
-            originalCategoryId: cat.category_id,
-            resolvedCategoryName: categoryDetail.categoryName,
-            originalOptionId: cat.category_option_id,
-            resolvedOptionName: categoryDetail.optionName,
-            displayText: categoryDetail.displayText
-          });
-          
-          categoryDetails.push(categoryDetail);
-        } catch (error) {
-          console.warn(`[DEBUG] Error getting names for category ${cat.category_id}:`, error);
-          // Fallback to ID if name lookup fails
-          categoryDetails.push({
-            categoryName: cat.category_id,
-            optionName: cat.category_option_id,
-            displayText: cat.category_option_id ? `${cat.category_id}: ${cat.category_option_id}` : cat.category_id
-          });
         }
+        
+        const categoryNames = categoryDetails.map(cat => cat.displayText).join(', ');
+        
+        // Import the createTaskTimeline function
+        const { createTaskTimeline } = await import('@/lib/kanban-api');
+        
+        await createTaskTimeline(
+          taskId,
+          'categories_updated',
+          JSON.stringify({
+            categories: categoryNames,
+            count: categories.length,
+            previous_count: currentCategories.length,
+            category_details: categoryDetails
+          }),
+          userEmail || 'system'
+        );
+      } catch (timelineError) {
+        console.warn('Failed to create timeline entry for category changes:', timelineError);
+        // Don't fail the operation if timeline creation fails
       }
-      
-      const categoryNames = categoryDetails.map(cat => cat.displayText).join(', ');
-      
-      // Import the createTaskTimeline function
-      const { createTaskTimeline } = await import('@/lib/kanban-api');
-      
-      await createTaskTimeline(
-        taskId,
-        'categories_updated',
-        JSON.stringify({
-          categories: categoryNames,
-          count: newCategories.length,
-          previous_count: currentCategories.length,
-          category_details: categoryDetails
-        }),
-        userEmail || 'system'
-      );
-    } catch (timelineError) {
-      console.warn('Failed to create timeline entry for category changes:', timelineError);
-      // Don't fail the operation if timeline creation fails
+    } else {
+      console.log('[DEBUG] No actual category changes detected, skipping timeline entry');
     }
 
     return NextResponse.json({
@@ -317,4 +328,48 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to compare categories and determine if there are actual changes
+function compareCategories(currentCategories: any[], newCategories: any[]): boolean {
+  // If the number of categories is different, there's a change
+  if (currentCategories.length !== newCategories.length) {
+    return true;
+  }
+
+  // Create maps for easier comparison
+  const currentMap = new Map();
+  const newMap = new Map();
+
+  // Build current categories map
+  for (const cat of currentCategories) {
+    const key = `${cat.category_id}-${cat.category_option_id || 'null'}`;
+    currentMap.set(key, cat);
+  }
+
+  // Build new categories map and compare
+  for (const cat of newCategories) {
+    const key = `${cat.category_id}-${cat.category_option_id || 'null'}`;
+    newMap.set(key, cat);
+
+    // If this category doesn't exist in current, or has different option, there's a change
+    if (!currentMap.has(key)) {
+      return true;
+    }
+
+    const currentCat = currentMap.get(key);
+    if (currentCat.category_option_id !== cat.category_option_id) {
+      return true;
+    }
+  }
+
+  // Check if any current categories are missing from new categories
+  for (const [key] of currentMap) {
+    if (!newMap.has(key)) {
+      return true;
+    }
+  }
+
+  // No changes detected
+  return false;
 }
