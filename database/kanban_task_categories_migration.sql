@@ -156,10 +156,10 @@ BEGIN
             'is_primary', tcm.is_primary,
             'sort_order', tcm.sort_order
         )
+        ORDER BY tcm.sort_order
     ) INTO result
     FROM task_category_mappings tcm
-    WHERE tcm.task_id = p_task_id
-    ORDER BY tcm.sort_order;
+    WHERE tcm.task_id = p_task_id;
     
     RETURN COALESCE(result, '[]'::jsonb);
 END;
