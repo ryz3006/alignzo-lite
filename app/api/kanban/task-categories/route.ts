@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Use the database function to update task categories
     const { data, error } = await supabaseClient.rpc('update_task_categories', {
       p_task_id: taskId,
-      p_categories: JSON.stringify(categories),
+      p_categories: categories,
       p_user_email: userEmail || 'system'
     });
 

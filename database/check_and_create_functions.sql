@@ -1,10 +1,32 @@
 -- =====================================================
--- KANBAN TASK CATEGORIES MIGRATION
+-- CHECK AND CREATE TASK CATEGORIES FUNCTIONS
 -- =====================================================
--- This script adds the missing task category functionality
--- Run this in your Supabase SQL Editor if the functions don't exist
+-- This script checks if the required functions exist and creates them if they don't
 
--- Task category mappings table (for multiple categories per task)
+-- First, let's see what functions currently exist
+SELECT 
+    p.proname as function_name,
+    pg_get_function_identity_arguments(p.oid) as arguments,
+    pg_get_function_result(p.oid) as return_type
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE n.nspname = 'public' 
+AND p.proname IN (
+    'get_task_categories_with_options_json', 
+    'get_task_categories_with_options', 
+    'get_task_categories_simple_json', 
+    'update_task_categories'
+)
+ORDER BY p.proname, arguments;
+
+-- Check if the task_category_mappings table exists
+SELECT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'task_category_mappings'
+) as table_exists;
+
+-- Create the table if it doesn't exist
 CREATE TABLE IF NOT EXISTS task_category_mappings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     task_id UUID REFERENCES kanban_tasks(id) ON DELETE CASCADE,
@@ -17,48 +39,13 @@ CREATE TABLE IF NOT EXISTS task_category_mappings (
     UNIQUE(task_id, category_id)
 );
 
--- Drop existing functions if they exist to avoid conflicts
--- Use CASCADE to drop all overloaded versions
+-- Drop any existing functions to avoid conflicts
 DROP FUNCTION IF EXISTS get_task_categories_with_options_json(UUID) CASCADE;
 DROP FUNCTION IF EXISTS get_task_categories_with_options(UUID) CASCADE;
 DROP FUNCTION IF EXISTS get_task_categories_simple_json(UUID) CASCADE;
-DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB) CASCADE;
 DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB, VARCHAR) CASCADE;
-DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT, VARCHAR) CASCADE;
 
--- Additional cleanup for any remaining function variations
-DO $$
-DECLARE
-    func_record RECORD;
-BEGIN
-    -- Find and drop all functions with these names
-    FOR func_record IN 
-        SELECT 
-            p.proname as func_name,
-            pg_get_function_identity_arguments(p.oid) as func_args
-        FROM pg_proc p
-        JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname = 'public' 
-        AND p.proname IN (
-            'get_task_categories_with_options_json', 
-            'get_task_categories_with_options', 
-            'get_task_categories_simple_json', 
-            'update_task_categories'
-        )
-    LOOP
-        EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(func_record.func_name) || '(' || func_record.func_args || ') CASCADE';
-        RAISE NOTICE 'Dropped function: %(%)', func_record.func_name, func_record.func_args;
-    END LOOP;
-EXCEPTION
-    WHEN OTHERS THEN
-        -- If the dynamic drop fails, continue with the static drops
-        RAISE NOTICE 'Dynamic cleanup failed: %', SQLERRM;
-END $$;
-
--- Function to get task categories with options (JSON format)
+-- Create the functions
 CREATE OR REPLACE FUNCTION get_task_categories_with_options_json(
     p_task_id UUID
 )
@@ -104,7 +91,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get task categories with options (table format - fallback)
 CREATE OR REPLACE FUNCTION get_task_categories_with_options(
     p_task_id UUID
 )
@@ -141,7 +127,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get task categories with options (simple JSON format - fallback)
 CREATE OR REPLACE FUNCTION get_task_categories_simple_json(
     p_task_id UUID
 )
@@ -165,7 +150,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to update task categories
 CREATE OR REPLACE FUNCTION update_task_categories(
     p_task_id UUID,
     p_categories JSONB,
@@ -237,15 +221,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add comments for documentation
-COMMENT ON TABLE task_category_mappings IS 'Maps tasks to multiple categories with options';
-COMMENT ON COLUMN task_category_mappings.task_id IS 'Reference to the kanban task';
-COMMENT ON COLUMN task_category_mappings.category_id IS 'Reference to the project category';
-COMMENT ON COLUMN task_category_mappings.category_option_id IS 'Optional reference to a specific category option';
-COMMENT ON COLUMN task_category_mappings.is_primary IS 'Whether this is the primary category for the task';
-COMMENT ON COLUMN task_category_mappings.sort_order IS 'Order for displaying categories';
-
-COMMENT ON FUNCTION get_task_categories_with_options_json(UUID) IS 'Get task categories with full details in JSON format';
-COMMENT ON FUNCTION get_task_categories_with_options(UUID) IS 'Get task categories with full details in table format';
-COMMENT ON FUNCTION get_task_categories_simple_json(UUID) IS 'Get task categories with basic details in JSON format';
-COMMENT ON FUNCTION update_task_categories(UUID, JSONB, TEXT) IS 'Update task categories by replacing all existing mappings with new ones';
+-- Verify the functions were created
+SELECT 
+    p.proname as function_name,
+    pg_get_function_identity_arguments(p.oid) as arguments,
+    pg_get_function_result(p.oid) as return_type
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE n.nspname = 'public' 
+AND p.proname IN (
+    'get_task_categories_with_options_json', 
+    'get_task_categories_with_options', 
+    'get_task_categories_simple_json', 
+    'update_task_categories'
+)
+ORDER BY p.proname, arguments;

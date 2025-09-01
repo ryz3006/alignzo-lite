@@ -1227,6 +1227,38 @@ DROP FUNCTION IF EXISTS get_task_categories_simple_json(UUID) CASCADE;
 DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB) CASCADE;
 DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS update_task_categories(UUID, JSONB, VARCHAR) CASCADE;
+DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS update_task_categories(UUID, TEXT, VARCHAR) CASCADE;
+
+-- Additional cleanup for any remaining function variations
+DO $$
+DECLARE
+    func_record RECORD;
+BEGIN
+    -- Find and drop all functions with these names
+    FOR func_record IN 
+        SELECT 
+            p.proname as func_name,
+            pg_get_function_identity_arguments(p.oid) as func_args
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'public' 
+        AND p.proname IN (
+            'get_task_categories_with_options_json', 
+            'get_task_categories_with_options', 
+            'get_task_categories_simple_json', 
+            'update_task_categories'
+        )
+    LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || quote_ident(func_record.func_name) || '(' || func_record.func_args || ') CASCADE';
+        RAISE NOTICE 'Dropped function: %(%)', func_record.func_name, func_record.func_args;
+    END LOOP;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- If the dynamic drop fails, continue with the static drops
+        RAISE NOTICE 'Dynamic cleanup failed: %', SQLERRM;
+END $$;
 
 -- Function to get task categories with options (JSON format)
 CREATE OR REPLACE FUNCTION get_task_categories_with_options_json(
