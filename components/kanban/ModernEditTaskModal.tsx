@@ -20,11 +20,8 @@ interface ModernEditTaskModalProps {
 
 interface TeamMember {
   id: string;
-  user_id: string;
-  users: {
-    full_name: string;
-    email: string;
-  };
+  email: string;
+  full_name?: string;
 }
 
 interface JiraProjectMapping {
@@ -146,22 +143,19 @@ export default function ModernEditTaskModal({
       const response = await fetch(`/api/teams/team-members?teamId=${teamId}`);
       if (response.ok) {
         const data = await response.json();
-        const apiMembers: TeamMember[] = (data.teamMembers || []).filter((m: any) => m && m.users && m.users.email);
+        const apiMembers: TeamMember[] = (data.teamMembers || []).filter((m: any) => m && m.email);
 
         // Ensure current user is included as a fallback option
         const currentUser = await getCurrentUser();
         const selfMember: TeamMember | null = currentUser?.email
           ? {
               id: 'self',
-              user_id: 'self',
-              users: {
-                full_name: currentUser.email,
-                email: currentUser.email,
-              },
+              email: currentUser.email,
+              full_name: currentUser.email,
             }
           : null;
 
-        const withSelf = selfMember && !apiMembers.some((m) => m.users.email === selfMember.users.email)
+        const withSelf = selfMember && !apiMembers.some((m) => m.email === selfMember.email)
           ? [selfMember, ...apiMembers]
           : apiMembers;
 
@@ -441,11 +435,18 @@ export default function ModernEditTaskModal({
               {isLoadingTeamMembers ? (
                 <option value="" disabled>Loading team members...</option>
               ) : (
-                teamMembers.map((member) => (
-                  <option key={member.id} value={member.users.email}>
-                    {member.users.full_name || member.users.email}
-                  </option>
-                ))
+                <>
+                  {formData.assigned_to && !teamMembers.some(m => m.email === formData.assigned_to) && (
+                    <option value={formData.assigned_to}>
+                      {formData.assigned_to} (current)
+                    </option>
+                  )}
+                  {teamMembers.map((member) => (
+                    <option key={member.id} value={member.email}>
+                      {member.full_name || member.email}
+                    </option>
+                  ))}
+                </>
               )}
             </select>
           </div>

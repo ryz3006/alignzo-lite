@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserShiftsWithCache } from '@/lib/user-api-enhanced';
 import { getCurrentUserServer } from '@/lib/auth';
