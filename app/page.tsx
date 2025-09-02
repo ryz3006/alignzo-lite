@@ -7,22 +7,17 @@ import { User } from 'firebase/auth';
 import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle, Sun, Moon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useTheme } from '@/components/ThemeContext';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
     checkAuth();
-    // Load theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    }
   }, []);
 
   const checkAuth = async () => {
@@ -74,13 +69,6 @@ export default function HomePage() {
       console.error('Logout error:', error);
       toast.error('Logout failed');
     }
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
   if (loading) {

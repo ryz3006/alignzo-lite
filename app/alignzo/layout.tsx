@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import { DashboardRefreshProvider } from '@/components/DashboardRefreshContext';
+import { useTheme } from '@/components/ThemeContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
 import TimerManagementModal from '@/components/TimerManagementModal';
 
@@ -43,19 +44,13 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userAccess, setUserAccess] = useState<any>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
 
   useEffect(() => {
     checkAuth();
-    // Load theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    }
   }, []);
 
   const checkAuth = async () => {
@@ -92,13 +87,6 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Sign out failed:', error);
     }
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
   const navigation = [

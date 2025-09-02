@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getUserWithRole } from '@/lib/user-role';
+
 import { 
   getKanbanBoard, 
   getKanbanBoardOptimized,
@@ -587,6 +588,8 @@ export default function KanbanBoardPageRedesigned() {
                       </>
                     )}
                   </div>
+                  
+                  
                 </div>
               </div>
             </div>
