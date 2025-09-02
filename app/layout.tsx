@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
-import { ThemeProvider } from '@/components/ThemeContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -32,16 +31,38 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme') || 'light';
+                  var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var initialTheme = theme !== 'light' && theme !== 'dark' ? (systemPrefersDark ? 'dark' : 'light') : theme;
+                  
+                  if (initialTheme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {
+                  // Fallback to light theme if localStorage is not available
+                  document.documentElement.classList.remove('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className}>
-        <ThemeProvider>
-          <div className="min-h-screen flex flex-col">
-            <main className="flex-1">
-              {children}
-            </main>
-          </div>
-          <Toaster position="top-right" />
-        </ThemeProvider>
+        <div className="min-h-screen flex flex-col">
+          <main className="flex-1">
+            {children}
+          </main>
+        </div>
+        <Toaster position="top-right" />
       </body>
     </html>
   )

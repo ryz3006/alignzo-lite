@@ -7,13 +7,11 @@ import { User } from 'firebase/auth';
 import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle, Sun, Moon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { useTheme } from '@/components/ThemeContext';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
@@ -129,118 +127,58 @@ export default function HomePage() {
             <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
           </div>
           <div className="flex items-center space-x-6">
-            <a href="#features" className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors">Features</a>
             <button
-              onClick={toggleTheme}
+              onClick={() => {
+                const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+                document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', currentTheme === 'dark' ? 'light' : 'dark');
+              }}
               className="p-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
-              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              title={document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              {document.documentElement.classList.contains('dark') ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
             </button>
           </div>
         </div>
       </nav>
 
-             {/* Hero Section */}
-       <section className="relative pt-24 pb-16 px-6">
-         <div className="max-w-7xl mx-auto">
-           <div className="text-center max-w-4xl mx-auto">
-             <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-6">
-               <CheckCircle className="h-4 w-4 mr-2" />
-               Professional Work Tracking Platform
-             </div>
-             
-             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-6 leading-tight">
-               Welcome to{' '}
-               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
-             </h1>
-             
-             <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8 max-w-2xl mx-auto">
-               Professional work log tracking and productivity monitoring platform designed for modern teams.
-             </p>
-             
-             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-               <button
-                 onClick={handleGoogleSignIn}
-                 className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
-               >
-                 <Chrome className="h-5 w-5" />
-                 <span>Get Started with Google</span>
-                 <ArrowRight className="h-5 w-5" />
-               </button>
-               
-               <Link
-                 href="/admin/login"
-                 className="btn-secondary text-lg px-8 py-4"
-               >
-                 Admin Access
-               </Link>
-             </div>
-
-             
-           </div>
-         </div>
-       </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-16 px-6 bg-white dark:bg-neutral-800">
+      {/* Hero Section */}
+      <section className="relative pt-24 pb-16 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-white mb-4">
-              Everything you need for productive work tracking
-            </h2>
-            <p className="text-xl text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
-              Comprehensive tools designed to help teams track time, manage projects, and boost productivity
+          <div className="text-center max-w-4xl mx-auto">
+            <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-6">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Professional Work Tracking Platform
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-6 leading-tight">
+              Welcome to{' '}
+              <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
+            </h1>
+            
+            <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8 max-w-2xl mx-auto">
+              Professional work log tracking and productivity monitoring platform designed for modern teams.
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Clock className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
-                Time Tracking
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Track your work hours with precision using our intuitive timer system and detailed analytics.
-              </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={handleGoogleSignIn}
+                className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
+              >
+                <Chrome className="h-5 w-5" />
+                <span>Sign in with Gmail Account</span>
+                <ArrowRight className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-success-100 dark:bg-success-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <BarChart3 className="h-8 w-8 text-success-600 dark:text-success-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
-                Analytics & Reports
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Get detailed insights into your productivity patterns and project performance metrics.
-              </p>
-            </div>
-
-            <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-warning-100 dark:bg-warning-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Users className="h-8 w-8 text-warning-600 dark:text-warning-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
-                Team Management
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Manage team schedules, shifts, and availability in one centralized platform.
-              </p>
-            </div>
-
-            <div className="card card-hover text-center">
-              <div className="w-16 h-16 bg-danger-100 dark:bg-danger-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <TrendingUp className="h-8 w-8 text-danger-600 dark:text-danger-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
-                Performance Insights
-              </h3>
-              <p className="text-neutral-600 dark:text-neutral-400">
-                Monitor productivity trends and identify areas for improvement with actionable insights.
-              </p>
+            {/* Subtle Admin Access Link */}
+            <div className="mt-6">
+              <Link
+                href="/admin/login"
+                className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors underline decoration-dotted"
+              >
+                Admin Access
+              </Link>
             </div>
           </div>
         </div>
@@ -250,10 +188,10 @@ export default function HomePage() {
       <footer className="bg-neutral-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
-                         <div className="flex items-center justify-center space-x-3 mb-6">
-               <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
-               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
-             </div>
+            <div className="flex items-center justify-center space-x-3 mb-6">
+              <img src="/alinzo_logo.png" alt="Alignzo Logo" className="h-8 w-auto" />
+              <img src="/ALIGNZO_Name.png" alt="Alignzo" className="h-6 w-auto" />
+            </div>
             <p className="text-neutral-400 mb-8 max-w-2xl mx-auto">
               Professional work log tracking and productivity monitoring platform designed for modern teams.
             </p>
@@ -285,9 +223,9 @@ export default function HomePage() {
           </div>
           
           <div className="border-t border-neutral-800 pt-8 text-center">
-                         <p className="text-sm text-neutral-400">
-               &copy; {new Date().getFullYear()} All rights reserved.
-             </p>
+            <p className="text-sm text-neutral-400">
+              &copy; {new Date().getFullYear()} All rights reserved.
+            </p>
           </div>
         </div>
       </footer>

@@ -6,19 +6,27 @@ import { signInAsAdmin } from '@/lib/auth';
 import { Shield, Lock, Eye, EyeOff, ArrowLeft, Sun, Moon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { useTheme } from '@/components/ThemeContext';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // No need to load theme here as it's handled by ThemeContext
+    // Check current theme on mount
+    const isDark = document.documentElement.classList.contains('dark');
+    setIsDarkMode(isDark);
   }, []);
+
+  const toggleTheme = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', newDarkMode ? 'dark' : 'light');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,9 +167,9 @@ export default function AdminLoginPage() {
           <button
             onClick={toggleTheme}
             className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200 shadow-soft"
-            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            {isDarkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </button>
         </div>
 

@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 import { TimerProvider, useTimer } from '@/components/TimerContext';
 import { DashboardRefreshProvider } from '@/components/DashboardRefreshContext';
-import { useTheme } from '@/components/ThemeContext';
 import EnhancedTimerModal from '@/components/EnhancedTimerModal';
 import TimerManagementModal from '@/components/TimerManagementModal';
 
@@ -44,7 +43,6 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userAccess, setUserAccess] = useState<any>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { activeTimers } = useTimer();
@@ -307,11 +305,15 @@ function UserDashboardContent({ children }: { children: React.ReactNode }) {
 
               {/* Theme Toggle */}
               <button
-                onClick={toggleTheme}
+                onClick={() => {
+                  const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+                  document.documentElement.classList.toggle('dark');
+                  localStorage.setItem('theme', currentTheme === 'dark' ? 'light' : 'dark');
+                }}
                 className="p-3 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-700 rounded-xl border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
-                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                title={document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode'}
               >
-                {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                {document.documentElement.classList.contains('dark') ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </button>
             </div>
           </div>
