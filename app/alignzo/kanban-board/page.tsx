@@ -81,6 +81,7 @@ import ModernEditTaskModal from '@/components/kanban/ModernEditTaskModal';
 import ModernTaskCard from '@/components/kanban/ModernTaskCard';
 import ModernKanbanColumn from '@/components/kanban/ModernKanbanColumn';
 import { SimpleToast, PageTransition } from '@/components/kanban/SimpleAnimations';
+import EnhancedTimerModal from '@/components/EnhancedTimerModal';
 
 export default function KanbanBoardPageRedesigned() {
   const [user, setUser] = useState<any>(null);
@@ -129,6 +130,10 @@ export default function KanbanBoardPageRedesigned() {
   
   // Toast notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Timer modal state
+  const [showStartTimerModal, setShowStartTimerModal] = useState(false);
+  const [timerPrefill, setTimerPrefill] = useState<{ projectId?: string; ticketId?: string; taskDetail?: string }>({});
 
   useEffect(() => {
     initializePage();
@@ -479,6 +484,15 @@ export default function KanbanBoardPageRedesigned() {
     setShowTaskDetailModal(true);
   };
 
+  const openStartTimerForTask = (task: KanbanTaskWithDetails) => {
+    setTimerPrefill({
+      projectId: task.project_id,
+      ticketId: task.jira_ticket_key || undefined,
+      taskDetail: task.title + (task.description ? ` - ${task.description}` : ''),
+    });
+    setShowStartTimerModal(true);
+  };
+
   const openCreateColumnModal = () => setShowCreateColumnModal(true);
 
   const filteredTasks = (tasks: KanbanTaskWithDetails[] | undefined) => {
@@ -780,6 +794,7 @@ export default function KanbanBoardPageRedesigned() {
                         setTaskToDelete(taskId);
                         setShowDeleteConfirmModal(true);
                       }}
+                      onStartTimerForTask={openStartTimerForTask}
                       canEdit={true}
                       canDelete={true}
                       userEmail={user?.email}
@@ -974,6 +989,15 @@ export default function KanbanBoardPageRedesigned() {
         type={toast?.type || 'info'}
         isVisible={!!toast}
         onClose={() => setToast(null)}
+      />
+
+      {/* Start Timer Modal for tasks */}
+      <EnhancedTimerModal
+        isOpen={showStartTimerModal}
+        onClose={() => setShowStartTimerModal(false)}
+        initialProjectId={timerPrefill.projectId}
+        initialTicketId={timerPrefill.ticketId}
+        initialTaskDetail={timerPrefill.taskDetail}
       />
       </div>
     </PageTransition>

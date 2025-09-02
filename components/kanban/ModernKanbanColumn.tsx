@@ -24,6 +24,7 @@ interface ModernKanbanColumnProps {
   movingTaskId?: string | null;
   onEditTask?: (task: any) => void;
   onDeleteTask?: (taskId: string) => void;
+  onStartTimerForTask?: (task: any) => void;
   canEdit?: boolean;
   canDelete?: boolean;
   userEmail?: string;
@@ -39,6 +40,7 @@ const ModernKanbanColumn = memo(({
   movingTaskId,
   onEditTask,
   onDeleteTask,
+  onStartTimerForTask,
   canEdit = true,
   canDelete = true,
   userEmail
@@ -187,6 +189,7 @@ const ModernKanbanColumn = memo(({
                   isMoving={movingTaskId === task.id}
                   onEdit={onEditTask}
                   onDelete={onDeleteTask}
+                  onStartTimer={onStartTimerForTask}
                   canEdit={canEdit}
                   canDelete={canDelete && userEmail === task.created_by}
                 />

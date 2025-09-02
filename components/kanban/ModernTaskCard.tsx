@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle,
   Clock as ClockIcon,
+  Play,
   Edit3,
   Trash2,
   Tag,
@@ -34,11 +35,12 @@ interface ModernTaskCardProps {
   isMoving?: boolean;
   onEdit?: (task: KanbanTask) => void;
   onDelete?: (taskId: string) => void;
+  onStartTimer?: (task: KanbanTask) => void;
   canEdit?: boolean;
   canDelete?: boolean;
 }
 
-const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit, onDelete, canEdit, canDelete }: ModernTaskCardProps) => {
+const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit, onDelete, onStartTimer, canEdit, canDelete }: ModernTaskCardProps) => {
   // Enhanced priority colors with modern gradients
   const getPriorityConfig = useCallback((priority: string) => {
     const configs = {
@@ -234,6 +236,18 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               {task.title}
             </h4>
             <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              {onStartTimer && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartTimer(task);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all"
+                  title="Start Timer"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                </button>
+              )}
               {canEdit && onEdit && (
                 <button
                   onClick={(e) => {
@@ -452,6 +466,18 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               
               {/* Action Buttons */}
               <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300 relative z-10">
+                {onStartTimer && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartTimer(task);
+                    }}
+                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all transform hover:scale-110"
+                    title="Start Timer"
+                  >
+                    <Play className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

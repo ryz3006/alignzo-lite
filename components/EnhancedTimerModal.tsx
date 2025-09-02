@@ -14,6 +14,9 @@ import toast from 'react-hot-toast';
 interface TimerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialProjectId?: string;
+  initialTicketId?: string;
+  initialTaskDetail?: string;
 }
 
 interface JiraProjectMapping {
@@ -43,7 +46,7 @@ interface JiraTicket {
   };
 }
 
-export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps) {
+export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, initialTicketId, initialTaskDetail }: TimerModalProps) {
   const { startTimer } = useTimer();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -72,6 +75,17 @@ export default function EnhancedTimerModal({ isOpen, onClose }: TimerModalProps)
       loadProjects();
       checkJiraIntegration();
       setTicketCreated(false);
+      // Apply initial prefill values if provided
+      if (initialProjectId) {
+        setSelectedProject(initialProjectId);
+      }
+      if (initialTicketId || initialTaskDetail) {
+        setFormData(prev => ({
+          ...prev,
+          ticket_id: initialTicketId || prev.ticket_id,
+          task_detail: initialTaskDetail || prev.task_detail,
+        }));
+      }
     }
   }, [isOpen]);
 
