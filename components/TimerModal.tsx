@@ -190,13 +190,13 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-black dark:bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Start New Timer</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Start New Timer</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 dark:text-neutral-400 dark:hover:text-neutral-300"
           >
             <X className="h-5 w-5" />
           </button>
@@ -205,14 +205,14 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Project Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
               Project *
             </label>
             <select
               required
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             >
               <option value="">Select a project</option>
               {projects.map((project) => (
@@ -225,7 +225,7 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
 
           {/* Ticket ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
               Ticket ID *
             </label>
             <input
@@ -234,13 +234,13 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
               value={formData.ticket_id}
               onChange={(e) => setFormData({ ...formData, ticket_id: e.target.value })}
               placeholder="e.g., TASK-123"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             />
           </div>
 
           {/* Task Detail */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
               Task Detail *
             </label>
             <textarea
@@ -250,9 +250,9 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
               value={formData.task_detail}
               onChange={(e) => setFormData({ ...formData, task_detail: e.target.value })}
               placeholder="Describe what you're working on..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
             />
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-gray-500 dark:text-neutral-400 mt-1">
               {formData.task_detail.length}/600 characters
             </div>
           </div>
@@ -260,19 +260,19 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
           {/* Dynamic Categories */}
           {projectCategories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                 Categories
               </label>
               <div className="space-y-3">
                 {projectCategories.map((category) => (
                   <div key={category.id}>
-                    <label className="block text-sm text-gray-600 mb-1">
+                    <label className="block text-sm text-gray-600 dark:text-neutral-400 mb-1">
                       {category.name}
                     </label>
                     <select
                       value={formData.dynamic_category_selections[category.name] || ''}
                       onChange={(e) => handleCategoryChange(category.name, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white"
                     >
                       <option value="">Select {category.name}</option>
                       {category.options?.map((option) => (
@@ -292,7 +292,7 @@ export default function TimerModal({ isOpen, onClose }: TimerModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-neutral-300 bg-gray-200 dark:bg-neutral-600 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-500"
             >
               Cancel
             </button>
