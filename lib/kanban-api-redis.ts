@@ -18,6 +18,12 @@ const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key'
 );
+
+// Service-role Supabase client for privileged operations (e.g., writing category mappings)
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseService = supabaseServiceKey && supabaseUrl
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 import { 
   setCacheData, 
   getCacheData, 
@@ -583,17 +589,19 @@ async function createKanbanTaskInDatabase(taskData: CreateTaskForm, userEmail?: 
     // Handle multiple categories if provided
     if (createdTask && categories && Array.isArray(categories) && categories.length > 0) {
       try {
-        // Call the database function directly to save the categories
-        const categoriesJson = JSON.stringify(categories);
-        
-        const { data: rpcData, error: categoriesError } = await supabase.rpc('update_task_categories', {
-          p_task_id: createdTask.id,
-          p_categories: categoriesJson,
-          p_user_email: userEmail || taskData.created_by || 'system'
-        });
+        // Use service-role client to bypass RLS and write task category mappings
+        if (!supabaseService) {
+          console.error('❌ Service-role Supabase client not configured. Skipping category mappings write.');
+        } else {
+          const { data: rpcData, error: categoriesError } = await supabaseService.rpc('update_task_categories', {
+            p_task_id: createdTask.id,
+            p_categories: categories, // pass JSON array directly
+            p_user_email: userEmail || taskData.created_by || 'system'
+          });
 
-        if (categoriesError) {
-          console.error('❌ Failed to save task categories:', categoriesError);
+          if (categoriesError) {
+            console.error('❌ Failed to save task categories:', categoriesError);
+          }
         }
       } catch (error) {
         console.error('❌ Error saving task categories:', error);
