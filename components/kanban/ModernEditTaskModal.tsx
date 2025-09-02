@@ -6,6 +6,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { User, Calendar, Clock, Tag, Link, AlertCircle, Search, Plus, ExternalLink, Loader2, CheckCircle, FolderOpen, Settings, MessageSquare, Edit3, Save, X } from 'lucide-react';
 import { UpdateTaskForm, KanbanTaskWithDetails, ProjectWithCategories, ProjectCategory, CategoryOption, KanbanColumn, TaskComment, TaskCategorySelection } from '@/lib/kanban-types';
 import { getCurrentUser } from '@/lib/auth';
+import { supabaseClient } from '@/lib/supabase-client';
+import toast from 'react-hot-toast';
 import ModernModal from './ModernModal';
 
 interface ModernEditTaskModalProps {
@@ -133,8 +135,24 @@ export default function ModernEditTaskModal({
       loadTeamMembers();
       loadCategories();
       loadTaskCategories();
+
+      // JIRA integration
+      checkJiraIntegration();
+      loadJiraProjectMappings();
+      setJiraTicketType('existing');
+      setShowJiraSearch(false);
+      setJiraSearchQuery('');
+      setJiraSearchResults([]);
+      setTicketCreated(false);
     }
   }, [isOpen, task, teamId]);
+
+  // Reload JIRA mappings if project changes while open
+  useEffect(() => {
+    if (isOpen) {
+      loadJiraProjectMappings();
+    }
+  }, [isOpen, projectData?.id]);
 
   // Load task-specific categories from mapping API to ensure preselection
   const loadTaskCategories = async () => {
@@ -241,6 +259,152 @@ export default function ModernEditTaskModal({
     }
   };
 
+  // JIRA: Check user integration
+  const checkJiraIntegration = useCallback(async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+
+      const response = await supabaseClient.get('user_integrations', {
+        select: 'is_verified',
+        filters: {
+          user_email: currentUser.email,
+          integration_type: 'jira'
+        }
+      });
+
+      if (response.error) throw new Error(response.error);
+      setHasJiraIntegration(response.data && response.data.length > 0 && response.data[0].is_verified);
+    } catch (error) {
+      console.error('Error checking Jira integration:', error);
+      setHasJiraIntegration(false);
+    }
+  }, []);
+
+  // JIRA: Load project mappings for selected dashboard project
+  const loadJiraProjectMappings = useCallback(async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email || !projectData?.id) return;
+
+      const response = await supabaseClient.get('jira_project_mappings', {
+        select: '*,project:projects(*)',
+        filters: {
+          dashboard_project_id: projectData.id,
+          integration_user_email: currentUser.email
+        }
+      });
+
+      if (response.error) throw new Error(response.error);
+      setJiraProjectMappings(response.data || []);
+      if (response.data && response.data.length > 0) {
+        setSelectedJiraProject(response.data[0].jira_project_key);
+      } else {
+        setSelectedJiraProject('');
+      }
+    } catch (error) {
+      console.error('Error loading Jira project mappings:', error);
+    }
+  }, [projectData?.id]);
+
+  // JIRA: Search tickets
+  const searchJiraTickets = async () => {
+    if (!jiraSearchQuery.trim() || !selectedJiraProject) return;
+    setJiraSearching(true);
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+
+      const response = await fetch('/api/jira/search-tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userEmail: currentUser.email,
+          projectKey: selectedJiraProject,
+          searchTerm: jiraSearchQuery.trim(),
+          maxResults: 20
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setJiraSearchResults(data.tickets || []);
+        setShowJiraSearch(true);
+        if ((data.tickets || []).length === 0) {
+          toast('No tickets found matching your search', { icon: '🔍' });
+        } else {
+          toast.success(`Found ${data.tickets.length} tickets`);
+        }
+      } else {
+        const errorMessage = data.error || 'Failed to search tickets';
+        toast.error(errorMessage);
+        setJiraSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Error searching JIRA tickets:', error);
+      toast.error('Network error. Please try again.');
+    } finally {
+      setJiraSearching(false);
+    }
+  };
+
+  // JIRA: Create ticket
+  const createJiraTicket = async () => {
+    if (!selectedJiraProject || !formData.title?.trim()) {
+      toast.error('Select a JIRA project and enter task title');
+      return;
+    }
+
+    setIsCreatingTicket(true);
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return;
+
+      let description = formData.description || '';
+      if (formData.description) {
+        description += '\n\n---\n**Task Details:**\n';
+        description += `- Priority: ${formData.priority}\n`;
+        if (formData.estimated_hours) description += `- Estimated Hours: ${formData.estimated_hours}\n`;
+        if (formData.due_date) description += `- Due Date: ${new Date(formData.due_date).toLocaleDateString()}\n`;
+      }
+
+      const response = await fetch('/api/jira/create-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userEmail: currentUser.email,
+          projectKey: selectedJiraProject,
+          summary: formData.title || '',
+          description: description,
+          issueType: 'Task',
+          priority: formData.priority === 'urgent' ? 'Highest' : 
+                   formData.priority === 'high' ? 'High' : 
+                   formData.priority === 'medium' ? 'Medium' : 'Low'
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        const ticketKey = data.ticket.key;
+        setFormData(prev => ({ ...prev, jira_ticket_key: ticketKey }));
+        setTicketCreated(true);
+        toast.success(data.message || `JIRA ticket ${ticketKey} created`);
+      } else {
+        const errorMessage = data.error || 'Failed to create JIRA ticket';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error creating JIRA ticket:', error);
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsCreatingTicket(false);
+    }
+  };
+
+  const selectJiraTicket = (ticket: JiraTicket) => {
+    setFormData(prev => ({ ...prev, jira_ticket_key: ticket.key }));
+    setShowJiraSearch(false);
+    setJiraSearchQuery('');
+  };
+
   // Update formData.category_id and category_option_id when categorySelections change
   useEffect(() => {
     const categoryIds = Object.keys(categorySelections);
@@ -265,8 +429,13 @@ export default function ModernEditTaskModal({
     if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
     }
-    if (!formData.category_id) {
-      newErrors.category_id = 'Category is required';
+    // Require all categories selected
+    const availableCategoryIds = localCategories.map(cat => cat.id);
+    const selectedCategoryIds = Object.keys(categorySelections).filter(catId => 
+      categorySelections[catId] && categorySelections[catId].trim() !== ''
+    );
+    if (selectedCategoryIds.length !== availableCategoryIds.length) {
+      newErrors.category_id = 'All categories are mandatory and must be selected';
     }
     if (!formData.column_id) {
       newErrors.column_id = 'Column is required';
@@ -279,6 +448,30 @@ export default function ModernEditTaskModal({
 
     setIsLoading(true);
     try {
+      // Persist multi-category mappings first
+      if (availableCategoryIds.length > 0) {
+        const categoriesToSave: TaskCategorySelection[] = availableCategoryIds.map((categoryId, index) => ({
+          category_id: categoryId,
+          category_option_id: categorySelections[categoryId],
+          is_primary: false,
+          sort_order: index
+        }));
+
+        const categoriesResponse = await fetch('/api/kanban/task-categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: task.id,
+            categories: categoriesToSave,
+            userEmail: userEmail
+          })
+        });
+
+        if (!categoriesResponse.ok) {
+          console.warn('Failed to update task categories before saving task');
+        }
+      }
+
       await onSubmit(task.id, formData);
       onClose();
     } catch (error) {
@@ -526,19 +719,141 @@ export default function ModernEditTaskModal({
           </div>
         </div>
 
-        {/* JIRA Ticket */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            JIRA Ticket Key
-          </label>
-          <input
-            type="text"
-            value={formData.jira_ticket_key}
-            onChange={(e) => handleInputChange('jira_ticket_key', e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
-            placeholder="e.g., PROJ-123"
-          />
-        </div>
+        {/* JIRA Integration */}
+        {hasJiraIntegration && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                <Link className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">JIRA Integration</h3>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">JIRA Project</label>
+              <select
+                value={selectedJiraProject}
+                onChange={(e) => setSelectedJiraProject(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:outline-none"
+              >
+                <option value="">Select JIRA project</option>
+                {jiraProjectMappings.map(mapping => (
+                  <option key={mapping.id} value={mapping.jira_project_key}>
+                    {mapping.jira_project_name || mapping.jira_project_key}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ticket Type</label>
+              <div className="flex space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input type="radio" value="existing" checked={jiraTicketType === 'existing'} onChange={() => setJiraTicketType('existing')} />
+                  <span className="text-sm">Link Existing</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input type="radio" value="new" checked={jiraTicketType === 'new'} onChange={() => setJiraTicketType('new')} />
+                  <span className="text-sm">Create New</span>
+                </label>
+              </div>
+            </div>
+
+            {jiraTicketType === 'existing' ? (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Search Ticket</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={jiraSearchQuery}
+                    onChange={(e) => setJiraSearchQuery(e.target.value)}
+                    placeholder="Search JIRA tickets..."
+                    className="flex-1 px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={searchJiraTickets}
+                    disabled={jiraSearching || !jiraSearchQuery.trim() || !selectedJiraProject}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {jiraSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </button>
+                </div>
+                {showJiraSearch && (
+                  <div className="mt-2 max-h-48 overflow-y-auto border border-neutral-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700">
+                    {jiraSearchResults.length === 0 ? (
+                      <div className="p-3 text-sm text-neutral-500">No tickets found</div>
+                    ) : (
+                      jiraSearchResults.map(ticket => (
+                        <button
+                          key={ticket.key}
+                          type="button"
+                          onClick={() => selectJiraTicket(ticket)}
+                          className="w-full text-left px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-600 border-b border-neutral-200 dark:border-neutral-600 last:border-b-0"
+                        >
+                          <div className="font-medium text-sm">{ticket.key}</div>
+                          <div className="text-xs text-neutral-500 truncate">{ticket.fields.summary}</div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ticket Summary</label>
+                  <input
+                    type="text"
+                    value={formData.title || ''}
+                    disabled
+                    className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-600 text-neutral-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={createJiraTicket}
+                  disabled={isCreatingTicket || !selectedJiraProject || !formData.title?.trim()}
+                  className="w-full px-3 py-2 bg-orange-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  {isCreatingTicket ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Creating Ticket...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 inline mr-2" />
+                      Create JIRA Ticket
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {(formData.jira_ticket_key) && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                    {formData.jira_ticket_key}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, jira_ticket_key: '' }))}
+                    className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {ticketCreated && (
+                  <div className="mt-2 text-xs text-green-700 dark:text-green-300 flex items-center">
+                    <CheckCircle className="h-3 w-3 mr-1" /> Created
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200 dark:border-slate-700">
