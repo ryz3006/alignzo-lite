@@ -7,16 +7,8 @@ import { Droppable } from 'react-beautiful-dnd';
 import { 
   Plus, 
   MoreVertical, 
-  TrendingUp, 
-  Users, 
-  Clock,
   Target,
-  Sparkles,
-  Activity,
-  CheckCircle,
-  AlertTriangle,
-  Calendar,
-  Zap
+  Sparkles
 } from 'lucide-react';
 import ModernTaskCard from './ModernTaskCard';
 import { KanbanColumnWithTasks } from '@/lib/kanban-types';
@@ -68,32 +60,13 @@ const ModernKanbanColumn = memo(({
     return tasks;
   }, [column.tasks, searchQuery]);
 
-  // Enhanced column statistics
+  // Simple column statistics - only total count needed
   const columnStats = useMemo(() => {
     const tasks = filteredTasks;
     const total = tasks.length;
-    const completed = tasks.filter(task => task.status === 'completed').length;
-    const overdue = tasks.filter(task => {
-      if (!task.due_date || task.status === 'completed') return false;
-      return new Date(task.due_date) < new Date();
-    }).length;
-    const urgent = tasks.filter(task => task.priority === 'urgent').length;
-    const assignedUsers = Array.from(new Set(tasks.map(task => task.assigned_to).filter(Boolean)));
     
-    const totalEstimatedHours = tasks.reduce((sum, task) => sum + (task.estimated_hours || 0), 0);
-    const totalActualHours = tasks.reduce((sum, task) => sum + (task.actual_hours || 0), 0);
-    
-    return {
-      total,
-      completed,
-      overdue,
-      urgent,
-      assignedUsers: assignedUsers.length,
-      totalEstimatedHours,
-      totalActualHours,
-      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
-    };
-  }, [filteredTasks, column.tasks]); // Added column.tasks dependency to ensure stats update when tasks change
+    return { total };
+  }, [filteredTasks]);
 
   // Enhanced column color configuration
   const getColumnTheme = useMemo(() => {
@@ -149,11 +122,6 @@ const ModernKanbanColumn = memo(({
                 >
                   {columnStats.total}
                 </span>
-                {columnStats.completionRate > 0 && (
-                  <span className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full font-medium">
-                    {columnStats.completionRate}%
-                  </span>
-                )}
               </div>
             </div>
             
@@ -180,71 +148,6 @@ const ModernKanbanColumn = memo(({
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
               {column.description}
             </p>
-          )}
-
-          {/* Enhanced Column Statistics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {columnStats.completed > 0 && (
-              <div className="flex items-center space-x-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  {columnStats.completed} done
-                </span>
-              </div>
-            )}
-            
-            {columnStats.overdue > 0 && (
-              <div className="flex items-center space-x-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <span className="text-xs font-medium text-red-700 dark:text-red-300">
-                  {columnStats.overdue} overdue
-                </span>
-              </div>
-            )}
-            
-            {columnStats.urgent > 0 && (
-              <div className="flex items-center space-x-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                <Zap className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
-                  {columnStats.urgent} urgent
-                </span>
-              </div>
-            )}
-            
-            {columnStats.assignedUsers > 0 && (
-              <div className="flex items-center space-x-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                  {columnStats.assignedUsers} assignees
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Time Tracking Summary */}
-          {(columnStats.totalEstimatedHours > 0 || columnStats.totalActualHours > 0) && (
-            <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Time Tracking</span>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-3 w-3 text-slate-500" />
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {columnStats.totalActualHours}h / {columnStats.totalEstimatedHours}h
-                  </span>
-                </div>
-              </div>
-              {columnStats.totalEstimatedHours > 0 && (
-                <div className="mt-2 w-full bg-slate-200 dark:bg-slate-600 rounded-full h-1.5">
-                  <div 
-                    className="h-1.5 rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${Math.min((columnStats.totalActualHours / columnStats.totalEstimatedHours) * 100, 100)}%`,
-                      backgroundColor: column.color 
-                    }}
-                  />
-                </div>
-              )}
-            </div>
           )}
         </div>
 
