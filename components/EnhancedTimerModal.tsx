@@ -17,6 +17,7 @@ interface TimerModalProps {
   initialProjectId?: string;
   initialTicketId?: string;
   initialTaskDetail?: string;
+  initialCategorySelections?: Record<string, string>;
 }
 
 interface JiraProjectMapping {
@@ -46,7 +47,7 @@ interface JiraTicket {
   };
 }
 
-export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, initialTicketId, initialTaskDetail }: TimerModalProps) {
+export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, initialTicketId, initialTaskDetail, initialCategorySelections }: TimerModalProps) {
   const { startTimer } = useTimer();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -84,6 +85,15 @@ export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, 
           ...prev,
           ticket_id: initialTicketId || prev.ticket_id,
           task_detail: initialTaskDetail || prev.task_detail,
+        }));
+      }
+      if (initialCategorySelections && Object.keys(initialCategorySelections).length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          dynamic_category_selections: {
+            ...prev.dynamic_category_selections,
+            ...initialCategorySelections
+          }
         }));
       }
     }

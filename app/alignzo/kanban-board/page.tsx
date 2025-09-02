@@ -133,7 +133,7 @@ export default function KanbanBoardPageRedesigned() {
 
   // Timer modal state
   const [showStartTimerModal, setShowStartTimerModal] = useState(false);
-  const [timerPrefill, setTimerPrefill] = useState<{ projectId?: string; ticketId?: string; taskDetail?: string }>({});
+  const [timerPrefill, setTimerPrefill] = useState<{ projectId?: string; ticketId?: string; taskDetail?: string; categorySelections?: Record<string, string> }>({});
 
   useEffect(() => {
     initializePage();
@@ -485,10 +485,21 @@ export default function KanbanBoardPageRedesigned() {
   };
 
   const openStartTimerForTask = (task: KanbanTaskWithDetails) => {
+    // Build initial category selections from task categories (if available)
+    const categorySelections: Record<string, string> = {};
+    if (task.categories && Array.isArray(task.categories)) {
+      for (const cat of task.categories) {
+        if (cat.category_name && cat.option_value) {
+          categorySelections[cat.category_name] = cat.option_value;
+        }
+      }
+    }
+
     setTimerPrefill({
       projectId: task.project_id,
-      ticketId: task.jira_ticket_key || undefined,
+      ticketId: task.jira_ticket_key || task.id,
       taskDetail: task.title + (task.description ? ` - ${task.description}` : ''),
+      categorySelections: Object.keys(categorySelections).length > 0 ? categorySelections : undefined,
     });
     setShowStartTimerModal(true);
   };
@@ -998,6 +1009,7 @@ export default function KanbanBoardPageRedesigned() {
         initialProjectId={timerPrefill.projectId}
         initialTicketId={timerPrefill.ticketId}
         initialTaskDetail={timerPrefill.taskDetail}
+        initialCategorySelections={timerPrefill.categorySelections}
       />
       </div>
     </PageTransition>
