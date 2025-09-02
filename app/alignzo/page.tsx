@@ -32,6 +32,7 @@ import { formatDuration, formatDateTime, formatTimeAgo, getTodayRange, getWeekRa
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import toast from 'react-hot-toast';
 import { useDashboardRefresh } from '@/components/DashboardRefreshContext';
+import { useTheme } from '@/hooks/useTheme';
 
 interface DashboardStats {
   todayHours: number;
@@ -154,7 +155,7 @@ export default function UserDashboardPage() {
   const [isLoadingShifts, setIsLoadingShifts] = useState(false);
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [darkMode, setDarkMode] = useState(false);
+  const { isDark } = useTheme();
   const [showShiftDetailsModal, setShowShiftDetailsModal] = useState(false);
   const [selectedShift, setSelectedShift] = useState<{shiftType: string, teamName: string, projectName: string} | null>(null);
   const [shiftUsers, setShiftUsers] = useState<any[]>([]);
@@ -162,26 +163,7 @@ export default function UserDashboardPage() {
   const [greetingLoaded, setGreetingLoaded] = useState(false);
   const { isRefreshing } = useDashboardRefresh();
 
-  // Check system preference for dark mode
-  useEffect(() => {
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(isDark);
-    
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => setDarkMode(e.matches);
-    mediaQuery.addEventListener('change', handleChange);
-    
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  // Apply dark mode to document
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
+  // Theme is now managed globally by the shared hook
 
   const loadDashboardData = useCallback(async () => {
     try {

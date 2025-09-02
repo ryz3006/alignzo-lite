@@ -7,12 +7,14 @@ import { User } from 'firebase/auth';
 import { Chrome, Shield, Users, Clock, TrendingUp, BarChart3, ArrowRight, CheckCircle, Sun, Moon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const router = useRouter();
+  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     checkAuth();
@@ -118,7 +120,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 flex flex-col">
       {/* Navigation */}
       <nav className="absolute top-0 left-0 right-0 z-10 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -128,39 +130,35 @@ export default function HomePage() {
           </div>
           <div className="flex items-center space-x-6">
             <button
-              onClick={() => {
-                const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-                document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', currentTheme === 'dark' ? 'light' : 'dark');
-              }}
+              onClick={toggleTheme}
               className="p-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-600 hover:border-neutral-300 dark:hover:border-neutral-500 transition-all duration-200"
-              title={document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {document.documentElement.classList.contains('dark') ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-24 pb-16 px-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Hero Section - Centered with flexbox */}
+      <section className="flex-1 flex items-center justify-center px-6 pt-24">
+        <div className="max-w-7xl mx-auto w-full">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full text-sm font-medium mb-8">
               <CheckCircle className="h-4 w-4 mr-2" />
               Professional Work Tracking Platform
             </div>
             
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-6 leading-tight">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 dark:text-white mb-8 leading-tight">
               Welcome to{' '}
               <img src="/ALIGNZO_Name.png" alt="Alignzo" className="inline h-12 md:h-16 lg:h-20 w-auto" />
             </h1>
             
-            <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-10 max-w-2xl mx-auto">
               Professional work log tracking and productivity monitoring platform designed for modern teams.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <button
                 onClick={handleGoogleSignIn}
                 className="btn-primary text-lg px-8 py-4 flex items-center justify-center space-x-3"
@@ -172,7 +170,7 @@ export default function HomePage() {
             </div>
 
             {/* Subtle Admin Access Link */}
-            <div className="mt-6">
+            <div className="mb-8">
               <Link
                 href="/admin/login"
                 className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors underline decoration-dotted"
@@ -185,7 +183,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-neutral-900 text-white py-12">
+      <footer className="bg-neutral-900 text-white py-12 mt-auto">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-6">
