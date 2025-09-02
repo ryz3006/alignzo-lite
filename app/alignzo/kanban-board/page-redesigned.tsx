@@ -258,26 +258,27 @@ export default function KanbanBoardPageRedesigned() {
 
   // Optimistic update function
   const performOptimisticUpdate = (taskId: string, sourceColumnId: string, destinationColumnId: string, newIndex: number) => {
-    const currentBoard = [...kanbanBoard];
-    
-    const sourceColumn = currentBoard.find(col => col.id === sourceColumnId);
-    const destinationColumn = currentBoard.find(col => col.id === destinationColumnId);
-    
-    if (!sourceColumn || !destinationColumn) return currentBoard;
-    
+    // Create new column objects and task arrays to ensure React.memo children re-render
+    const newBoard = kanbanBoard.map(col => ({ ...col, tasks: [...(col.tasks || [])] }));
+
+    const sourceColumn = newBoard.find(col => col.id === sourceColumnId);
+    const destinationColumn = newBoard.find(col => col.id === destinationColumnId);
+
+    if (!sourceColumn || !destinationColumn) return newBoard;
+
     const taskIndex = sourceColumn.tasks.findIndex(task => task.id === taskId);
-    if (taskIndex === -1) return currentBoard;
-    
+    if (taskIndex === -1) return newBoard;
+
     const [movedTask] = sourceColumn.tasks.splice(taskIndex, 1);
-    
+
     if (sourceColumnId === destinationColumnId) {
       destinationColumn.tasks.splice(newIndex, 0, movedTask);
     } else {
       destinationColumn.tasks.splice(newIndex, 0, movedTask);
       movedTask.column_id = destinationColumnId;
     }
-    
-    return currentBoard;
+
+    return newBoard;
   };
 
   const revertOptimisticUpdate = () => {
@@ -328,6 +329,7 @@ export default function KanbanBoardPageRedesigned() {
       if (response.success) {
         setOptimisticBoard([]);
         await invalidateKanbanCache(selectedProject.id, selectedTeam);
+        await loadKanbanBoard(true);
         setToast({ type: 'success', message: 'Task moved successfully!' });
       } else {
         revertOptimisticUpdate();
@@ -354,7 +356,7 @@ export default function KanbanBoardPageRedesigned() {
       if (response.success) {
         setShowCreateTaskModal(false);
         await invalidateKanbanCache(selectedProject.id, selectedTeam);
-        loadKanbanBoard(true);
+        await loadKanbanBoard(true);
         setToast({ type: 'success', message: 'Task created successfully!' });
       } else {
         const errorMessage = response.error || 'Failed to create task';
