@@ -348,8 +348,15 @@ export default function ModernCreateTaskModal({
     if (!formData.title.trim()) {
       newErrors.title = 'Title is required';
     }
-    if (!formData.category_id) {
-      newErrors.category_id = 'Category is required';
+    // All categories are mandatory
+    const availableCategoryIds = localCategories.map(cat => cat.id);
+    const selectedCategoryIds = Object.keys(categorySelections).filter(catId => 
+      categorySelections[catId] && categorySelections[catId].trim() !== ''
+    );
+    if (selectedCategoryIds.length === 0) {
+      newErrors.category_id = 'At least one category must be selected';
+    } else if (selectedCategoryIds.length !== availableCategoryIds.length) {
+      newErrors.category_id = 'All categories are mandatory and must be selected';
     }
     if (!formData.column_id) {
       newErrors.column_id = 'Column is required';
@@ -362,7 +369,24 @@ export default function ModernCreateTaskModal({
 
     setIsLoading(true);
     try {
-      await onSubmit(formData);
+      // Transform categorySelections into TaskCategorySelection[]
+      const categories: TaskCategorySelection[] = Object.entries(categorySelections).map(([categoryId, optionId], index) => ({
+        category_id: categoryId,
+        category_option_id: optionId,
+        is_primary: false,
+        sort_order: index
+      }));
+
+      // Ensure backward compatibility fields are set using the first selection
+      const primary = categories[0];
+      const payload: CreateTaskForm = {
+        ...formData,
+        category_id: primary?.category_id || '',
+        category_option_id: primary?.category_option_id,
+        categories
+      };
+
+      await onSubmit(payload);
       onClose();
     } catch (error) {
       console.error('Error creating task:', error);
