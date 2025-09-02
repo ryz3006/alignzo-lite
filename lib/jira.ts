@@ -301,6 +301,10 @@ export class JiraIntegration {
     maxResults: number = 20
   ): Promise<any[]> {
     try {
+      console.log(`🔍 JIRA Search Debug: Starting search for "${searchTerm}" in project ${projectKey}`);
+      console.log(`🔍 JIRA Base URL: ${credentials.base_url}`);
+      console.log(`🔍 JIRA User: ${credentials.user_email_integration}`);
+      
       // Try multiple search strategies for better results
       let issues: any[] = [];
       const rawTerm = (searchTerm || '').trim();
@@ -309,6 +313,7 @@ export class JiraIntegration {
       if (/^\d+$/.test(rawTerm)) {
         const expandedKey = `${projectKey}-${rawTerm}`;
         const exactKeyJqlNumeric = `key = "${expandedKey}"`;
+        console.log(`🔍 Strategy 1a: Trying expanded key "${expandedKey}" with JQL: ${exactKeyJqlNumeric}`);
         try {
           const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(exactKeyJqlNumeric)}&maxResults=${maxResults}`, {
             headers: {
@@ -316,21 +321,27 @@ export class JiraIntegration {
               'Accept': 'application/json'
             }
           });
+          console.log(`🔍 Strategy 1a Response Status: ${response.status}`);
           if (response.ok) {
             const data = await response.json();
+            console.log(`🔍 Strategy 1a Response Data:`, JSON.stringify(data, null, 2));
             if (data.issues && data.issues.length > 0) {
-              console.log(`Found ${data.issues.length} tickets with expanded key match: ${expandedKey}`);
+              console.log(`✅ Found ${data.issues.length} tickets with expanded key match: ${expandedKey}`);
               return data.issues;
             }
+          } else {
+            const errorText = await response.text();
+            console.log(`❌ Strategy 1a failed with status ${response.status}: ${errorText}`);
           }
         } catch (error) {
-          console.log('Expanded key search failed, trying other strategies:', error);
+          console.log('❌ Strategy 1a error:', error);
         }
       }
 
       // Strategy 1b: Exact ticket key match (most specific)
       if (rawTerm.includes('-')) {
         const exactKeyJql = `key = "${searchTerm}"`;
+        console.log(`🔍 Strategy 1b: Trying exact key "${searchTerm}" with JQL: ${exactKeyJql}`);
         try {
           const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(exactKeyJql)}&maxResults=${maxResults}`, {
             headers: {
@@ -339,21 +350,27 @@ export class JiraIntegration {
             }
           });
           
+          console.log(`🔍 Strategy 1b Response Status: ${response.status}`);
           if (response.ok) {
             const data = await response.json();
+            console.log(`🔍 Strategy 1b Response Data:`, JSON.stringify(data, null, 2));
             if (data.issues && data.issues.length > 0) {
-              console.log(`Found ${data.issues.length} tickets with exact key match: ${searchTerm}`);
+              console.log(`✅ Found ${data.issues.length} tickets with exact key match: ${searchTerm}`);
               return data.issues;
             }
+          } else {
+            const errorText = await response.text();
+            console.log(`❌ Strategy 1b failed with status ${response.status}: ${errorText}`);
           }
         } catch (error) {
-          console.log('Exact key search failed, trying other strategies:', error);
+          console.log('❌ Strategy 1b error:', error);
         }
       }
       
       // Strategy 2: Project + ticket key pattern match
       if (rawTerm.includes('-')) {
         const keyPatternJql = `project = ${projectKey} AND key ~ "${searchTerm}"`;
+        console.log(`🔍 Strategy 2: Trying key pattern in project with JQL: ${keyPatternJql}`);
         try {
           const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(keyPatternJql)}&maxResults=${maxResults}`, {
             headers: {
@@ -362,20 +379,25 @@ export class JiraIntegration {
             }
           });
           
+          console.log(`🔍 Strategy 2 Response Status: ${response.status}`);
           if (response.ok) {
             const data = await response.json();
             if (data.issues && data.issues.length > 0) {
-              console.log(`Found ${data.issues.length} tickets with key pattern match in project ${projectKey}`);
+              console.log(`✅ Found ${data.issues.length} tickets with key pattern match in project ${projectKey}`);
               return data.issues;
             }
+          } else {
+            const errorText = await response.text();
+            console.log(`❌ Strategy 2 failed with status ${response.status}: ${errorText}`);
           }
         } catch (error) {
-          console.log('Key pattern search failed, trying other strategies:', error);
+          console.log('❌ Strategy 2 error:', error);
         }
       }
       
       // Strategy 3: Project + text search (searches multiple text fields including summary/description)
       const textSearchJql = `project = ${projectKey} AND text ~ "${searchTerm}" ORDER BY updated DESC`;
+      console.log(`🔍 Strategy 3: Trying project text search with JQL: ${textSearchJql}`);
       try {
         const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(textSearchJql)}&maxResults=${maxResults}`, {
           headers: {
@@ -384,19 +406,24 @@ export class JiraIntegration {
           }
         });
         
+        console.log(`🔍 Strategy 3 Response Status: ${response.status}`);
         if (response.ok) {
           const data = await response.json();
           if (data.issues && data.issues.length > 0) {
-            console.log(`Found ${data.issues.length} tickets with project-scoped text search in project ${projectKey}`);
+            console.log(`✅ Found ${data.issues.length} tickets with project-scoped text search in project ${projectKey}`);
             return data.issues;
           }
+        } else {
+          const errorText = await response.text();
+          console.log(`❌ Strategy 3 failed with status ${response.status}: ${errorText}`);
         }
       } catch (error) {
-        console.log('Project text search failed:', error);
+        console.log('❌ Strategy 3 error:', error);
       }
       
       // Strategy 4: Project + summary/description search (original strategy)
       const summaryDescJql = `project = ${projectKey} AND (summary ~ "${searchTerm}" OR description ~ "${searchTerm}") ORDER BY updated DESC`;
+      console.log(`🔍 Strategy 4: Trying summary/description search with JQL: ${summaryDescJql}`);
       try {
         const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(summaryDescJql)}&maxResults=${maxResults}`, {
           headers: {
@@ -405,19 +432,24 @@ export class JiraIntegration {
           }
         });
         
+        console.log(`🔍 Strategy 4 Response Status: ${response.status}`);
         if (response.ok) {
           const data = await response.json();
           if (data.issues && data.issues.length > 0) {
-            console.log(`Found ${data.issues.length} tickets with summary/description match in project ${projectKey}`);
+            console.log(`✅ Found ${data.issues.length} tickets with summary/description match in project ${projectKey}`);
             return data.issues;
           }
+        } else {
+          const errorText = await response.text();
+          console.log(`❌ Strategy 4 failed with status ${response.status}: ${errorText}`);
         }
       } catch (error) {
-        console.log('Summary/description search failed:', error);
+        console.log('❌ Strategy 4 error:', error);
       }
 
       // Strategy 5: Global search without project restriction (fallback)
       const globalJql = `(summary ~ "${searchTerm}" OR description ~ "${searchTerm}" OR key ~ "${searchTerm}") ORDER BY updated DESC`;
+      console.log(`🔍 Strategy 5: Trying global search with JQL: ${globalJql}`);
       try {
         const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(globalJql)}&maxResults=${maxResults}`, {
           headers: {
@@ -426,22 +458,26 @@ export class JiraIntegration {
           }
         });
         
+        console.log(`🔍 Strategy 5 Response Status: ${response.status}`);
         if (response.ok) {
           const data = await response.json();
           if (data.issues && data.issues.length > 0) {
-            console.log(`Found ${data.issues.length} tickets with global search (including outside project ${projectKey})`);
+            console.log(`✅ Found ${data.issues.length} tickets with global search (including outside project ${projectKey})`);
             return data.issues;
           }
+        } else {
+          const errorText = await response.text();
+          console.log(`❌ Strategy 5 failed with status ${response.status}: ${errorText}`);
         }
       } catch (error) {
-        console.log('Global search failed:', error);
+        console.log('❌ Strategy 5 error:', error);
       }
       
-      console.log(`No tickets found with any search strategy for term: "${searchTerm}" in project: ${projectKey}`);
+      console.log(`❌ No tickets found with any search strategy for term: "${searchTerm}" in project: ${projectKey}`);
       return [];
       
     } catch (error) {
-      console.error('Error searching Jira tickets:', error);
+      console.error('❌ Error searching Jira tickets:', error);
       throw error;
     }
   }
