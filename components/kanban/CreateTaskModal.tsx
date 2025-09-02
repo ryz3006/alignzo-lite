@@ -152,7 +152,30 @@ export default function CreateTaskModal({
       const response = await fetch(`/api/teams/team-members?teamId=${selectedTeam}`);
       if (response.ok) {
         const data = await response.json();
-        setTeamMembers(data.teamMembers || []);
+        const apiMembers = (data.teamMembers || []).filter((m: any) => m && (m.email || (m.users && m.users.email)));
+
+        // Normalize to objects with id, email, full_name
+        const normalized = apiMembers.map((m: any) => ({
+          id: m.id || m.user_id || m.email,
+          email: m.email || m.users?.email,
+          full_name: m.full_name || m.users?.full_name || undefined,
+        }));
+
+        // Include current user if missing
+        const currentUser = await getCurrentUser();
+        const self = currentUser?.email
+          ? {
+              id: 'self',
+              email: currentUser.email,
+              full_name: currentUser.email,
+            }
+          : null;
+
+        const list = self && !normalized.some((n: any) => n.email === self.email)
+          ? [self, ...normalized]
+          : normalized;
+
+        setTeamMembers(list);
       } else {
         console.error('Failed to load team members');
         setTeamMembers([]);

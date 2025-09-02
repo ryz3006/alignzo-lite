@@ -272,10 +272,9 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               {task.priority}
             </span>
             
-            {/* Scope Badge */}
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-sm`}>
-              <span className="mr-1">{scopeConfig.icon}</span>
-              {task.scope}
+            {/* Scope Badge (icon-only to avoid overflow) */}
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-sm`} title={task.scope}>
+              <span>{scopeConfig.icon}</span>
             </span>
             
             {/* JIRA Ticket */}
@@ -438,10 +437,9 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
                   {task.priority}
                 </span>
                 
-                {/* Scope Badge */}
-                <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-lg`}>
-                  <span className="mr-1">{scopeConfig.icon}</span>
-                  {task.scope}
+                {/* Scope Badge (icon-only to avoid overflow) */}
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-lg`} title={task.scope}>
+                  <span>{scopeConfig.icon}</span>
                 </span>
                 
                 {/* Completion Status */}

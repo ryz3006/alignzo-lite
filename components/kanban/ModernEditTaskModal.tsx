@@ -146,10 +146,32 @@ export default function ModernEditTaskModal({
       const response = await fetch(`/api/teams/team-members?teamId=${teamId}`);
       if (response.ok) {
         const data = await response.json();
-        setTeamMembers(data.teamMembers || []);
+        const apiMembers: TeamMember[] = (data.teamMembers || []).filter((m: any) => m && m.users && m.users.email);
+
+        // Ensure current user is included as a fallback option
+        const currentUser = await getCurrentUser();
+        const selfMember: TeamMember | null = currentUser?.email
+          ? {
+              id: 'self',
+              user_id: 'self',
+              users: {
+                full_name: currentUser.email,
+                email: currentUser.email,
+              },
+            }
+          : null;
+
+        const withSelf = selfMember && !apiMembers.some((m) => m.users.email === selfMember.users.email)
+          ? [selfMember, ...apiMembers]
+          : apiMembers;
+
+        setTeamMembers(withSelf);
+      } else {
+        setTeamMembers([]);
       }
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     } finally {
       setIsLoadingTeamMembers(false);
     }

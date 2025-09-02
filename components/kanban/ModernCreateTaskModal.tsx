@@ -80,10 +80,24 @@ export default function ModernCreateTaskModal({
       const response = await fetch(`/api/teams/team-members?teamId=${selectedTeam}`);
       if (response.ok) {
         const data = await response.json();
-        setTeamMembers(data.teamMembers || []);
+        const apiMembers = (data.teamMembers || []).filter((m: any) => m && (m.email || (m.users && m.users.email)));
+        const normalized = apiMembers.map((m: any) => ({
+          id: m.id || m.user_id || m.email,
+          email: m.email || m.users?.email,
+          full_name: m.full_name || m.users?.full_name || undefined,
+        }));
+        const currentUser = await getCurrentUser();
+        const self = currentUser?.email
+          ? { id: 'self', email: currentUser.email, full_name: currentUser.email }
+          : null;
+        const list = self && !normalized.some((n: any) => n.email === self.email)
+          ? [self, ...normalized]
+          : normalized;
+        setTeamMembers(list);
       }
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     }
   };
 
@@ -300,8 +314,8 @@ export default function ModernCreateTaskModal({
             >
               <option value="">Unassigned</option>
               {teamMembers.map((member) => (
-                <option key={member.user_email} value={member.user_email}>
-                  {member.users?.full_name || member.user_email}
+                <option key={member.id} value={member.email}>
+                  {member.full_name || member.email}
                 </option>
               ))}
             </select>
