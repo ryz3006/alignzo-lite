@@ -162,6 +162,7 @@ export default function UserDashboardPage() {
   const [loadingShiftUsers, setLoadingShiftUsers] = useState(false);
   const [greetingLoaded, setGreetingLoaded] = useState(false);
   const { isRefreshing } = useDashboardRefresh();
+  const [expectedHours, setExpectedHours] = useState<{ today: number; week: number; month: number }>({ today: 0, week: 0, month: 0 });
 
   // Theme is now managed globally by the shared hook
 
@@ -195,9 +196,10 @@ export default function UserDashboardPage() {
 
 
       // Load rest of the data in parallel (only if cache miss)
-      const [workLogsResult, teamsResult] = await Promise.allSettled([
+      const [workLogsResult, teamsResult, expectedHoursResult] = await Promise.allSettled([
         loadWorkLogs(),
-        loadTeamAvailability()
+        loadTeamAvailability(),
+        loadExpectedHoursForPeriods()
       ]);
 
       // Handle results and update state
@@ -215,6 +217,10 @@ export default function UserDashboardPage() {
       }
 
       setDashboardData(prev => ({ ...prev, ...newData }));
+
+      if (expectedHoursResult.status === 'fulfilled') {
+        setExpectedHours(expectedHoursResult.value);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -222,6 +228,50 @@ export default function UserDashboardPage() {
       setIsLoading(false);
     }
   }, []);
+
+  const formatYMD = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const loadExpectedHoursForPeriods = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.email) return { today: 0, week: 0, month: 0 };
+
+      const todayStr = getTodayString();
+      const { start: weekStart, end: weekEnd } = getWeekRange();
+      const { start: monthStart, end: monthEnd } = getMonthRange();
+
+      const [todayRes, weekRes, monthRes] = await Promise.all([
+        supabaseClient.getShiftSchedules({
+          filters: { user_email: currentUser.email, shift_date_in: [todayStr] }
+        }),
+        supabaseClient.getShiftSchedules({
+          filters: { user_email: currentUser.email, shift_date_gte: formatYMD(weekStart), shift_date_lte: formatYMD(weekEnd) }
+        }),
+        supabaseClient.getShiftSchedules({
+          filters: { user_email: currentUser.email, shift_date_gte: formatYMD(monthStart), shift_date_lte: formatYMD(monthEnd) }
+        })
+      ]);
+
+      const countWorking = (rows: any[]) => rows.filter((r: any) => r.shift_type && !['H','L'].includes(r.shift_type)).length;
+      const todayCount = countWorking(todayRes.data || []);
+      const weekCount = countWorking(weekRes.data || []);
+      const monthCount = countWorking(monthRes.data || []);
+
+      return {
+        today: todayCount * 8,
+        week: weekCount * 8,
+        month: monthCount * 8,
+      };
+    } catch (e) {
+      console.error('Failed to load expected hours:', e);
+      return { today: 0, week: 0, month: 0 };
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -690,6 +740,12 @@ export default function UserDashboardPage() {
     const monthTrend = calculateTrend(dashboardData.stats.monthHours, dashboardData.stats.yearHours / 12);
     const totalTrend = calculateTrend(dashboardData.stats.totalHours, dashboardData.stats.totalHours * 0.9); // Compare with 90% of current total
 
+    const utilization = {
+      today: expectedHours.today > 0 ? Math.min(100, Math.round((dashboardData.stats.todayHours / expectedHours.today) * 100)) : null,
+      week: expectedHours.week > 0 ? Math.min(100, Math.round((dashboardData.stats.weekHours / expectedHours.week) * 100)) : null,
+      month: expectedHours.month > 0 ? Math.min(100, Math.round((dashboardData.stats.monthHours / expectedHours.month) * 100)) : null,
+    };
+
     return [
       {
         title: 'Today',
@@ -699,7 +755,8 @@ export default function UserDashboardPage() {
         description: 'Hours worked today',
         trend: todayTrend.trend,
         trendValue: todayTrend.value,
-        trendColor: todayTrend.trend === 'up' ? 'text-green-600' : todayTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+        trendColor: todayTrend.trend === 'up' ? 'text-green-600' : todayTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600',
+        utilization: utilization.today
       },
       {
         title: 'This Week',
@@ -709,7 +766,8 @@ export default function UserDashboardPage() {
         description: 'Hours worked this week',
         trend: weekTrend.trend,
         trendValue: weekTrend.value,
-        trendColor: weekTrend.trend === 'up' ? 'text-green-600' : weekTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+        trendColor: weekTrend.trend === 'up' ? 'text-green-600' : weekTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600',
+        utilization: utilization.week
       },
       {
         title: 'This Month',
@@ -719,7 +777,8 @@ export default function UserDashboardPage() {
         description: 'Hours worked this month',
         trend: monthTrend.trend,
         trendValue: monthTrend.value,
-        trendColor: monthTrend.trend === 'up' ? 'text-green-600' : monthTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+        trendColor: monthTrend.trend === 'up' ? 'text-green-600' : monthTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600',
+        utilization: utilization.month
       },
       {
         title: 'Total',
@@ -732,7 +791,7 @@ export default function UserDashboardPage() {
         trendColor: totalTrend.trend === 'up' ? 'text-green-600' : totalTrend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
       },
     ];
-  }, [dashboardData.stats]);
+  }, [dashboardData.stats, expectedHours]);
 
   if (isLoading && !greetingLoaded) {
     return (
@@ -932,11 +991,29 @@ export default function UserDashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-3xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">
-                      {stat.value}
-                    </p>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 font-medium">{stat.title}</p>
+                  <div className="flex items-center space-x-4">
+                    {stat.utilization != null && (
+                      <div className="relative h-10 w-10">
+                        <svg viewBox="0 0 36 36" className="h-10 w-10">
+                          <path className="text-neutral-200 dark:text-neutral-700" stroke="currentColor" strokeWidth="3.5" fill="none" d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831" />
+                          <path className="text-primary-600" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" fill="none"
+                            strokeDasharray={`${stat.utilization}, 100`} d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{stat.utilization}%</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-neutral-900 dark:text-white group-hover:text-primary-600 transition-colors">
+                        {stat.value}
+                      </p>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400 font-medium">{stat.title}</p>
+                    </div>
                   </div>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-500">{stat.description}</p>
