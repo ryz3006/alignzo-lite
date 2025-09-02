@@ -673,10 +673,10 @@ export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, 
                           <div className="flex justify-between items-center">
                             <div>
                               <div className="font-medium text-sm text-gray-900 dark:text-white">{ticket.key}</div>
-                              <div className="text-xs text-gray-600 dark:text-neutral-400 truncate">{ticket.fields.summary}</div>
+                              <div className="text-xs text-gray-600 dark:text-neutral-400 truncate">{ticket.fields?.summary || 'No summary available'}</div>
                             </div>
                             <div className="text-xs text-gray-500 dark:text-neutral-400">
-                              {ticket.fields.status.name}
+                              {ticket.fields?.status?.name || 'Unknown status'}
                             </div>
                           </div>
                         </div>

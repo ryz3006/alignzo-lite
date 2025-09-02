@@ -998,7 +998,7 @@ export default function CreateTaskModal({
                                   className="w-full p-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-600 border-b border-neutral-200 dark:border-neutral-600 last:border-b-0 transition-colors"
                                 >
                                   <div className="font-medium text-sm text-neutral-900 dark:text-white">{ticket.key}</div>
-                                  <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{ticket.fields.summary}</div>
+                                  <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{ticket.fields?.summary || 'No summary available'}</div>
                                 </button>
                               ))
                             )}

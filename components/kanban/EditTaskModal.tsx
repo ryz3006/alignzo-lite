@@ -1178,7 +1178,7 @@ export default function EditTaskModal({
                                     className="p-3 border border-neutral-200 dark:border-neutral-600 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-600 cursor-pointer"
                                   >
                                     <div className="font-medium text-sm">{ticket.key}</div>
-                                    <div className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{ticket.fields.summary}</div>
+                                    <div className="text-xs text-neutral-600 dark:text-neutral-400 truncate">{ticket.fields?.summary || 'No summary available'}</div>
                                   </div>
                                 ))}
                               </div>
