@@ -322,9 +322,9 @@ export default function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 dark:border-neutral-700">
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200 dark:border-neutral-700">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -348,7 +348,7 @@ export default function TaskDetailModal({
 
         {/* Tabs */}
         <div className="border-b border-neutral-200 dark:border-neutral-700">
-          <nav className="flex space-x-8 px-6">
+          <nav className="flex space-x-4 px-4">
             {[
               { id: 'details', label: 'Details', icon: Eye },
               { id: 'timeline', label: 'Timeline', icon: Clock },
@@ -359,7 +359,7 @@ export default function TaskDetailModal({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 ${
+                  className={`py-3 px-2 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-300'
@@ -374,17 +374,17 @@ export default function TaskDetailModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4">
           {activeTab === 'details' && (
             <div className="space-y-8">
               {/* Task Title and Description */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
-                <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">
+              <div className="rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+                <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">
                   {task.title}
                 </h3>
                 {task.description && (
-                  <div className="bg-white dark:bg-neutral-700 rounded-xl p-4 border border-blue-200 dark:border-blue-700">
-                    <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed text-lg">
+                  <div className="bg-neutral-50 dark:bg-neutral-700 rounded-lg p-3 border border-neutral-200 dark:border-neutral-600">
+                    <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                       {task.description}
                     </p>
                   </div>
@@ -392,20 +392,13 @@ export default function TaskDetailModal({
               </div>
 
               {/* Task Meta Information */}
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 {/* Basic Information */}
                 <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                      <Tag className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                      Basic Information
-                    </h4>
-                  </div>
+                  <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-2">Basic Information</h4>
                   
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                       <Tag className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Status</p>
@@ -413,7 +406,7 @@ export default function TaskDetailModal({
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                       <Tag className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Priority</p>
@@ -431,7 +424,7 @@ export default function TaskDetailModal({
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                       <Clock className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Age</p>
@@ -442,7 +435,7 @@ export default function TaskDetailModal({
                     </div>
 
                     {task.column && (
-                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                         <Tag className="h-5 w-5 text-neutral-400" />
                         <div className="flex-1">
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">Current Column</p>
@@ -460,15 +453,8 @@ export default function TaskDetailModal({
                 </div>
 
                 {/* Categories and Options */}
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                      <FolderOpen className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                      Categories & Options
-                    </h4>
-                  </div>
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">Categories & Options</h4>
                   
                   <div className="space-y-4">
                     {loadingTaskCategories ? (
@@ -477,31 +463,31 @@ export default function TaskDetailModal({
                         <span>Loading task categories...</span>
                       </div>
                     ) : taskCategories.length > 0 ? (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {taskCategories.map((taskCategory) => (
                           <div 
                             key={taskCategory.mapping_id} 
-                            className="border border-neutral-300 dark:border-neutral-600 rounded-xl p-4 bg-neutral-50 dark:bg-neutral-700/50"
+                            className="border border-neutral-300 dark:border-neutral-600 rounded-lg p-3 bg-neutral-50 dark:bg-neutral-700/50"
                           >
-                            <div className="flex items-center space-x-3 mb-3">
+                            <div className="flex items-center space-x-3 mb-2">
                               <div 
                                 className="w-4 h-4 rounded-full"
                                 style={{ backgroundColor: taskCategory.category_color || '#3B82F6' }}
                               ></div>
-                              <h5 className="font-semibold text-neutral-900 dark:text-white">
+                              <h5 className="font-medium text-neutral-900 dark:text-white">
                                 {taskCategory.category_name}
                               </h5>
                             </div>
                             
                             {taskCategory.category_description && (
-                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
                                 {taskCategory.category_description}
                               </p>
                             )}
 
                             {/* Show selected option if any */}
                             {taskCategory.category_option_id && taskCategory.option_name && (
-                              <div className="mt-3 p-3 bg-white dark:bg-neutral-600 rounded-lg border border-neutral-200 dark:border-neutral-600">
+                              <div className="mt-2 p-3 bg-white dark:bg-neutral-600 rounded-lg border border-neutral-200 dark:border-neutral-600">
                                 <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                                   Selected Option:
                                 </p>
@@ -528,7 +514,7 @@ export default function TaskDetailModal({
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 rounded-xl">
+                      <div className="text-center py-6 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 rounded-lg">
                         <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p className="text-lg">No categories assigned</p>
                         <p className="text-sm">This task is not assigned to any categories</p>
@@ -538,18 +524,11 @@ export default function TaskDetailModal({
                 </div>
 
                 {/* Assignment & Time */}
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                      <Users className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                      Assignment & Time
-                    </h4>
-                  </div>
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">Assignment & Time</h4>
                   
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                       <User className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Created By</p>
@@ -560,7 +539,7 @@ export default function TaskDetailModal({
                     </div>
 
                     {task.assigned_to && (
-                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                         <User className="h-5 w-5 text-neutral-400" />
                         <div className="flex-1">
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">Assigned To</p>
@@ -571,7 +550,7 @@ export default function TaskDetailModal({
                       </div>
                     )}
 
-                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                    <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                       <Calendar className="h-5 w-5 text-neutral-400" />
                       <div className="flex-1">
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">Created</p>
@@ -582,7 +561,7 @@ export default function TaskDetailModal({
                     </div>
 
                     {task.due_date && (
-                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                         <Calendar className="h-5 w-5 text-neutral-400" />
                         <div className="flex-1">
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">Due Date</p>
@@ -594,7 +573,7 @@ export default function TaskDetailModal({
                     )}
 
                     {task.estimated_hours && (
-                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-xl">
+                      <div className="flex items-center space-x-3 p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                         <Clock className="h-5 w-5 text-neutral-400" />
                         <div className="flex-1">
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">Estimated Hours</p>
