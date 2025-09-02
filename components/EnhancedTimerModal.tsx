@@ -70,6 +70,7 @@ export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, 
     dynamic_category_selections: {} as Record<string, string>,
   });
   const [loading, setLoading] = useState(false);
+  const [prefillApplied, setPrefillApplied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -87,17 +88,40 @@ export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, 
           task_detail: initialTaskDetail || prev.task_detail,
         }));
       }
-      if (initialCategorySelections && Object.keys(initialCategorySelections).length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          dynamic_category_selections: {
-            ...prev.dynamic_category_selections,
-            ...initialCategorySelections
-          }
-        }));
-      }
+      // Defer category selections until project categories are loaded
+      setPrefillApplied(false);
     }
   }, [isOpen]);
+
+  // Once the selected project categories are loaded, apply initial category selections
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!initialCategorySelections || Object.keys(initialCategorySelections).length === 0) return;
+    if (!selectedProject || (initialProjectId && selectedProject !== initialProjectId)) return;
+    if (projectCategories.length === 0) return;
+    if (prefillApplied) return;
+
+    // Filter and apply only categories that exist in the loaded list
+    const validSelections: Record<string, string> = {};
+    for (const category of projectCategories) {
+      const value = initialCategorySelections[category.name];
+      if (value) {
+        validSelections[category.name] = value;
+      }
+    }
+
+    if (Object.keys(validSelections).length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        dynamic_category_selections: {
+          ...prev.dynamic_category_selections,
+          ...validSelections,
+        },
+      }));
+    }
+
+    setPrefillApplied(true);
+  }, [isOpen, selectedProject, initialProjectId, projectCategories, initialCategorySelections, prefillApplied]);
 
   useEffect(() => {
     if (selectedProject) {

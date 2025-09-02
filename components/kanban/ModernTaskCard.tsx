@@ -364,6 +364,20 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               <h4 className="font-semibold text-slate-900 dark:text-white text-base leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {task.title}
               </h4>
+              <div className="mt-2 flex items-center space-x-2">
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r ${priorityConfig.gradient} text-white shadow-sm ${priorityConfig.pulse ? 'animate-pulse' : ''}`}>
+                  <span className="mr-1">{priorityConfig.icon}</span>
+                  {task.priority}
+                </span>
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-sm`} title={task.scope}>
+                  <span>{scopeConfig.icon}</span>
+                </span>
+                {task.status === 'completed' && (
+                  <div className="inline-flex items-center px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-md">
+                    <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="flex items-center space-x-1">
@@ -442,28 +456,8 @@ const ModernTaskCard = memo(({ task, index, onClick, viewMode, isMoving, onEdit,
               </div>
             )}
 
-            {/* Bottom Row: Priority, Scope, and Actions */}
-            <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center space-x-2">
-                {/* Priority Badge */}
-                <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r ${priorityConfig.gradient} text-white shadow-lg ${priorityConfig.pulse ? 'animate-pulse' : ''}`}>
-                  <span className="mr-1">{priorityConfig.icon}</span>
-                  {task.priority}
-                </span>
-                
-                {/* Scope Badge (icon-only to avoid overflow) */}
-                <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r ${scopeConfig.gradient} text-white shadow-lg`} title={task.scope}>
-                  <span>{scopeConfig.icon}</span>
-                </span>
-                
-                {/* Completion Status */}
-                {task.status === 'completed' && (
-                  <div className="inline-flex items-center px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                    <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                )}
-              </div>
-              
+            {/* Bottom Row: Actions only */}
+            <div className="flex items-center justify-end pt-2">
               {/* Action Buttons */}
               <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-300 relative z-10">
                 {onStartTimer && (
