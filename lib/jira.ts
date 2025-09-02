@@ -303,9 +303,33 @@ export class JiraIntegration {
     try {
       // Try multiple search strategies for better results
       let issues: any[] = [];
+      const rawTerm = (searchTerm || '').trim();
       
-      // Strategy 1: Exact ticket key match (most specific)
-      if (searchTerm.includes('-')) {
+      // Strategy 1a: Numeric-only short form (e.g., "123" -> "PROJ-123")
+      if (/^\d+$/.test(rawTerm)) {
+        const expandedKey = `${projectKey}-${rawTerm}`;
+        const exactKeyJqlNumeric = `key = "${expandedKey}"`;
+        try {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(exactKeyJqlNumeric)}&maxResults=${maxResults}`, {
+            headers: {
+              'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+              'Accept': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.issues && data.issues.length > 0) {
+              console.log(`Found ${data.issues.length} tickets with expanded key match: ${expandedKey}`);
+              return data.issues;
+            }
+          }
+        } catch (error) {
+          console.log('Expanded key search failed, trying other strategies:', error);
+        }
+      }
+
+      // Strategy 1b: Exact ticket key match (most specific)
+      if (rawTerm.includes('-')) {
         const exactKeyJql = `key = "${searchTerm}"`;
         try {
           const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(exactKeyJql)}&maxResults=${maxResults}`, {
@@ -328,7 +352,7 @@ export class JiraIntegration {
       }
       
       // Strategy 2: Project + ticket key pattern match
-      if (searchTerm.includes('-')) {
+      if (rawTerm.includes('-')) {
         const keyPatternJql = `project = ${projectKey} AND key ~ "${searchTerm}"`;
         try {
           const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(keyPatternJql)}&maxResults=${maxResults}`, {
@@ -350,7 +374,28 @@ export class JiraIntegration {
         }
       }
       
-      // Strategy 3: Project + summary/description search (original strategy)
+      // Strategy 3: Project + text search (searches multiple text fields including summary/description)
+      const textSearchJql = `project = ${projectKey} AND text ~ "${searchTerm}" ORDER BY updated DESC`;
+      try {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(textSearchJql)}&maxResults=${maxResults}`, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.issues && data.issues.length > 0) {
+            console.log(`Found ${data.issues.length} tickets with project-scoped text search in project ${projectKey}`);
+            return data.issues;
+          }
+        }
+      } catch (error) {
+        console.log('Project text search failed:', error);
+      }
+      
+      // Strategy 4: Project + summary/description search (original strategy)
       const summaryDescJql = `project = ${projectKey} AND (summary ~ "${searchTerm}" OR description ~ "${searchTerm}") ORDER BY updated DESC`;
       try {
         const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(summaryDescJql)}&maxResults=${maxResults}`, {
@@ -370,8 +415,8 @@ export class JiraIntegration {
       } catch (error) {
         console.log('Summary/description search failed:', error);
       }
-      
-      // Strategy 4: Global search without project restriction (fallback)
+
+      // Strategy 5: Global search without project restriction (fallback)
       const globalJql = `(summary ~ "${searchTerm}" OR description ~ "${searchTerm}" OR key ~ "${searchTerm}") ORDER BY updated DESC`;
       try {
         const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(globalJql)}&maxResults=${maxResults}`, {

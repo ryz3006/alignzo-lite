@@ -80,6 +80,8 @@ export default function EnhancedTimerModal({ isOpen, onClose, initialProjectId, 
       // Apply initial prefill values if provided
       if (initialProjectId) {
         setSelectedProject(initialProjectId);
+        // Proactively load categories for the initial project so dropdowns are ready
+        loadProjectCategories(initialProjectId);
       }
       if (initialTicketId || initialTaskDetail) {
         setFormData(prev => ({
