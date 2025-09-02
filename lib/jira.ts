@@ -315,7 +315,7 @@ export class JiraIntegration {
         const exactKeyJqlNumeric = `key = "${expandedKey}"`;
         console.log(`🔍 Strategy 1a: Trying expanded key "${expandedKey}" with JQL: ${exactKeyJqlNumeric}`);
         try {
-          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(exactKeyJqlNumeric)}&maxResults=${maxResults}`, {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(exactKeyJqlNumeric)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
             headers: {
               'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
               'Accept': 'application/json'
@@ -343,7 +343,7 @@ export class JiraIntegration {
         const exactKeyJql = `key = "${searchTerm}"`;
         console.log(`🔍 Strategy 1b: Trying exact key "${searchTerm}" with JQL: ${exactKeyJql}`);
         try {
-          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(exactKeyJql)}&maxResults=${maxResults}`, {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(exactKeyJql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
             headers: {
               'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
               'Accept': 'application/json'
@@ -372,7 +372,7 @@ export class JiraIntegration {
         const keyPatternJql = `project = ${projectKey} AND key ~ "${searchTerm}"`;
         console.log(`🔍 Strategy 2: Trying key pattern in project with JQL: ${keyPatternJql}`);
         try {
-          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(keyPatternJql)}&maxResults=${maxResults}`, {
+          const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(keyPatternJql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
             headers: {
               'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
               'Accept': 'application/json'
@@ -399,7 +399,7 @@ export class JiraIntegration {
       const textSearchJql = `project = ${projectKey} AND text ~ "${searchTerm}" ORDER BY updated DESC`;
       console.log(`🔍 Strategy 3: Trying project text search with JQL: ${textSearchJql}`);
       try {
-        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(textSearchJql)}&maxResults=${maxResults}`, {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(textSearchJql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
           headers: {
             'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
             'Accept': 'application/json'
@@ -425,7 +425,7 @@ export class JiraIntegration {
       const summaryDescJql = `project = ${projectKey} AND (summary ~ "${searchTerm}" OR description ~ "${searchTerm}") ORDER BY updated DESC`;
       console.log(`🔍 Strategy 4: Trying summary/description search with JQL: ${summaryDescJql}`);
       try {
-        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(summaryDescJql)}&maxResults=${maxResults}`, {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(summaryDescJql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
           headers: {
             'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
             'Accept': 'application/json'
@@ -451,7 +451,7 @@ export class JiraIntegration {
       const globalJql = `(summary ~ "${searchTerm}" OR description ~ "${searchTerm}" OR key ~ "${searchTerm}") ORDER BY updated DESC`;
       console.log(`🔍 Strategy 5: Trying global search with JQL: ${globalJql}`);
       try {
-        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(globalJql)}&maxResults=${maxResults}`, {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(globalJql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
           headers: {
             'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
             'Accept': 'application/json'
@@ -514,7 +514,7 @@ export async function getJiraUsers(userEmail: string): Promise<JiraUser[]> {
 // Helper function to search all Jira issues
 export async function searchAllJiraIssues(credentials: JiraCredentials, jql: string, maxResults: number = 100): Promise<any[]> {
   try {
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`, {
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
         'Accept': 'application/json'
@@ -585,7 +585,7 @@ export async function createJiraIssue(credentials: JiraCredentials, issueData: {
 // Helper function to search Jira issues
 export async function searchJiraIssues(credentials: JiraCredentials, jql: string, maxResults: number = 20): Promise<any[]> {
   try {
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}`, {
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&fields=key,summary,description,status,priority,assignee,reporter,project,issuetype,created,updated`, {
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
         'Accept': 'application/json'
