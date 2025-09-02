@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
 
     for (const test of searchTests) {
       try {
-        const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(test.jql)}&maxResults=5`, {
+        const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(test.jql)}&maxResults=5`, {
           headers: {
             'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
             'Accept': 'application/json'

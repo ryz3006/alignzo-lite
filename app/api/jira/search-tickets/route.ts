@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
             console.log(`❌ Could not list projects:`, projectsResponse.status);
           }
         } catch (error) {
-          console.log(`❌ Error listing projects:`, error.message);
+          console.log(`❌ Error listing projects:`, error instanceof Error ? error.message : String(error));
         }
       } else {
         const projectData = await projectResponse.json();
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (error) {
-      console.log(`❌ Error testing project access:`, error.message);
+      console.log(`❌ Error testing project access:`, error instanceof Error ? error.message : String(error));
     }
 
     // Use enhanced search function with multiple strategies
