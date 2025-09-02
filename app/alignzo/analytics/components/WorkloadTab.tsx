@@ -82,10 +82,17 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     underutilizedMembers: [] as { name: string; hours: number; hasWorkLogs: boolean }[]
   });
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [timeGrouping, setTimeGrouping] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   useEffect(() => {
     loadWorkloadData();
   }, [filters]);
+
+  // Add effect to update chart data when time grouping changes
+  useEffect(() => {
+    // Force re-render when time grouping changes
+    // This is handled automatically by the aggregateUserHoursByTime function
+  }, [timeGrouping]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -388,6 +395,83 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
     };
   };
 
+  const aggregateUserHoursByTime = () => {
+    const startDate = new Date(filters.dateRange.start);
+    const endDate = new Date(filters.dateRange.end);
+    const aggregatedData: { [key: string]: { [user: string]: number } } = {};
+    
+    // Create time periods based on grouping
+    const timePeriods: string[] = [];
+    
+    if (timeGrouping === 'daily') {
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        timePeriods.push(formatDateToYYYYMMDD(d));
+      }
+    } else if (timeGrouping === 'weekly') {
+      const currentDate = new Date(startDate);
+      // Start from the beginning of the week (Monday)
+      const dayOfWeek = currentDate.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      currentDate.setDate(currentDate.getDate() + mondayOffset);
+      
+      while (currentDate <= endDate) {
+        const weekStart = formatDateToYYYYMMDD(currentDate);
+        timePeriods.push(`Week of ${weekStart}`);
+        currentDate.setDate(currentDate.getDate() + 7);
+      }
+    } else if (timeGrouping === 'monthly') {
+      const currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      
+      while (currentDate <= endDate) {
+        const monthYear = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+        timePeriods.push(monthYear);
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+    }
+
+    // Initialize all time periods
+    timePeriods.forEach(period => {
+      aggregatedData[period] = {};
+      workloadMetrics.forEach(metric => {
+        aggregatedData[period][metric.userName] = 0;
+      });
+    });
+
+    // Aggregate hours for each user by time period
+    workloadMetrics.forEach(metric => {
+      metric.dailyWorkload.forEach(daily => {
+        const date = new Date(daily.date);
+        let timePeriodKey = '';
+
+        if (timeGrouping === 'daily') {
+          timePeriodKey = daily.date;
+        } else if (timeGrouping === 'weekly') {
+          // Find the week this date belongs to
+          const dayOfWeek = date.getDay();
+          const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+          const monday = new Date(date);
+          monday.setDate(date.getDate() + mondayOffset);
+          timePeriodKey = `Week of ${formatDateToYYYYMMDD(monday)}`;
+        } else if (timeGrouping === 'monthly') {
+          timePeriodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        if (aggregatedData[timePeriodKey]) {
+          aggregatedData[timePeriodKey][metric.userName] += daily.hours;
+        }
+      });
+    });
+
+    // Convert to chart format
+    return timePeriods.map(period => {
+      const dataPoint: any = { period };
+      workloadMetrics.forEach(metric => {
+        dataPoint[metric.userName] = Math.round((aggregatedData[period][metric.userName] || 0) * 100) / 100;
+      });
+      return dataPoint;
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -472,6 +556,81 @@ export default function WorkloadTab({ filters, chartRefs, downloadChartAsImage }
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Users Hours Logged vs Time Chart - Full Width */}
+      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Users Hours Logged vs Time</h3>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Group by:</label>
+            <select
+              value={timeGrouping}
+              onChange={(e) => setTimeGrouping(e.target.value as 'daily' | 'weekly' | 'monthly')}
+              className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 dark:text-white"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+            <button
+              onClick={() => downloadChartAsImage('users-hours-time-chart', `users-hours-vs-time-${timeGrouping}`)}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+              title="Download Chart"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Track user workload patterns over time with dynamic grouping options
+        </div>
+        <div ref={(el) => { chartRefs.current['users-hours-time-chart'] = el; }}>
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={aggregateUserHoursByTime()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-neutral-600" />
+              <XAxis 
+                dataKey="period" 
+                angle={timeGrouping === 'daily' ? -45 : 0}
+                textAnchor={timeGrouping === 'daily' ? 'end' : 'middle'}
+                height={timeGrouping === 'daily' ? 80 : 60}
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+                className="dark:fill-neutral-400"
+              />
+              <YAxis 
+                tick={{ fill: '#6b7280', fontSize: 12 }}
+                className="dark:fill-neutral-400"
+                label={{ value: 'Hours Logged', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: 'var(--tooltip-bg)',
+                  border: '1px solid var(--tooltip-border)',
+                  borderRadius: '8px',
+                  color: 'var(--tooltip-text)'
+                }}
+                labelFormatter={(label) => `${timeGrouping.charAt(0).toUpperCase() + timeGrouping.slice(1)}: ${label}`}
+                formatter={(value: any, name: any) => [`${value}h`, name]}
+              />
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+                iconType="line"
+              />
+              {workloadMetrics.filter(metric => metric.totalLoggedHours > 0).map((metric, index) => (
+                <Line
+                  key={metric.userEmail}
+                  type="monotone"
+                  dataKey={metric.userName}
+                  stroke={COLORS[index % COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5, stroke: COLORS[index % COLORS.length], strokeWidth: 2 }}
+                  connectNulls={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
