@@ -419,7 +419,7 @@ export default function ModernCreateTaskModal({
             type="text"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
-            className={`w-full px-4 py-3 rounded-xl border bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-200 ${
+            className={`w-full px-4 py-3 rounded-xl border bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white transition-all duration-200 ${
               errors.title 
                 ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
                 : 'border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400'
@@ -440,7 +440,7 @@ export default function ModernCreateTaskModal({
             value={formData.description}
             onChange={(e) => handleInputChange('description', e.target.value)}
             rows={3}
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
             placeholder="Enter task description..."
           />
         </div>
@@ -455,7 +455,7 @@ export default function ModernCreateTaskModal({
             <select
               value={formData.column_id}
               onChange={(e) => handleInputChange('column_id', e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl border bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-200 ${
+              className={`w-full px-4 py-3 rounded-xl border bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white transition-all duration-200 ${
                 errors.column_id 
                   ? 'border-red-300 dark:border-red-600' 
                   : 'border-slate-300 dark:border-slate-600'
@@ -481,7 +481,7 @@ export default function ModernCreateTaskModal({
             <select
               value={formData.priority}
               onChange={(e) => handleInputChange('priority', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -501,7 +501,7 @@ export default function ModernCreateTaskModal({
             <select
               value={formData.scope}
               onChange={(e) => handleInputChange('scope', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
             >
               <option value="project">Project</option>
               <option value="personal">Personal</option>
@@ -516,7 +516,7 @@ export default function ModernCreateTaskModal({
             <select
               value={formData.assigned_to}
               onChange={(e) => handleInputChange('assigned_to', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
             >
               <option value="">Unassigned</option>
               {teamMembers.map((member) => (
@@ -580,7 +580,7 @@ export default function ModernCreateTaskModal({
               onChange={(e) => handleInputChange('estimated_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
               min="0"
               step="0.5"
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
               placeholder="0.0"
             />
           </div>
@@ -594,7 +594,7 @@ export default function ModernCreateTaskModal({
               type="date"
               value={formData.due_date || ''}
               onChange={(e) => handleInputChange('due_date', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 transition-all duration-200"
             />
           </div>
         </div>

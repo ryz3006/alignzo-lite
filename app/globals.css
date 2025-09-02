@@ -13,19 +13,19 @@
   --tooltip-text: #374151;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
-
 .dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
   --tooltip-bg: #374151;
   --tooltip-border: #4b5563;
   --tooltip-text: #f9fafb;
 }
+
+/* Dark mode is now controlled by manual theme toggle */
+/* Removed @media (prefers-color-scheme: dark) to prevent conflicts */
+
+
 
 * {
   box-sizing: border-box;

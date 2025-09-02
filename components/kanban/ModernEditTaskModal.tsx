@@ -505,7 +505,7 @@ export default function ModernEditTaskModal({
             type="text"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 transition-colors ${
+            className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-white transition-colors ${
               errors.title 
                 ? 'border-red-300 dark:border-red-600 focus:border-red-500' 
                 : 'border-slate-300 dark:border-slate-600 focus:border-blue-500'
@@ -526,7 +526,7 @@ export default function ModernEditTaskModal({
             value={formData.description}
             onChange={(e) => handleInputChange('description', e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
             placeholder="Enter task description..."
           />
         </div>
@@ -585,7 +585,7 @@ export default function ModernEditTaskModal({
             <select
               value={formData.column_id}
               onChange={(e) => handleInputChange('column_id', e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 transition-colors ${
+              className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-white transition-colors ${
                 errors.column_id 
                   ? 'border-red-300 dark:border-red-600' 
                   : 'border-slate-300 dark:border-slate-600'
@@ -611,7 +611,7 @@ export default function ModernEditTaskModal({
             <select
               value={formData.status}
               onChange={(e) => handleInputChange('status', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
             >
               <option value="active">Active</option>
               <option value="completed">Completed</option>
@@ -630,7 +630,7 @@ export default function ModernEditTaskModal({
             <select
               value={formData.priority}
               onChange={(e) => handleInputChange('priority', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -647,7 +647,7 @@ export default function ModernEditTaskModal({
             <select
               value={formData.assigned_to}
               onChange={(e) => handleInputChange('assigned_to', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
               disabled={isLoadingTeamMembers}
             >
               <option value="">Unassigned</option>
@@ -684,7 +684,7 @@ export default function ModernEditTaskModal({
               onChange={(e) => handleInputChange('estimated_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
               min="0"
               step="0.5"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
               placeholder="0.0"
             />
           </div>
@@ -700,7 +700,7 @@ export default function ModernEditTaskModal({
               onChange={(e) => handleInputChange('actual_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
               min="0"
               step="0.5"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
               placeholder="0.0"
             />
           </div>
@@ -714,7 +714,7 @@ export default function ModernEditTaskModal({
               type="date"
               value={formData.due_date || ''}
               onChange={(e) => handleInputChange('due_date', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
             />
           </div>
         </div>
