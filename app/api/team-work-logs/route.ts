@@ -32,6 +32,7 @@ export const GET = withAudit(
 
     // Get user's team memberships
     const teamMemberships = await supabaseClient.getTeamMemberships(user.email);
+    
     if (teamMemberships.error) {
       console.error('Error loading team memberships:', teamMemberships.error);
       return NextResponse.json(
@@ -49,17 +50,14 @@ export const GET = withAudit(
     }
 
     // Build filters
-    const filters: any = { user_email: teamMemberEmails };
+    const filters: any = {};
     if (projectId) filters.project_id = projectId;
     if (userEmail) filters.user_email = userEmail;
     if (dateFrom) filters.start_time = { gte: dateFrom };
     if (dateTo) filters.end_time = { lte: dateTo };
 
-    // Get work logs with project information
-    const response = await supabaseClient.query({
-      table: 'work_logs',
-      action: 'select',
-      select: '*,project:projects(*)',
+    // Get work logs with project information - use the same approach as the working work-logs API
+    const response = await supabaseClient.getTeamWorkLogs(teamMemberEmails, {
       filters,
       order: { column: 'created_at', ascending: false },
       limit: pageSize,
@@ -71,11 +69,9 @@ export const GET = withAudit(
     }
 
     // Get total count for pagination
-    const countResponse = await supabaseClient.query({
-      table: 'work_logs',
-      action: 'select',
-      select: 'id',
-      filters
+    const countResponse = await supabaseClient.getTeamWorkLogs(teamMemberEmails, {
+      filters,
+      select: 'id'
     });
 
     const totalCount = countResponse.data?.length || 0;

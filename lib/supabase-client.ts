@@ -308,6 +308,28 @@ class SupabaseClient {
     });
   }
 
+  // Team work logs method - gets work logs for all team members
+  async getTeamWorkLogs(teamMemberEmails: string[], options?: {
+    order?: { column: string; ascending?: boolean };
+    limit?: number;
+    offset?: number;
+    filters?: Record<string, any>;
+    select?: string;
+  }) {
+    return this.query({
+      table: 'work_logs',
+      action: 'select',
+      select: options?.select || '*,project:projects(*)',
+      filters: {
+        ...options?.filters,
+        user_email: teamMemberEmails // This will use the 'in' filter
+      },
+      order: options?.order,
+      limit: options?.limit,
+      offset: options?.offset
+    });
+  }
+
   async getUserProjects(userEmail: string, options?: {
     order?: { column: string; ascending?: boolean };
   }) {
@@ -406,11 +428,26 @@ class SupabaseClient {
 
   // Team work reports methods
   async getTeamMemberships(userEmail: string) {
+    // First get the teams the user belongs to
+    const userTeams = await this.query({
+      table: 'team_members',
+      action: 'select',
+      select: 'team_id',
+      filters: { 'users.email': userEmail }
+    });
+
+    if (userTeams.error || !userTeams.data || userTeams.data.length === 0) {
+      return { data: [], error: 'No teams found' };
+    }
+
+    const teamIds = userTeams.data.map((team: any) => team.team_id);
+
+    // Then get all members of those teams
     return this.query({
       table: 'team_members',
       action: 'select',
-      select: 'team_id,user_id,users(email)',
-      filters: { 'users.email': userEmail }
+      select: 'team_id,user_id,users(email,full_name)',
+      filters: { team_id: teamIds }
     });
   }
 
