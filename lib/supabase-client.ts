@@ -230,6 +230,33 @@ class SupabaseClient {
     });
   }
 
+  // Convenience methods for common operations
+  async getUsers(options?: { order?: { column: string; ascending?: boolean } }) {
+    return this.get('users', { select: '*', ...options });
+  }
+
+  async getTeams(options?: { order?: { column: string; ascending?: boolean } }) {
+    return this.get('teams', { select: '*', ...options });
+  }
+
+  async getProjects(options?: { 
+    order?: { column: string; ascending?: boolean };
+    filters?: Record<string, any>;
+  }) {
+    return this.get('projects', { select: '*', ...options });
+  }
+
+  async getWorkLogs(options?: { 
+    order?: { column: string; ascending?: boolean };
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.get('work_logs', { 
+      select: '*,project:projects(*)', 
+      ...options 
+    });
+  }
+
   // User-specific methods for Phase 1
   async getUserWorkLogs(userEmail: string, options?: {
     order?: { column: string; ascending?: boolean };
@@ -407,19 +434,7 @@ class SupabaseClient {
     });
   }
 
-  async getTeamWorkLogs(filters: Record<string, any>, options?: {
-    order?: { column: string; ascending?: boolean };
-    limit?: number;
-    offset?: number;
-  }) {
-    return this.query({
-      table: 'work_logs',
-      action: 'select',
-      select: '*,project:projects(*)',
-      filters,
-      ...options
-    });
-  }
+
 }
 
 // Export singleton instance
