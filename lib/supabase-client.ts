@@ -281,14 +281,20 @@ class SupabaseClient {
     filters?: Record<string, any>;
     select?: string;
   }) {
+    // Create a new filters object that includes the user_email filter
+    const finalFilters = {
+      ...options?.filters,
+      user_email_in: teamMemberEmails // Use _in suffix for the 'in' operator
+    };
+
+    console.log('🔍 [SUPABASE-CLIENT] getTeamWorkLogs filters:', finalFilters);
+    console.log('🔍 [SUPABASE-CLIENT] Team member emails:', teamMemberEmails);
+
     return this.query({
       table: 'work_logs',
       action: 'select',
       select: options?.select || '*,project:projects(*)',
-      filters: {
-        ...options?.filters,
-        user_email: teamMemberEmails // This will use the 'in' filter
-      },
+      filters: finalFilters,
       order: options?.order,
       limit: options?.limit,
       offset: options?.offset
@@ -393,27 +399,58 @@ class SupabaseClient {
 
   // Team work reports methods
   async getTeamMemberships(userEmail: string) {
-    // First get the teams the user belongs to
-    const userTeams = await this.query({
-      table: 'team_members',
-      action: 'select',
-      select: 'team_id',
-      filters: { 'users.email': userEmail }
-    });
+    try {
+      // First, get the user's ID from their email
+      const userResponse = await this.query({
+        table: 'users',
+        action: 'select',
+        select: 'id',
+        filters: { email: userEmail }
+      });
 
-    if (userTeams.error || !userTeams.data || userTeams.data.length === 0) {
-      return { data: [], error: 'No teams found' };
+      if (userResponse.error || !userResponse.data || userResponse.data.length === 0) {
+        console.log('User not found:', userEmail);
+        return { data: [], error: 'User not found' };
+      }
+
+      const userId = userResponse.data[0].id;
+      console.log('User ID found:', userId);
+
+      // Get the teams the user belongs to
+      const userTeams = await this.query({
+        table: 'team_members',
+        action: 'select',
+        select: 'team_id',
+        filters: { user_id: userId }
+      });
+
+      if (userTeams.error || !userTeams.data || userTeams.data.length === 0) {
+        console.log('No teams found for user:', userEmail);
+        return { data: [], error: 'No teams found' };
+      }
+
+      const teamIds = userTeams.data.map((team: any) => team.team_id);
+      console.log('User teams found:', teamIds);
+
+      // Then get all members of those teams with user information
+      const teamMembers = await this.query({
+        table: 'team_members',
+        action: 'select',
+        select: 'team_id,user_id,users(email,full_name)',
+        filters: { team_id: teamIds } // Array will be handled by proxy
+      });
+
+      if (teamMembers.error) {
+        console.error('Error fetching team members:', teamMembers.error);
+        return { data: [], error: teamMembers.error };
+      }
+
+      console.log('Team members found:', teamMembers.data?.length || 0);
+      return teamMembers;
+    } catch (error) {
+      console.error('Error in getTeamMemberships:', error);
+      return { data: [], error: error instanceof Error ? error.message : 'Unknown error' };
     }
-
-    const teamIds = userTeams.data.map((team: any) => team.team_id);
-
-    // Then get all members of those teams
-    return this.query({
-      table: 'team_members',
-      action: 'select',
-      select: 'team_id,user_id,users(email,full_name)',
-      filters: { team_id: teamIds }
-    });
   }
 
   async getTeamProjectAssignments(teamIds: string[]) {
