@@ -30,6 +30,8 @@ export default function TeamWorkReportsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingLog, setViewingLog] = useState<WorkLogWithProject | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   
   // Filter states
   const [filters, setFilters] = useState<FilterState>({
@@ -39,6 +41,27 @@ export default function TeamWorkReportsPage() {
     dateTo: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Check authentication first
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          setCurrentUser(user);
+          setAuthLoading(false);
+        } else {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+        }
+      } catch (error) {
+        console.error('Authentication check failed:', error);
+        window.location.href = '/';
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
   // Debounced search effect
   useEffect(() => {
@@ -52,15 +75,17 @@ export default function TeamWorkReportsPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Load data only after authentication
   useEffect(() => {
-    loadTeamWorkReports();
-    loadProjects();
-    loadTeamMembers();
-  }, [filters, currentPage]);
+    if (currentUser && !authLoading) {
+      loadTeamWorkReports();
+      loadProjects();
+      loadTeamMembers();
+    }
+  }, [filters, currentPage, currentUser, authLoading]);
 
   const loadTeamWorkReports = async () => {
     try {
-      const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
       // Build query parameters for the API
@@ -74,8 +99,13 @@ export default function TeamWorkReportsPage() {
       if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
 
-      // Fetch team work logs from the API
-      const response = await fetch(`/api/team-work-logs?${params.toString()}`);
+      // Fetch team work logs from the API with authentication headers
+      const response = await fetch(`/api/team-work-logs?${params.toString()}`, {
+        headers: {
+          'x-user-email': currentUser.email,
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -99,7 +129,6 @@ export default function TeamWorkReportsPage() {
 
   const loadProjects = async () => {
     try {
-      const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
       // Get projects that the user's teams are assigned to
@@ -147,7 +176,6 @@ export default function TeamWorkReportsPage() {
 
   const loadTeamMembers = async () => {
     try {
-      const currentUser = await getCurrentUser();
       if (!currentUser?.email) return;
 
       // Get user's team memberships
@@ -260,10 +288,13 @@ export default function TeamWorkReportsPage() {
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="loading-spinner h-12 w-12"></div>
+        <p className="ml-3 text-neutral-600 dark:text-neutral-400">
+          {authLoading ? 'Checking authentication...' : 'Loading work reports...'}
+        </p>
       </div>
     );
   }
