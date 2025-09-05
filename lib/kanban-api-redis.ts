@@ -35,6 +35,12 @@ import {
   checkRedisHealth
 } from './redis-service';
 import { 
+  createKanbanTask,
+  updateKanbanTask,
+  deleteKanbanTask,
+  moveTaskInDatabase as moveTaskInDatabaseWithEmail
+} from './kanban-api';
+import { 
   ProjectCategory, 
   CategoryOption,
   KanbanColumn, 
@@ -222,8 +228,8 @@ export async function createKanbanTaskWithRedis(
   userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
      try {
-     // Create task in database
-     const dbResult = await createKanbanTaskInDatabase(taskData, userEmail);
+     // Create task in database using email-enabled function
+     const dbResult = await createKanbanTask(taskData, userEmail);
      
      if (dbResult.success) {
        // Invalidate related caches
@@ -248,8 +254,8 @@ export async function updateKanbanTaskWithRedis(
   userEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
      try {
-     // Update task in database
-     const dbResult = await updateKanbanTaskInDatabase(taskId, updates, userEmail);
+     // Update task in database using email-enabled function
+     const dbResult = await updateKanbanTask(taskId, updates, userEmail);
      
      if (dbResult.success) {
        // Invalidate related caches
@@ -273,8 +279,8 @@ export async function deleteKanbanTaskWithRedis(
   userEmail?: string
 ): Promise<ApiResponse<boolean>> {
      try {
-     // Delete task from database
-     const dbResult = await deleteKanbanTaskFromDatabase(taskId, userEmail);
+     // Delete task from database using email-enabled function
+     const dbResult = await deleteKanbanTask(taskId, userEmail);
      
      if (dbResult.success) {
        // Invalidate related caches
@@ -302,12 +308,36 @@ export async function moveTaskWithRedis(
   try {
     console.log(`🔄 Moving task ${taskId} to column ${newColumnId} with sort order ${newSortOrder}`);
     
-    // Move task in database FIRST - this is the critical operation
-    const dbResult = await moveTaskInDatabase(taskId, newColumnId, newSortOrder, userEmail);
+    // Get current task to determine the source column for email notifications
+    const { data: currentTask, error: currentError } = await supabase
+      .from('kanban_tasks')
+      .select('column_id')
+      .eq('id', taskId)
+      .single();
+
+    if (currentError) {
+      console.error('❌ Failed to get current task:', currentError);
+      return {
+        data: false,
+        success: false,
+        error: 'Failed to get current task information',
+        source: 'unknown'
+      };
+    }
+
+    const fromColumnId = currentTask.column_id;
+    
+    // Move task in database using the email-enabled function
+    const dbResult = await moveTaskInDatabaseWithEmail(taskId, fromColumnId, newColumnId, newSortOrder, userEmail);
     
     if (!dbResult.success) {
       console.error('❌ Database move failed:', dbResult.error);
-      return dbResult;
+      return {
+        data: false,
+        success: false,
+        error: dbResult.error,
+        source: 'database'
+      };
     }
     
     console.log(`✅ Task ${taskId} moved successfully in database`);
