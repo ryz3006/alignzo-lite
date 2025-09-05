@@ -202,49 +202,84 @@ class EmailService {
     emailContent: { subject: string; html: string; text: string }, 
     recipient: User
   ): Promise<boolean> {
-    try {
-      console.log('🔄 Creating fallback transporter with alternative SSL/TLS settings...');
-      
-      // Create a new transporter with different SSL/TLS settings
-      const fallbackTransporter = nodemailer.createTransport({
-        host: this.config!.host,
-        port: this.config!.port,
-        secure: this.config!.secure,
-        auth: {
-          user: this.config!.user,
-          pass: this.config!.pass
-        },
-        // Alternative SSL/TLS configuration
-        tls: {
-          rejectUnauthorized: false,
-          // Try without specifying ciphers
-          minVersion: 'TLSv1.2'
-        },
-        // Shorter timeouts
-        connectionTimeout: 30000,
-        socketTimeout: 30000,
-        greetingTimeout: 15000
-      });
+    // Try multiple SMTP configurations
+    const configs = [
+      // Config 1: Try with secure=false (STARTTLS)
+      {
+        name: 'STARTTLS (secure=false)',
+        config: {
+          host: this.config!.host,
+          port: this.config!.port,
+          secure: false,
+          auth: { user: this.config!.user, pass: this.config!.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      // Config 2: Try with secure=true (SSL/TLS)
+      {
+        name: 'SSL/TLS (secure=true)',
+        config: {
+          host: this.config!.host,
+          port: this.config!.port,
+          secure: true,
+          auth: { user: this.config!.user, pass: this.config!.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      // Config 3: Try with port 465 (SSL)
+      {
+        name: 'SSL on port 465',
+        config: {
+          host: this.config!.host,
+          port: 465,
+          secure: true,
+          auth: { user: this.config!.user, pass: this.config!.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      // Config 4: Try with port 25 (no encryption)
+      {
+        name: 'No encryption on port 25',
+        config: {
+          host: this.config!.host,
+          port: 25,
+          secure: false,
+          auth: { user: this.config!.user, pass: this.config!.pass }
+        }
+      }
+    ];
 
-      const info = await fallbackTransporter.sendMail({
-        from: this.config!.from,
-        to: recipient.email,
-        subject: emailContent.subject,
-        html: emailContent.html,
-        text: emailContent.text
-      });
+    for (const { name, config } of configs) {
+      try {
+        console.log(`🔄 Trying ${name} configuration...`);
+        console.log(`   Host: ${config.host}:${config.port}`);
+        console.log(`   Secure: ${config.secure}`);
+        
+        const fallbackTransporter = nodemailer.createTransport(config);
 
-      console.log(`✅ Email notification sent successfully with fallback configuration!`);
-      console.log(`   📧 To: ${recipient.email}`);
-      console.log(`   📋 Subject: "${emailContent.subject}"`);
-      console.log(`   🆔 Message ID: ${info.messageId}`);
-      console.log(`   🎯 Task: "${data.task.title}" (${data.type})`);
-      
-      return true;
-    } catch (fallbackError) {
-      console.error('❌ Fallback email configuration also failed:', fallbackError);
-      return false;
+        const info = await fallbackTransporter.sendMail({
+          from: this.config!.from,
+          to: recipient.email,
+          subject: emailContent.subject,
+          html: emailContent.html,
+          text: emailContent.text
+        });
+
+        console.log(`✅ Email notification sent successfully with ${name}!`);
+        console.log(`   📧 To: ${recipient.email}`);
+        console.log(`   📋 Subject: "${emailContent.subject}"`);
+        console.log(`   🆔 Message ID: ${info.messageId}`);
+        console.log(`   🎯 Task: "${data.task.title}" (${data.type})`);
+        
+        return true;
+      } catch (configError: any) {
+        console.warn(`⚠️ ${name} failed:`, configError.message);
+        continue;
+      }
     }
+
+    console.error('❌ All fallback email configurations failed');
+    return false;
   }
 
   /**
@@ -607,6 +642,82 @@ class EmailService {
       
       return false;
     }
+  }
+
+  /**
+   * Test multiple SMTP configurations to find the working one
+   */
+  public async testMultipleConfigurations(): Promise<{ success: boolean; workingConfig?: any }> {
+    if (!this.config) {
+      console.warn('⚠️ Cannot test configurations: Email service not configured');
+      return { success: false };
+    }
+
+    console.log('🧪 Testing multiple SMTP configurations...');
+    
+    const configs = [
+      {
+        name: 'Current Configuration',
+        config: {
+          host: this.config.host,
+          port: this.config.port,
+          secure: this.config.secure,
+          auth: { user: this.config.user, pass: this.config.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      {
+        name: 'STARTTLS (secure=false)',
+        config: {
+          host: this.config.host,
+          port: 587,
+          secure: false,
+          auth: { user: this.config.user, pass: this.config.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      {
+        name: 'SSL/TLS (secure=true)',
+        config: {
+          host: this.config.host,
+          port: 587,
+          secure: true,
+          auth: { user: this.config.user, pass: this.config.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      {
+        name: 'SSL on port 465',
+        config: {
+          host: this.config.host,
+          port: 465,
+          secure: true,
+          auth: { user: this.config.user, pass: this.config.pass },
+          tls: { rejectUnauthorized: false }
+        }
+      }
+    ];
+
+    for (const { name, config } of configs) {
+      try {
+        console.log(`🔄 Testing ${name}...`);
+        console.log(`   Host: ${config.host}:${config.port}, Secure: ${config.secure}`);
+        
+        const testTransporter = nodemailer.createTransport(config);
+        const result = await testTransporter.verify();
+        
+        console.log(`✅ ${name} works!`);
+        console.log(`   📊 Result:`, result);
+        
+        return { success: true, workingConfig: { name, config } };
+      } catch (error: any) {
+        console.warn(`⚠️ ${name} failed:`, error.message);
+        continue;
+      }
+    }
+
+    console.error('❌ No working SMTP configuration found');
+    return { success: false };
   }
 }
 
