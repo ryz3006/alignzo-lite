@@ -467,7 +467,7 @@ class EmailService {
         .action-button {
             display: inline-block;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            color: white !important;
             text-decoration: none;
             padding: 12px 24px;
             border-radius: 6px;
@@ -555,7 +555,7 @@ class EmailService {
         </div>
         
         <div class="footer">
-            <p>This is an automated notification from Alignzo Lite.</p>
+            <p>This is an automated notification from Alignzo.</p>
             <p>If you have any questions, please contact your project administrator.</p>
         </div>
     </div>
@@ -605,7 +605,7 @@ class EmailService {
     }
     
     content += `\n---\n`;
-    content += `This is an automated notification from Alignzo Lite.\n`;
+    content += `This is an automated notification from Alignzo.\n`;
     content += `If you have any questions, please contact your project administrator.`;
     
     return content;
