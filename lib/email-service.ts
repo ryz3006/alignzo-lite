@@ -43,6 +43,8 @@ class EmailService {
 
   private initializeTransporter() {
     try {
+      console.log('🔧 Initializing email service...');
+      
       // Get email configuration from environment variables
       const config: EmailConfig = {
         host: process.env.SMTP_HOST || '',
@@ -53,9 +55,25 @@ class EmailService {
         from: process.env.SMTP_FROM || ''
       };
 
+      // Log configuration details (mask sensitive info)
+      console.log('📧 Email Configuration:');
+      console.log(`   Host: ${config.host || '❌ NOT SET'}`);
+      console.log(`   Port: ${config.port || '❌ NOT SET'}`);
+      console.log(`   Secure: ${config.secure}`);
+      console.log(`   User: ${config.user ? '✅ SET' : '❌ NOT SET'}`);
+      console.log(`   Password: ${config.pass ? '✅ SET' : '❌ NOT SET'}`);
+      console.log(`   From: ${config.from || '❌ NOT SET'}`);
+
       // Validate configuration
-      if (!config.host || !config.user || !config.pass || !config.from) {
-        console.warn('⚠️ Email service not configured: Missing SMTP environment variables');
+      const missingVars = [];
+      if (!config.host) missingVars.push('SMTP_HOST');
+      if (!config.user) missingVars.push('SMTP_USER');
+      if (!config.pass) missingVars.push('SMTP_PASS');
+      if (!config.from) missingVars.push('SMTP_FROM');
+
+      if (missingVars.length > 0) {
+        console.warn('⚠️ Email service not configured: Missing environment variables:', missingVars.join(', '));
+        console.warn('   Please set these variables in your .env.local file or deployment environment');
         return;
       }
 
@@ -73,6 +91,8 @@ class EmailService {
       });
 
       console.log('✅ Email service initialized successfully');
+      console.log(`   SMTP Server: ${config.host}:${config.port} (${config.secure ? 'SSL/TLS' : 'STARTTLS'})`);
+      console.log(`   From Address: ${config.from}`);
     } catch (error) {
       console.error('❌ Failed to initialize email service:', error);
     }
@@ -95,19 +115,32 @@ class EmailService {
     }
 
     try {
-      const { assignee, creator } = data;
+      const { type, task, assignee, creator } = data;
+      
+      console.log(`📧 Preparing to send ${type} notification for task: "${task.title}"`);
       
       // Determine recipient
       const recipient = assignee || creator;
       if (!recipient || !recipient.email) {
         console.warn('⚠️ No valid recipient for email notification');
+        console.warn(`   Task: ${task.title} (ID: ${task.id})`);
+        console.warn(`   Assignee: ${assignee ? assignee.email : 'None'}`);
+        console.warn(`   Creator: ${creator ? creator.email : 'None'}`);
         return false;
       }
 
+      console.log(`📬 Email recipient: ${recipient.email}`);
+      console.log(`👤 Recipient name: ${recipient.full_name || 'Unknown'}`);
+
       // Generate email content
       const emailContent = this.generateEmailContent(data);
+      
+      console.log(`📝 Email subject: "${emailContent.subject}"`);
+      console.log(`📄 Email content generated (HTML: ${emailContent.html.length} chars, Text: ${emailContent.text.length} chars)`);
 
       // Send email
+      console.log(`🚀 Sending email via SMTP to ${recipient.email}...`);
+      
       const info = await this.transporter!.sendMail({
         from: this.config!.from,
         to: recipient.email,
@@ -116,10 +149,20 @@ class EmailService {
         text: emailContent.text
       });
 
-      console.log(`✅ Email notification sent successfully: ${info.messageId}`);
+      console.log(`✅ Email notification sent successfully!`);
+      console.log(`   📧 To: ${recipient.email}`);
+      console.log(`   📋 Subject: "${emailContent.subject}"`);
+      console.log(`   🆔 Message ID: ${info.messageId}`);
+      console.log(`   📊 Response: ${info.response}`);
+      console.log(`   🎯 Task: "${task.title}" (${type})`);
+      
       return true;
     } catch (error) {
       console.error('❌ Failed to send email notification:', error);
+      console.error(`   📧 To: ${data.assignee?.email || data.creator?.email || 'Unknown'}`);
+      console.error(`   📋 Subject: ${this.generateEmailContent(data).subject}`);
+      console.error(`   🎯 Task: "${data.task.title}" (${data.type})`);
+      console.error(`   🔍 Error details:`, error);
       return false;
     }
   }
@@ -458,15 +501,30 @@ class EmailService {
    */
   public async testConnection(): Promise<boolean> {
     if (!this.isConfigured()) {
+      console.warn('⚠️ Cannot test connection: Email service not configured');
       return false;
     }
 
     try {
-      await this.transporter!.verify();
+      console.log('🧪 Testing SMTP connection...');
+      console.log(`   Server: ${this.config!.host}:${this.config!.port}`);
+      console.log(`   User: ${this.config!.user}`);
+      console.log(`   Secure: ${this.config!.secure ? 'SSL/TLS' : 'STARTTLS'}`);
+      
+      const result = await this.transporter!.verify();
+      
       console.log('✅ Email service connection test successful');
+      console.log(`   📊 Connection result:`, result);
+      console.log(`   🔗 SMTP server is reachable and credentials are valid`);
+      
       return true;
     } catch (error) {
-      console.error('❌ Email service connection test failed:', error);
+      console.error('❌ Email service connection test failed:');
+      console.error(`   🔍 Error:`, error);
+      console.error(`   📧 Server: ${this.config!.host}:${this.config!.port}`);
+      console.error(`   👤 User: ${this.config!.user}`);
+      console.error(`   🔐 Check your SMTP credentials and server settings`);
+      
       return false;
     }
   }

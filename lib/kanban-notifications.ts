@@ -119,32 +119,46 @@ export async function sendTaskCreatedNotification(
   creatorEmail?: string
 ): Promise<boolean> {
   try {
+    console.log(`📧 Processing task creation notification for: "${task.title}"`);
+    
     // Get creator information
     const creator = creatorEmail ? await getUserByEmail(creatorEmail) : await getUserById(task.created_by);
+    console.log(`👤 Creator: ${creator ? creator.email : 'Not found'}`);
     
     // Get assignee information if task is assigned
     const assignee = task.assigned_to ? await getUserById(task.assigned_to) : null;
+    console.log(`👥 Assignee: ${assignee ? assignee.email : 'Not assigned'}`);
     
     // Get project and column names
     const [projectName, columnName] = await Promise.all([
       getProjectName(task.project_id),
       getColumnName(task.column_id)
     ]);
+    console.log(`📁 Project: ${projectName || 'Unknown'}`);
+    console.log(`📋 Column: ${columnName || 'Unknown'}`);
 
     // Determine notification type and recipient
     let notificationType: NotificationType = 'task_created';
-    let recipient = assignee || creator;
+    let recipient: User | null = assignee || creator;
 
     // If task is assigned to someone other than creator, send assignment notification
     if (assignee && assignee.id !== task.created_by) {
       notificationType = 'task_assigned';
       recipient = assignee;
+      console.log(`🎯 Notification type: ${notificationType} (task assigned to different user)`);
+    } else {
+      console.log(`🎯 Notification type: ${notificationType} (task created)`);
     }
 
     if (!recipient) {
       console.warn('⚠️ No valid recipient for task creation notification');
+      console.warn(`   Task: "${task.title}" (ID: ${task.id})`);
+      console.warn(`   Creator: ${creator?.email || 'Not found'}`);
+      console.warn(`   Assignee: ${assignee?.email || 'Not assigned'}`);
       return false;
     }
+
+    console.log(`📬 Final recipient: ${recipient.email} (${recipient.full_name || 'Unknown name'})`);
 
     const notificationData: EmailNotificationData = {
       type: notificationType,
@@ -155,9 +169,18 @@ export async function sendTaskCreatedNotification(
       columnName: columnName || undefined
     };
 
-    return await emailService.sendTaskNotification(notificationData);
+    const result = await emailService.sendTaskNotification(notificationData);
+    
+    if (result) {
+      console.log(`✅ Task creation notification sent successfully to ${recipient.email}`);
+    } else {
+      console.log(`❌ Failed to send task creation notification to ${recipient.email}`);
+    }
+    
+    return result;
   } catch (error) {
-    console.error('Error sending task creation notification:', error);
+    console.error('❌ Error sending task creation notification:', error);
+    console.error(`   Task: "${task.title}" (ID: ${task.id})`);
     return false;
   }
 }
@@ -171,32 +194,48 @@ export async function sendTaskUpdatedNotification(
   updaterEmail?: string
 ): Promise<boolean> {
   try {
+    console.log(`📧 Processing task update notification for: "${task.title}"`);
+    console.log(`📝 Changes detected: ${changes.length} field(s) modified`);
+    changes.forEach(change => {
+      console.log(`   - ${change.field}: "${change.oldValue}" → "${change.newValue}"`);
+    });
+    
     // Get updater information
     const updater = updaterEmail ? await getUserByEmail(updaterEmail) : null;
+    console.log(`👤 Updater: ${updater ? updater.email : 'Unknown'}`);
     
     // Get assignee information if task is assigned
     const assignee = task.assigned_to ? await getUserById(task.assigned_to) : null;
+    console.log(`👥 Assignee: ${assignee ? assignee.email : 'Not assigned'}`);
     
     // Get project and column names
     const [projectName, columnName] = await Promise.all([
       getProjectName(task.project_id),
       getColumnName(task.column_id)
     ]);
+    console.log(`📁 Project: ${projectName || 'Unknown'}`);
+    console.log(`📋 Column: ${columnName || 'Unknown'}`);
 
     // Determine recipient - prioritize assignee, then creator
     const creator = await getUserById(task.created_by);
-    const recipient = assignee || creator;
+    const recipient: User | null = assignee || creator;
+    console.log(`📬 Potential recipient: ${recipient ? recipient.email : 'None'}`);
 
     if (!recipient) {
       console.warn('⚠️ No valid recipient for task update notification');
+      console.warn(`   Task: "${task.title}" (ID: ${task.id})`);
+      console.warn(`   Assignee: ${assignee ? assignee.email : 'Not assigned'}`);
+      console.warn(`   Creator: ${creator ? creator.email : 'Not found'}`);
       return false;
     }
 
     // Don't send notification if the updater is the same as the recipient
     if (updater && updater.id === recipient.id) {
-      console.log('📧 Skipping notification - user updated their own task');
+      console.log(`📧 Skipping notification - user (${updater.email}) updated their own task`);
       return true;
     }
+
+    console.log(`📬 Final recipient: ${recipient.email} (${recipient.full_name || 'Unknown name'})`);
 
     const notificationData: EmailNotificationData = {
       type: 'task_updated',
@@ -208,9 +247,19 @@ export async function sendTaskUpdatedNotification(
       columnName: columnName || undefined
     };
 
-    return await emailService.sendTaskNotification(notificationData);
+    const result = await emailService.sendTaskNotification(notificationData);
+    
+    if (result) {
+      console.log(`✅ Task update notification sent successfully to ${recipient.email}`);
+    } else {
+      console.log(`❌ Failed to send task update notification to ${recipient.email}`);
+    }
+    
+    return result;
   } catch (error) {
-    console.error('Error sending task update notification:', error);
+    console.error('❌ Error sending task update notification:', error);
+    console.error(`   Task: "${task.title}" (ID: ${task.id})`);
+    console.error(`   Changes: ${changes.length} field(s)`);
     return false;
   }
 }
@@ -401,18 +450,40 @@ export function detectTaskChanges(oldTask: Partial<KanbanTask>, newTask: KanbanT
 export async function testEmailNotifications(): Promise<boolean> {
   try {
     console.log('🧪 Testing email notification system...');
+    console.log('=' .repeat(50));
     
     // Test email service connection
+    console.log('📧 Step 1: Testing email service connection...');
     const connectionTest = await emailService.testConnection();
     if (!connectionTest) {
       console.error('❌ Email service connection test failed');
+      console.log('=' .repeat(50));
       return false;
     }
 
-    console.log('✅ Email notification system test passed');
+    console.log('✅ Step 1 passed: Email service connection successful');
+    console.log('=' .repeat(50));
+    
+    // Test configuration
+    console.log('🔧 Step 2: Verifying email service configuration...');
+    const isConfigured = emailService.isConfigured();
+    if (!isConfigured) {
+      console.error('❌ Email service is not properly configured');
+      console.log('=' .repeat(50));
+      return false;
+    }
+    
+    console.log('✅ Step 2 passed: Email service is properly configured');
+    console.log('=' .repeat(50));
+    
+    console.log('🎉 All email notification system tests passed!');
+    console.log('📧 Email notifications are ready to use');
+    console.log('=' .repeat(50));
+    
     return true;
   } catch (error) {
     console.error('❌ Email notification system test failed:', error);
+    console.log('=' .repeat(50));
     return false;
   }
 }

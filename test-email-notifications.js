@@ -28,6 +28,7 @@ const testEmailNotifications = async () => {
 
     // Test 2: Test email service connection
     console.log('2. Testing email service connection...');
+    console.log('   This will test SMTP connectivity and credentials...');
     try {
       const response = await fetch('http://localhost:3000/api/kanban/test-email', {
         method: 'POST',
@@ -39,14 +40,17 @@ const testEmailNotifications = async () => {
       const result = await response.json();
       
       if (result.success) {
-        console.log('✅ Email service connection test passed\n');
+        console.log('✅ Email service connection test passed');
+        console.log('   📧 SMTP server is reachable and credentials are valid\n');
       } else {
-        console.log('❌ Email service connection test failed:', result.message, '\n');
+        console.log('❌ Email service connection test failed:', result.message);
+        console.log('   🔍 Check your SMTP configuration and credentials\n');
         return false;
       }
     } catch (error) {
       console.log('❌ Failed to test email service:', error.message);
-      console.log('   Make sure your Next.js app is running on localhost:3000\n');
+      console.log('   Make sure your Next.js app is running on localhost:3000');
+      console.log('   Run: npm run dev\n');
       return false;
     }
 
