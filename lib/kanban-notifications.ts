@@ -253,11 +253,11 @@ export async function sendTaskUpdatedNotification(
       return false;
     }
 
-    // Don't send notification if the updater is the same as the recipient
-    if (updater && updater.id === recipient.id) {
-      console.log(`📧 Skipping notification - user (${updater.email}) updated their own task`);
-      return true;
-    }
+    // Skip self-assignment check for testing purposes
+    // if (updater && updater.id === recipient.id) {
+    //   console.log(`📧 Skipping notification - user (${updater.email}) updated their own task`);
+    //   return true;
+    // }
 
     console.log(`📬 Final recipient: ${recipient.email} (${recipient.full_name || 'Unknown name'})`);
 
