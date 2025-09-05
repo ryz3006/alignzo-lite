@@ -20,24 +20,48 @@ const supabase = createClient(
 );
 
 /**
- * Get user information by ID
+ * Get user information by ID or email
  */
 async function getUserById(userId: string): Promise<User | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    // Check if the input is a UUID or email
+    const isEmail = userId.includes('@');
+    
+    console.log(`🔍 Looking up user by ${isEmail ? 'email' : 'ID'}: ${userId}`);
+    
+    let query;
+    if (isEmail) {
+      // If it's an email, search by email field
+      query = supabase
+        .from('users')
+        .select('*')
+        .eq('email', userId)
+        .single();
+    } else {
+      // If it's a UUID, search by id field
+      query = supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    }
+
+    const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching user:', error);
+      console.error(`❌ Error fetching user by ${isEmail ? 'email' : 'ID'}:`, error);
       return null;
+    }
+
+    if (data) {
+      console.log(`✅ Found user: ${data.email} (${data.full_name || 'No name'})`);
+    } else {
+      console.log(`⚠️ User not found: ${userId}`);
     }
 
     return data;
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error('❌ Error fetching user:', error);
     return null;
   }
 }
