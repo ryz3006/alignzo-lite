@@ -41,6 +41,12 @@ import {
   JiraTicket,
   JiraSearchResult
 } from './kanban-types';
+import { 
+  sendTaskCreatedNotification, 
+  sendTaskUpdatedNotification, 
+  sendTaskDeletedNotification,
+  detectTaskChanges 
+} from './kanban-notifications';
 
 // =====================================================
 // PROJECT CATEGORIES API
@@ -447,7 +453,7 @@ export async function getKanbanTask(taskId: string): Promise<ApiResponse<KanbanT
   }
 }
 
-export async function createKanbanTask(taskData: CreateTaskForm & { project_id: string }): Promise<ApiResponse<KanbanTask>> {
+export async function createKanbanTask(taskData: CreateTaskForm & { project_id: string }, creatorEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
     // Clean the task data - handle empty strings for date fields
     const cleanTaskData = { ...taskData };
@@ -479,6 +485,11 @@ export async function createKanbanTask(taskData: CreateTaskForm & { project_id: 
 
     if (fetchError) throw new Error(fetchError.message);
 
+    // Send email notification asynchronously (don't wait for it)
+    sendTaskCreatedNotification(completeTask, creatorEmail).catch(error => {
+      console.error('Failed to send task creation notification:', error);
+    });
+
     return {
       data: completeTask,
       success: true
@@ -493,12 +504,12 @@ export async function createKanbanTask(taskData: CreateTaskForm & { project_id: 
   }
 }
 
-export async function updateKanbanTask(taskId: string, updates: UpdateTaskForm): Promise<ApiResponse<KanbanTask>> {
+export async function updateKanbanTask(taskId: string, updates: UpdateTaskForm, updaterEmail?: string): Promise<ApiResponse<KanbanTask>> {
   try {
-    // Get current task to check if we need to handle column changes
+    // Get current task to detect changes and check if we need to handle column changes
     const { data: currentTask, error: currentError } = await supabase
       .from('kanban_tasks')
-      .select('column_id, sort_order')
+      .select('*')
       .eq('id', taskId)
       .single();
 
@@ -521,6 +532,16 @@ export async function updateKanbanTask(taskId: string, updates: UpdateTaskForm):
 
     if (error) throw new Error(error.message);
 
+    // Detect changes for email notification
+    const changes = detectTaskChanges(currentTask, data);
+
+    // Send email notification asynchronously if there are changes (don't wait for it)
+    if (changes.length > 0) {
+      sendTaskUpdatedNotification(data, changes, updaterEmail).catch(error => {
+        console.error('Failed to send task update notification:', error);
+      });
+    }
+
     return {
       data: data,
       success: true
@@ -539,9 +560,19 @@ export async function moveTaskInDatabase(
   taskId: string,
   fromColumnId: string,
   toColumnId: string,
-  newSortOrder: number
+  newSortOrder: number,
+  moverEmail?: string
 ): Promise<ApiResponse<KanbanTask>> {
   try {
+    // Get current task before moving for change detection
+    const { data: currentTask, error: currentTaskError } = await supabase
+      .from('kanban_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (currentTaskError) throw new Error(currentTaskError.message);
+
     // Verify the columns exist
     const { data: fromColumn, error: fromColumnError } = await supabase
       .from('kanban_columns')
@@ -572,6 +603,16 @@ export async function moveTaskInDatabase(
 
     if (error) throw new Error(error.message);
 
+    // Only send notification if column actually changed
+    if (fromColumnId !== toColumnId) {
+      const changes = detectTaskChanges(currentTask, data);
+      
+      // Send email notification asynchronously (don't wait for it)
+      sendTaskUpdatedNotification(data, changes, moverEmail).catch(error => {
+        console.error('Failed to send task move notification:', error);
+      });
+    }
+
     return {
       data: data,
       success: true
@@ -586,14 +627,28 @@ export async function moveTaskInDatabase(
   }
 }
 
-export async function deleteKanbanTask(taskId: string): Promise<ApiResponse<boolean>> {
+export async function deleteKanbanTask(taskId: string, deleterEmail?: string): Promise<ApiResponse<boolean>> {
   try {
+    // Get current task before deletion for notification
+    const { data: currentTask, error: currentError } = await supabase
+      .from('kanban_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (currentError) throw new Error(currentError.message);
+
     const { error } = await supabase
       .from('kanban_tasks')
       .update({ status: 'archived' })
       .eq('id', taskId);
 
     if (error) throw new Error(error.message);
+
+    // Send email notification asynchronously (don't wait for it)
+    sendTaskDeletedNotification(currentTask, deleterEmail).catch(error => {
+      console.error('Failed to send task deletion notification:', error);
+    });
 
     return {
       data: true,
