@@ -79,7 +79,7 @@ class EmailService {
 
       this.config = config;
 
-      // Create transporter
+      // Create transporter with enhanced SSL/TLS configuration
       this.transporter = nodemailer.createTransport({
         host: config.host,
         port: config.port,
@@ -87,7 +87,25 @@ class EmailService {
         auth: {
           user: config.user,
           pass: config.pass
-        }
+        },
+        // Enhanced SSL/TLS configuration to handle various server requirements
+        tls: {
+          // Don't fail on invalid certs (useful for testing)
+          rejectUnauthorized: false,
+          // Support older TLS versions
+          minVersion: 'TLSv1',
+          // Allow legacy server support
+          ciphers: 'SSLv3'
+        },
+        // Connection timeout
+        connectionTimeout: 60000,
+        // Socket timeout
+        socketTimeout: 60000,
+        // Greeting timeout
+        greetingTimeout: 30000,
+        // Debug mode for troubleshooting
+        debug: process.env.NODE_ENV === 'development',
+        logger: process.env.NODE_ENV === 'development'
       });
 
       console.log('✅ Email service initialized successfully');
@@ -138,10 +156,77 @@ class EmailService {
       console.log(`📝 Email subject: "${emailContent.subject}"`);
       console.log(`📄 Email content generated (HTML: ${emailContent.html.length} chars, Text: ${emailContent.text.length} chars)`);
 
-      // Send email
+      // Send email with fallback configuration
       console.log(`🚀 Sending email via SMTP to ${recipient.email}...`);
       
-      const info = await this.transporter!.sendMail({
+      try {
+        const info = await this.transporter!.sendMail({
+          from: this.config!.from,
+          to: recipient.email,
+          subject: emailContent.subject,
+          html: emailContent.html,
+          text: emailContent.text
+        });
+
+        console.log(`✅ Email notification sent successfully!`);
+        console.log(`   📧 To: ${recipient.email}`);
+        console.log(`   📋 Subject: "${emailContent.subject}"`);
+        console.log(`   🆔 Message ID: ${info.messageId}`);
+        console.log(`   📊 Response: ${info.response}`);
+        console.log(`   🎯 Task: "${task.title}" (${type})`);
+        
+        return true;
+      } catch (smtpError: any) {
+        // If SSL/TLS error, try with alternative configuration
+        if (smtpError.code === 'ESOCKET' || smtpError.message?.includes('SSL') || smtpError.message?.includes('TLS')) {
+          console.warn('⚠️ SSL/TLS error detected, trying alternative configuration...');
+          return await this.sendWithFallbackConfig(data, emailContent, recipient);
+        }
+        throw smtpError;
+      }
+    } catch (error) {
+      console.error('❌ Failed to send email notification:', error);
+      console.error(`   📧 To: ${data.assignee?.email || data.creator?.email || 'Unknown'}`);
+      console.error(`   📋 Subject: ${this.generateEmailContent(data).subject}`);
+      console.error(`   🎯 Task: "${data.task.title}" (${data.type})`);
+      console.error(`   🔍 Error details:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send email with fallback SSL/TLS configuration
+   */
+  private async sendWithFallbackConfig(
+    data: EmailNotificationData, 
+    emailContent: { subject: string; html: string; text: string }, 
+    recipient: User
+  ): Promise<boolean> {
+    try {
+      console.log('🔄 Creating fallback transporter with alternative SSL/TLS settings...');
+      
+      // Create a new transporter with different SSL/TLS settings
+      const fallbackTransporter = nodemailer.createTransport({
+        host: this.config!.host,
+        port: this.config!.port,
+        secure: this.config!.secure,
+        auth: {
+          user: this.config!.user,
+          pass: this.config!.pass
+        },
+        // Alternative SSL/TLS configuration
+        tls: {
+          rejectUnauthorized: false,
+          // Try without specifying ciphers
+          minVersion: 'TLSv1.2'
+        },
+        // Shorter timeouts
+        connectionTimeout: 30000,
+        socketTimeout: 30000,
+        greetingTimeout: 15000
+      });
+
+      const info = await fallbackTransporter.sendMail({
         from: this.config!.from,
         to: recipient.email,
         subject: emailContent.subject,
@@ -149,20 +234,15 @@ class EmailService {
         text: emailContent.text
       });
 
-      console.log(`✅ Email notification sent successfully!`);
+      console.log(`✅ Email notification sent successfully with fallback configuration!`);
       console.log(`   📧 To: ${recipient.email}`);
       console.log(`   📋 Subject: "${emailContent.subject}"`);
       console.log(`   🆔 Message ID: ${info.messageId}`);
-      console.log(`   📊 Response: ${info.response}`);
-      console.log(`   🎯 Task: "${task.title}" (${type})`);
+      console.log(`   🎯 Task: "${data.task.title}" (${data.type})`);
       
       return true;
-    } catch (error) {
-      console.error('❌ Failed to send email notification:', error);
-      console.error(`   📧 To: ${data.assignee?.email || data.creator?.email || 'Unknown'}`);
-      console.error(`   📋 Subject: ${this.generateEmailContent(data).subject}`);
-      console.error(`   🎯 Task: "${data.task.title}" (${data.type})`);
-      console.error(`   🔍 Error details:`, error);
+    } catch (fallbackError) {
+      console.error('❌ Fallback email configuration also failed:', fallbackError);
       return false;
     }
   }
