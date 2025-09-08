@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
     
     if (projectKey) {
-      jql += ` AND project = ${projectKey}`;
+      jql += ` AND project = "${projectKey}"`;
     }
     
     jql += ' ORDER BY updated DESC';
@@ -120,21 +120,23 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔍 JQL Query: ${jql}`);
     console.log(`📄 Pagination - Page: ${page}, PageSize: ${pageSize}, StartAt: ${startAt}, MaxResults: ${maxResults}`);
+    
+    // Validate JQL query
+    if (!jql || jql.trim() === '') {
+      console.error('❌ Empty JQL query generated');
+      return NextResponse.json(
+        { error: 'Invalid query parameters' },
+        { status: 400 }
+      );
+    }
 
-    // First, get the total count by making a POST call with maxResults=0 to the jql endpoint
-    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search/jql`, {
-      method: 'POST',
+    // First, get the total count by making a GET call with maxResults=0
+    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=0`, {
+      method: 'GET',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        jql: jql,
-        startAt: 0,
-        maxResults: 0,
-        fields: ['id']
-      })
+        'Accept': 'application/json'
+      }
     });
 
     let totalItems = 0;
@@ -144,27 +146,21 @@ export async function POST(request: NextRequest) {
       console.log(`📊 Total count from JIRA: ${totalItems}`);
     }
 
-    // Now fetch the actual tickets with pagination via POST to /search/jql
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql`, {
-      method: 'POST',
+    // Now fetch the actual tickets with pagination via GET
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
+      method: 'GET',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        jql: jql,
-        startAt: startAt,
-        maxResults: maxResults,
-        fields: ['key', 'summary', 'status', 'priority', 'assignee', 'reporter', 'project', 'issuetype', 'created', 'updated']
-      })
+        'Accept': 'application/json'
+      }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`JIRA API error ${response.status}:`, errorText);
+      console.error(`JQL Query that failed: ${jql}`);
       return NextResponse.json(
-        { error: `JIRA API error: ${response.status}`, details: errorText },
+        { error: `JIRA API error: ${response.status}`, details: errorText, jql: jql },
         { status: response.status }
       );
     }

@@ -99,11 +99,35 @@ export async function POST(request: NextRequest) {
     // Use enhanced search function with multiple strategies
     const result = await searchJiraIssuesEnhanced(credentials, projectKey, searchTerm, maxResults);
 
-    const tickets = result || [];
-    console.log(`🎯 JIRA search completed: Found ${tickets.length} tickets`);
+    const rawTickets = result || [];
+    console.log(`🎯 JIRA search completed: Found ${rawTickets.length} tickets`);
+    
+    // Debug: Log the raw structure
+    if (rawTickets.length > 0) {
+      console.log(`📋 Raw ticket structure:`, JSON.stringify(rawTickets[0], null, 2));
+    }
+    
+    // The searchJiraIssuesEnhanced function already returns the raw JIRA API response
+    // We need to transform it to match our expected format
+    const tickets = rawTickets.map((issue: any) => ({
+      key: issue.key,
+      id: issue.id,
+      summary: issue.fields?.summary || 'No summary available',
+      status: issue.fields?.status?.name || 'Unknown',
+      priority: issue.fields?.priority?.name || 'N/A',
+      assignee: issue.fields?.assignee?.displayName || 'Unassigned',
+      reporter: issue.fields?.reporter?.displayName || 'N/A',
+      project: issue.fields?.project?.name || 'N/A',
+      projectKey: issue.fields?.project?.key || 'N/A',
+      issueType: issue.fields?.issuetype?.name || 'Task',
+      created: issue.fields?.created || new Date().toISOString(),
+      updated: issue.fields?.updated || new Date().toISOString(),
+      jiraUrl: `${credentials.base_url}/browse/${issue.key}`
+    }));
     
     if (tickets.length > 0) {
       console.log(`📋 Sample ticket keys found:`, tickets.slice(0, 3).map(t => t.key));
+      console.log(`📋 Transformed ticket data:`, JSON.stringify(tickets[0], null, 2));
     }
 
     return NextResponse.json({
