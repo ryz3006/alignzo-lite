@@ -83,7 +83,7 @@ export default function AdminDashboardLayout({
     { name: 'Work Reports', href: '/admin/dashboard/reports', icon: FileText },
     { name: 'Shift Schedule', href: '/admin/dashboard/shift-schedule', icon: Calendar },
     { name: 'Audit Trail', href: '/admin/dashboard/audit-trail', icon: Activity },
-    { name: 'Cache Dashboard', href: '/admin/cache-dashboard', icon: Database },
+    { name: 'Cache Dashboard', href: '/admin/dashboard/cache-dashboard', icon: Database },
   ];
 
   if (loading) {

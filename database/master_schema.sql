@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     phone_number VARCHAR(20),
     access_dashboard BOOLEAN DEFAULT TRUE,
+    access_my_jira_tickets BOOLEAN DEFAULT FALSE,
     access_work_report BOOLEAN DEFAULT FALSE,
     access_analytics BOOLEAN DEFAULT FALSE,
     access_analytics_workload BOOLEAN DEFAULT FALSE,
@@ -1455,6 +1456,7 @@ ON CONFLICT (name) DO NOTHING;
 COMMENT ON TABLE users IS 'Application users with authentication details and access controls';
 COMMENT ON COLUMN users.phone_number IS 'Optional phone number for user contact';
 COMMENT ON COLUMN users.access_dashboard IS 'Access to main dashboard (always enabled)';
+COMMENT ON COLUMN users.access_my_jira_tickets IS 'Access to My JIRA Tickets functionality';
 COMMENT ON COLUMN users.access_work_report IS 'Access to work report functionality';
 COMMENT ON COLUMN users.access_analytics IS 'Access to main analytics section';
 COMMENT ON COLUMN users.access_analytics_workload IS 'Access to workload & utilization analytics';
