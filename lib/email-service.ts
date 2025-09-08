@@ -43,8 +43,6 @@ class EmailService {
 
   private initializeTransporter() {
     try {
-      console.log('🔧 Initializing email service...');
-      
       // Get email configuration from environment variables
       const config: EmailConfig = {
         host: process.env.SMTP_HOST || '',
@@ -55,15 +53,6 @@ class EmailService {
         from: process.env.SMTP_FROM || ''
       };
 
-      // Log configuration details (mask sensitive info)
-      console.log('📧 Email Configuration:');
-      console.log(`   Host: ${config.host || '❌ NOT SET'}`);
-      console.log(`   Port: ${config.port || '❌ NOT SET'}`);
-      console.log(`   Secure: ${config.secure}`);
-      console.log(`   User: ${config.user ? '✅ SET' : '❌ NOT SET'}`);
-      console.log(`   Password: ${config.pass ? '✅ SET' : '❌ NOT SET'}`);
-      console.log(`   From: ${config.from || '❌ NOT SET'}`);
-
       // Validate configuration
       const missingVars = [];
       if (!config.host) missingVars.push('SMTP_HOST');
@@ -73,7 +62,6 @@ class EmailService {
 
       if (missingVars.length > 0) {
         console.warn('⚠️ Email service not configured: Missing environment variables:', missingVars.join(', '));
-        console.warn('   Please set these variables in your .env.local file or deployment environment');
         return;
       }
 
@@ -90,27 +78,16 @@ class EmailService {
         },
         // Enhanced SSL/TLS configuration to handle various server requirements
         tls: {
-          // Don't fail on invalid certs (useful for testing)
           rejectUnauthorized: false,
-          // Support older TLS versions
           minVersion: 'TLSv1',
-          // Allow legacy server support
           ciphers: 'SSLv3'
         },
-        // Connection timeout
         connectionTimeout: 60000,
-        // Socket timeout
         socketTimeout: 60000,
-        // Greeting timeout
-        greetingTimeout: 30000,
-        // Debug mode for troubleshooting
-        debug: process.env.NODE_ENV === 'development',
-        logger: process.env.NODE_ENV === 'development'
+        greetingTimeout: 30000
       });
 
-      console.log('✅ Email service initialized successfully');
-      console.log(`   SMTP Server: ${config.host}:${config.port} (${config.secure ? 'SSL/TLS' : 'STARTTLS'})`);
-      console.log(`   From Address: ${config.from}`);
+      console.log('✅ Email service initialized');
     } catch (error) {
       console.error('❌ Failed to initialize email service:', error);
     }
@@ -135,30 +112,17 @@ class EmailService {
     try {
       const { type, task, assignee, creator } = data;
       
-      console.log(`📧 Preparing to send ${type} notification for task: "${task.title}"`);
-      
       // Determine recipient
       const recipient = assignee || creator;
       if (!recipient || !recipient.email) {
         console.warn('⚠️ No valid recipient for email notification');
-        console.warn(`   Task: ${task.title} (ID: ${task.id})`);
-        console.warn(`   Assignee: ${assignee ? assignee.email : 'None'}`);
-        console.warn(`   Creator: ${creator ? creator.email : 'None'}`);
         return false;
       }
 
-      console.log(`📬 Email recipient: ${recipient.email}`);
-      console.log(`👤 Recipient name: ${recipient.full_name || 'Unknown'}`);
-
       // Generate email content
       const emailContent = this.generateEmailContent(data);
-      
-      console.log(`📝 Email subject: "${emailContent.subject}"`);
-      console.log(`📄 Email content generated (HTML: ${emailContent.html.length} chars, Text: ${emailContent.text.length} chars)`);
 
       // Send email with fallback configuration
-      console.log(`🚀 Sending email via SMTP to ${recipient.email}...`);
-      
       try {
         const info = await this.transporter!.sendMail({
           from: this.config!.from,
@@ -168,28 +132,17 @@ class EmailService {
           text: emailContent.text
         });
 
-        console.log(`✅ Email notification sent successfully!`);
-        console.log(`   📧 To: ${recipient.email}`);
-        console.log(`   📋 Subject: "${emailContent.subject}"`);
-        console.log(`   🆔 Message ID: ${info.messageId}`);
-        console.log(`   📊 Response: ${info.response}`);
-        console.log(`   🎯 Task: "${task.title}" (${type})`);
-        
+        console.log(`✅ Email notification sent to ${recipient.email}`);
         return true;
       } catch (smtpError: any) {
         // If SSL/TLS error, try with alternative configuration
         if (smtpError.code === 'ESOCKET' || smtpError.message?.includes('SSL') || smtpError.message?.includes('TLS')) {
-          console.warn('⚠️ SSL/TLS error detected, trying alternative configuration...');
           return await this.sendWithFallbackConfig(data, emailContent, recipient);
         }
         throw smtpError;
       }
     } catch (error) {
       console.error('❌ Failed to send email notification:', error);
-      console.error(`   📧 To: ${data.assignee?.email || data.creator?.email || 'Unknown'}`);
-      console.error(`   📋 Subject: ${this.generateEmailContent(data).subject}`);
-      console.error(`   🎯 Task: "${data.task.title}" (${data.type})`);
-      console.error(`   🔍 Error details:`, error);
       return false;
     }
   }
@@ -251,10 +204,6 @@ class EmailService {
 
     for (const { name, config } of configs) {
       try {
-        console.log(`🔄 Trying ${name} configuration...`);
-        console.log(`   Host: ${config.host}:${config.port}`);
-        console.log(`   Secure: ${config.secure}`);
-        
         const fallbackTransporter = nodemailer.createTransport(config);
 
         const info = await fallbackTransporter.sendMail({
@@ -265,15 +214,9 @@ class EmailService {
           text: emailContent.text
         });
 
-        console.log(`✅ Email notification sent successfully with ${name}!`);
-        console.log(`   📧 To: ${recipient.email}`);
-        console.log(`   📋 Subject: "${emailContent.subject}"`);
-        console.log(`   🆔 Message ID: ${info.messageId}`);
-        console.log(`   🎯 Task: "${data.task.title}" (${data.type})`);
-        
+        console.log(`✅ Email notification sent to ${recipient.email} (${name})`);
         return true;
       } catch (configError: any) {
-        console.warn(`⚠️ ${name} failed:`, configError.message);
         continue;
       }
     }
@@ -621,25 +564,11 @@ class EmailService {
     }
 
     try {
-      console.log('🧪 Testing SMTP connection...');
-      console.log(`   Server: ${this.config!.host}:${this.config!.port}`);
-      console.log(`   User: ${this.config!.user}`);
-      console.log(`   Secure: ${this.config!.secure ? 'SSL/TLS' : 'STARTTLS'}`);
-      
       const result = await this.transporter!.verify();
-      
       console.log('✅ Email service connection test successful');
-      console.log(`   📊 Connection result:`, result);
-      console.log(`   🔗 SMTP server is reachable and credentials are valid`);
-      
       return true;
     } catch (error) {
-      console.error('❌ Email service connection test failed:');
-      console.error(`   🔍 Error:`, error);
-      console.error(`   📧 Server: ${this.config!.host}:${this.config!.port}`);
-      console.error(`   👤 User: ${this.config!.user}`);
-      console.error(`   🔐 Check your SMTP credentials and server settings`);
-      
+      console.error('❌ Email service connection test failed:', error);
       return false;
     }
   }
@@ -653,8 +582,6 @@ class EmailService {
       return { success: false };
     }
 
-    console.log('🧪 Testing multiple SMTP configurations...');
-    
     const configs = [
       {
         name: 'Current Configuration',
@@ -700,18 +627,12 @@ class EmailService {
 
     for (const { name, config } of configs) {
       try {
-        console.log(`🔄 Testing ${name}...`);
-        console.log(`   Host: ${config.host}:${config.port}, Secure: ${config.secure}`);
-        
         const testTransporter = nodemailer.createTransport(config);
         const result = await testTransporter.verify();
         
         console.log(`✅ ${name} works!`);
-        console.log(`   📊 Result:`, result);
-        
         return { success: true, workingConfig: { name, config } };
       } catch (error: any) {
-        console.warn(`⚠️ ${name} failed:`, error.message);
         continue;
       }
     }

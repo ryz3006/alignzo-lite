@@ -371,6 +371,16 @@ export default function EnhancedWorkLogModal({ isOpen, onClose, timerData }: Wor
       return;
     }
 
+    if (ticketSource === 'jira' && jiraTicketType === 'new' && !ticketCreated) {
+      if (!formData.ticket_summary.trim()) {
+        toast.error('Please enter ticket summary');
+        return;
+      }
+      // Create the ticket first
+      await createJiraTicket();
+      return; // The form will be submitted after ticket creation
+    }
+
     if (!formData.ticket_id.trim()) {
       toast.error('Please enter a ticket ID');
       return;
