@@ -68,8 +68,45 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔍 Found JIRA assignee name: ${assigneeName}`);
 
+    // First, try to find the user's accountId by searching for them
+    let assigneeAccountId = null;
+    try {
+      const userSearchResponse = await fetch(`${credentials.base_url}/rest/api/3/user/search?query=${encodeURIComponent(assigneeName)}`, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (userSearchResponse.ok) {
+        const userSearchData = await userSearchResponse.json();
+        if (userSearchData && userSearchData.length > 0) {
+          // Find the user that matches our assignee name
+          const matchingUser = userSearchData.find((user: any) => 
+            user.displayName === assigneeName || 
+            user.emailAddress === assigneeName ||
+            user.name === assigneeName
+          );
+          
+          if (matchingUser) {
+            assigneeAccountId = matchingUser.accountId;
+            console.log(`🔍 Found user accountId: ${assigneeAccountId} for assignee: ${assigneeName}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not search for user accountId:`, error);
+    }
+
     // Build JQL query to get tickets assigned to the user
-    let jql = `assignee = "${assigneeName}"`;
+    let jql;
+    if (assigneeAccountId) {
+      // Use accountId if we found it
+      jql = `assignee = "${assigneeAccountId}"`;
+    } else {
+      // Fallback to display name
+      jql = `assignee = "${assigneeName}"`;
+    }
     
     if (projectKey) {
       jql += ` AND project = ${projectKey}`;
@@ -83,8 +120,8 @@ export async function POST(request: NextRequest) {
     const startAt = (page - 1) * pageSize;
     const maxResults = pageSize;
 
-    // Fetch tickets from JIRA
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
+    // Fetch tickets from JIRA using the correct JQL endpoint
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
         'Accept': 'application/json'

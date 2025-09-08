@@ -254,6 +254,14 @@ Users must have JIRA integration configured with:
 5. **Tickets not loading**
    - Solution: Verify JIRA API permissions and user assignee name mapping
 
+6. **"JIRA API error: 410" - API endpoint deprecated**
+   - Solution: The API now uses the correct `/rest/api/3/search/jql` endpoint
+   - The system automatically searches for user accountId and falls back to display name
+
+7. **"No tickets found" despite having assigned tickets**
+   - Solution: Check that the JIRA user mapping uses the correct assignee name format
+   - The system tries both accountId and display name for maximum compatibility
+
 ## Conclusion
 
 The "My JIRA Tickets" page provides a comprehensive solution for users to manage their assigned JIRA tickets directly from the Alignzo dashboard. The implementation follows existing patterns and integrates seamlessly with the current JIRA integration infrastructure while providing a modern, responsive user interface.
