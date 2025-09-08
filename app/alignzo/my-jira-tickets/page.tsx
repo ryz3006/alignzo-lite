@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { toast } from 'react-hot-toast';
+import { RefreshCw, Edit3, ExternalLink } from 'lucide-react';
 import TicketStatusModal from './components/TicketStatusModal';
 
 interface JiraTicket {
@@ -172,17 +173,17 @@ export default function MyJiraTicketsPage() {
     switch (priority.toLowerCase()) {
       case 'highest':
       case 'critical':
-        return 'text-red-600 bg-red-50';
+        return 'text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900';
       case 'high':
-        return 'text-orange-600 bg-orange-50';
+        return 'text-orange-800 dark:text-orange-200 bg-orange-100 dark:bg-orange-900';
       case 'medium':
-        return 'text-yellow-600 bg-yellow-50';
+        return 'text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900';
       case 'low':
-        return 'text-green-600 bg-green-50';
+        return 'text-green-800 dark:text-green-200 bg-green-100 dark:bg-green-900';
       case 'lowest':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
     }
   };
 
@@ -191,54 +192,54 @@ export default function MyJiraTicketsPage() {
       case 'done':
       case 'closed':
       case 'resolved':
-        return 'text-green-600 bg-green-50';
+        return 'text-green-800 dark:text-green-200 bg-green-100 dark:bg-green-900';
       case 'in progress':
       case 'in development':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900';
       case 'to do':
       case 'open':
-        return 'text-gray-600 bg-gray-50';
+        return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
       case 'blocked':
-        return 'text-red-600 bg-red-50';
+        return 'text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="loading-spinner h-12 w-12 mx-auto"></div>
+          <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My JIRA Tickets</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">My JIRA Tickets</h1>
+          <p className="mt-2 text-neutral-600 dark:text-neutral-400">
             View and manage your assigned JIRA tickets
           </p>
         </div>
 
         {/* Project Selection */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-medium text-gray-900">Select JIRA Project</h2>
-              <p className="text-sm text-gray-500">Choose a project to view your assigned tickets</p>
+              <h2 className="text-lg font-medium text-neutral-900 dark:text-white">Select JIRA Project</h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Choose a project to view your assigned tickets</p>
             </div>
             <div className="w-64">
               <select
                 value={selectedProject}
                 onChange={(e) => handleProjectChange(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="input-modern"
               >
                 <option value="">Select a project...</option>
                 {projectMappings.map((mapping) => (
@@ -253,32 +254,30 @@ export default function MyJiraTicketsPage() {
 
         {/* Tickets Table */}
         {selectedProject && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
+          <div className="table-modern">
+            <div className="bg-neutral-50 dark:bg-neutral-700 px-6 py-3 border-b border-neutral-200 dark:border-neutral-600">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900">
-                  Assigned Tickets
+                <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                  <span className="font-medium">Assigned Tickets</span>
                   {pagination.totalItems > 0 && (
-                    <span className="ml-2 text-sm text-gray-500">
+                    <span className="ml-2">
                       ({pagination.totalItems} total)
                     </span>
                   )}
-                </h2>
+                </div>
                 <button
                   onClick={loadTickets}
                   disabled={loadingTickets}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="btn-ghost text-sm"
                 >
                   {loadingTickets ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                      <div className="loading-spinner h-4 w-4 mr-2"></div>
                       Loading...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
+                      <RefreshCw className="w-4 h-4 mr-2" />
                       Refresh
                     </>
                   )}
@@ -288,68 +287,67 @@ export default function MyJiraTicketsPage() {
 
             {loadingTickets ? (
               <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading tickets...</p>
+                <div className="loading-spinner h-8 w-8 mx-auto"></div>
+                <p className="mt-4 text-neutral-600 dark:text-neutral-400">Loading tickets...</p>
               </div>
             ) : tickets.length === 0 ? (
               <div className="p-8 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No tickets found</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  You don't have any assigned tickets in this project.
-                </p>
+                <div className="text-neutral-500 dark:text-neutral-400">
+                  <div>
+                    <p className="text-lg font-medium">No tickets found</p>
+                    <p className="text-sm">You don't have any assigned tickets in this project.</p>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Ticket ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Title
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Priority
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Reporter
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Updated
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                  <thead className="bg-neutral-50 dark:bg-neutral-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Ticket ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Title
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Priority
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Reporter
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Updated
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
                       {tickets.map((ticket) => (
-                        <tr key={ticket.key} className="hover:bg-gray-50">
+                        <tr key={ticket.key} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium">
+                            <div className="text-sm font-medium text-neutral-900 dark:text-white">
                               <a
                                 href={ticket.jiraUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline inline-flex items-center"
                               >
                                 {ticket.key}
+                                <ExternalLink className="ml-1 h-3 w-3" />
                               </a>
                             </div>
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-neutral-500 dark:text-neutral-400">
                               {ticket.issueType}
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900 max-w-xs truncate">
+                            <div className="text-sm text-neutral-900 dark:text-white max-w-xs truncate">
                               {ticket.summary}
                             </div>
                           </td>
@@ -363,110 +361,78 @@ export default function MyJiraTicketsPage() {
                               {ticket.priority}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-white">
                             {ticket.reporter}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">
                             {new Date(ticket.updated).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button
                               onClick={() => handleEditStatus(ticket)}
-                              className="text-blue-600 hover:text-blue-900"
+                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                              title="Edit Status"
                             >
-                              Edit Status
+                              <Edit3 className="h-4 w-4" />
                             </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
 
                 {/* Pagination */}
-                {pagination.totalPages > 1 && (
-                  <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                    {/* Mobile pagination - always visible on mobile */}
-                    <div className="flex-1 flex justify-between sm:hidden">
-                      <button
-                        onClick={() => handlePageChange(pagination.currentPage - 1)}
-                        disabled={!pagination.hasPreviousPage}
-                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        ← Previous
-                      </button>
-                      <span className="flex items-center px-4 py-2 text-sm text-gray-700">
-                        Page {pagination.currentPage} of {pagination.totalPages}
-                      </span>
-                      <button
-                        onClick={() => handlePageChange(pagination.currentPage + 1)}
-                        disabled={!pagination.hasNextPage}
-                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Next →
-                      </button>
+                {pagination.totalPages && pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 px-6 py-4">
+                    <div className="text-sm text-neutral-700 dark:text-neutral-300">
+                      Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} results
                     </div>
-                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm text-gray-700">
-                          Showing{' '}
-                          <span className="font-medium">
-                            {(pagination.currentPage - 1) * pagination.pageSize + 1}
-                          </span>{' '}
-                          to{' '}
-                          <span className="font-medium">
-                            {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)}
-                          </span>{' '}
-                          of{' '}
-                          <span className="font-medium">{pagination.totalItems}</span>{' '}
-                          results
-                        </p>
-                      </div>
-                      <div>
-                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                          <button
-                            onClick={() => handlePageChange(pagination.currentPage - 1)}
-                            disabled={!pagination.hasPreviousPage}
-                            className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <span className="sr-only">Previous</span>
-                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handlePageChange(Math.max(1, pagination.currentPage - 1))}
+                        disabled={pagination.currentPage === 1}
+                        className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      
+                      {/* Page Numbers */}
+                      <div className="flex space-x-1">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = pagination.currentPage - 2 + i;
+                          }
                           
-                          {/* Page numbers */}
-                          {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                            const pageNum = Math.max(1, pagination.currentPage - 2) + i;
-                            if (pageNum > pagination.totalPages) return null;
-                            
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => handlePageChange(pageNum)}
-                                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                  pageNum === pagination.currentPage
-                                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                          
-                          <button
-                            onClick={() => handlePageChange(pagination.currentPage + 1)}
-                            disabled={!pagination.hasNextPage}
-                            className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <span className="sr-only">Next</span>
-                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                        </nav>
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => handlePageChange(pageNum)}
+                              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                                pagination.currentPage === pageNum
+                                  ? 'bg-primary-600 text-white'
+                                  : 'text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
                       </div>
+                      
+                      <button
+                        onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.currentPage + 1))}
+                        disabled={pagination.currentPage === pagination.totalPages}
+                        className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
                     </div>
                   </div>
                 )}

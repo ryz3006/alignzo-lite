@@ -136,41 +136,41 @@ export default function TicketStatusModal({
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         {/* Background overlay */}
         <div 
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          className="fixed inset-0 bg-neutral-500 bg-opacity-75 dark:bg-neutral-900 dark:bg-opacity-75 transition-opacity"
           onClick={handleClose}
         ></div>
 
         {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="inline-block align-bottom bg-white dark:bg-neutral-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-neutral-100 dark:border-neutral-700">
           <form onSubmit={handleSubmit}>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="bg-white dark:bg-neutral-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
-                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
-                  <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 dark:bg-primary-900 sm:mx-0 sm:h-10 sm:w-10">
+                  <svg className="h-6 w-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </div>
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  <h3 className="text-lg leading-6 font-medium text-neutral-900 dark:text-white">
                     Update Ticket Status
                   </h3>
                   <div className="mt-2">
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
                       Update the status of{' '}
                       <a
                         href={ticket.jiraUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                        className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline"
                       >
                         {ticket.key}
                       </a>
                     </p>
-                    <p className="text-sm text-gray-700 mt-1">
+                    <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
                       {ticket.summary}
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Current Status: <span className="font-medium">{ticket.status}</span>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+                      Current Status: <span className="font-medium text-neutral-900 dark:text-white">{ticket.status}</span>
                     </p>
                   </div>
                 </div>
@@ -179,20 +179,20 @@ export default function TicketStatusModal({
               <div className="mt-6 space-y-4">
                 {/* Status Selection */}
                 <div>
-                  <label htmlFor="transition" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="transition" className="form-label">
                     New Status
                   </label>
                   {loadingTransitions ? (
                     <div className="mt-1 flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                      <span className="text-sm text-gray-500">Loading available transitions...</span>
+                      <div className="loading-spinner h-4 w-4 mr-2"></div>
+                      <span className="text-sm text-neutral-500 dark:text-neutral-400">Loading available transitions...</span>
                     </div>
                   ) : (
                     <select
                       id="transition"
                       value={selectedTransition}
                       onChange={(e) => setSelectedTransition(e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      className="input-modern"
                       required
                     >
                       <option value="">Select a status transition...</option>
@@ -205,7 +205,7 @@ export default function TicketStatusModal({
                     </select>
                   )}
                   {transitions.length === 0 && !loadingTransitions && (
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
                       No available transitions found for this ticket.
                     </p>
                   )}
@@ -213,7 +213,7 @@ export default function TicketStatusModal({
 
                 {/* Comment */}
                 <div>
-                  <label htmlFor="comment" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="comment" className="form-label">
                     Comment (Optional)
                   </label>
                   <textarea
@@ -221,10 +221,10 @@ export default function TicketStatusModal({
                     rows={3}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    className="input-modern"
                     placeholder="Add a comment about this status change..."
                   />
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
                     This comment will be added to the ticket's activity log.
                   </p>
                 </div>
@@ -232,15 +232,15 @@ export default function TicketStatusModal({
             </div>
 
             {/* Modal footer */}
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <div className="bg-neutral-50 dark:bg-neutral-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
                 disabled={loading || !selectedTransition || loadingTransitions}
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full sm:ml-3 sm:w-auto"
               >
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="loading-spinner h-4 w-4 border-white mr-2"></div>
                     Updating...
                   </>
                 ) : (
@@ -251,7 +251,7 @@ export default function TicketStatusModal({
                 type="button"
                 onClick={handleClose}
                 disabled={loading}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                className="btn-secondary mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
               >
                 Cancel
               </button>

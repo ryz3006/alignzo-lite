@@ -156,17 +156,20 @@ export async function POST(request: NextRequest) {
       jiraUrl: `${credentials.base_url}/browse/${issue.key}`
     })) || [];
 
-    console.log(`✅ Found ${tickets.length} tickets (page ${page} of ${Math.ceil(data.total / pageSize)})`);
+    const totalItems = data.total || 0;
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
 
+    console.log(`✅ Found ${tickets.length} tickets (page ${page} of ${totalPages})`);
+    
     return NextResponse.json({
       success: true,
       tickets: tickets,
       pagination: {
         currentPage: page,
         pageSize: pageSize,
-        totalItems: data.total,
-        totalPages: Math.ceil(data.total / pageSize),
-        hasNextPage: data.startAt + data.maxResults < data.total,
+        totalItems: totalItems,
+        totalPages: totalPages,
+        hasNextPage: data.startAt + data.maxResults < totalItems,
         hasPreviousPage: data.startAt > 0
       }
     });

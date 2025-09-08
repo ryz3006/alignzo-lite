@@ -143,6 +143,10 @@ Updates a ticket's status using a specific transition.
 - **Pagination**: Full pagination controls with page numbers and navigation
 - **Clickable Ticket IDs**: Ticket IDs are hyperlinked to open JIRA tickets in new tabs
 - **Enhanced Mobile Pagination**: Clear Previous/Next buttons with page indicators on mobile
+- **Dark/Light Mode Support**: Full theme support matching the application's design system
+- **Modern Table Design**: Uses the same table styling as "My Work Logs" page
+- **Icon-based Actions**: Edit status button uses an edit icon instead of text
+- **Consistent Theming**: Modal and all components follow the application's design patterns
 
 ## File Structure
 
@@ -273,6 +277,16 @@ Users must have JIRA integration configured with:
 9. **Pagination buttons not visible**
    - Solution: Pagination is now more visible with enhanced mobile controls
    - Previous/Next buttons are clearly labeled and always visible when there are multiple pages
+
+10. **Theme inconsistency with other pages**
+    - Solution: Updated all components to use the same design system as "My Work Logs"
+    - Added full dark/light mode support with proper color schemes
+    - Replaced text buttons with icons for better UX consistency
+
+11. **Modal styling not matching application theme**
+    - Solution: Updated TicketStatusModal to use the same styling patterns
+    - Applied consistent button styles, form inputs, and color schemes
+    - Added proper dark mode support throughout the modal
 
 ## Conclusion
 
