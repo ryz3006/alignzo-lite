@@ -301,33 +301,35 @@ export default function TeamWorkReportsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">Work Report</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-white">Work Report</h1>
           <p className="text-neutral-600 dark:text-neutral-400">View work reports from all team members</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center justify-center space-x-2"
           >
             <Filter className="h-4 w-4" />
             <span>Filters</span>
           </button>
-          <button
-            onClick={handleRefresh}
-            className="btn-secondary flex items-center space-x-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span>Refresh</span>
-          </button>
-          <button
-            onClick={handleExport}
-            className="btn-secondary flex items-center space-x-2"
-          >
-            <Download className="h-4 w-4" />
-            <span>Export</span>
-          </button>
+          <div className="flex space-x-2 sm:space-x-3">
+            <button
+              onClick={handleRefresh}
+              className="btn-secondary flex items-center justify-center space-x-2 flex-1 sm:flex-none"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={handleExport}
+              className="btn-secondary flex items-center justify-center space-x-2 flex-1 sm:flex-none"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -447,10 +449,10 @@ export default function TeamWorkReportsPage() {
       )}
 
       {/* Work Reports Table */}
-      <div className="table-modern overflow-hidden">
+      <div className="table-modern">
         {(searchTerm || Object.values(filters).some(v => v !== '')) && (
-          <div className="bg-neutral-50 dark:bg-neutral-700 px-6 py-3 border-b border-neutral-200 dark:border-neutral-700">
-            <div className="flex items-center justify-between">
+          <div className="bg-neutral-50 dark:bg-neutral-700 px-3 sm:px-6 py-3 border-b border-neutral-200 dark:border-neutral-700">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
               <div className="text-sm text-neutral-600 dark:text-neutral-400">
                 {searchTerm && (
                   <span className="mr-4">
@@ -469,130 +471,157 @@ export default function TeamWorkReportsPage() {
               </div>
               <button
                 onClick={clearFilters}
-                className="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                className="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 self-start sm:self-auto"
               >
                 Clear all
               </button>
             </div>
           </div>
         )}
-        <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-          <thead className="bg-neutral-50 dark:bg-neutral-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Project
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Date
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Employee
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Logged Time
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-            <tr>
-              <td colSpan={5} className="px-6 py-2 text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-600">
-                {loading ? (
-                  <span>Loading work logs...</span>
-                ) : (
-                  <span>
-                    Showing {filteredWorkLogs.length} of {totalCount} work logs
-                    {searchTerm && ` matching "${searchTerm}"`}
-                    {filteredWorkLogs.length > 0 && (
-                      <span className="ml-4">
-                        • Total time: {formatDuration(filteredWorkLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0))}
-                      </span>
-                    )}
-                  </span>
-                )}
-              </td>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
-            {filteredWorkLogs.length > 0 ? (
-              filteredWorkLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                      {log.project?.name || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                      {formatDateTime(log.start_time)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-8 w-8">
-                        <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                          <UserIcon className="h-4 w-4 text-primary-600" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                          {log.user_email}
-                        </div>
-                        <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                          Employee
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-neutral-900 dark:text-white">
-                      {formatDuration(log.logged_duration_seconds)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleView(log)}
-                      className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                      title="View Details"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
+        
+        {/* Horizontal scrollable table container */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+            <thead className="bg-neutral-50 dark:bg-neutral-700">
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
-                  <div className="text-neutral-500 dark:text-neutral-400">
-                    {loading ? (
-                      <div className="flex items-center justify-center">
-                        <div className="loading-spinner h-8 w-8"></div>
-                        <span className="ml-2">Loading work logs...</span>
-                      </div>
-                    ) : searchTerm ? (
-                      <div>
-                        <p className="text-lg font-medium">No work logs found</p>
-                        <p className="text-sm">Try adjusting your search terms or filters</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-lg font-medium">No work logs available</p>
-                        <p className="text-sm">Work logs will appear here once team members start logging their time</p>
-                      </div>
-                    )}
-                  </div>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-32 sm:min-w-40">
+                  Project
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-28 sm:w-auto">
+                  Date
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-48 sm:min-w-56">
+                  Employee
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-24 sm:w-auto">
+                  Logged Time
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-16 sm:w-auto">
+                  Actions
+                </th>
+              </tr>
+              <tr>
+                <td colSpan={5} className="px-3 sm:px-6 py-2 text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-600">
+                  {loading ? (
+                    <span>Loading work logs...</span>
+                  ) : (
+                    <span>
+                      <span className="hidden sm:inline">
+                        Showing {filteredWorkLogs.length} of {totalCount} work logs
+                        {searchTerm && ` matching "${searchTerm}"`}
+                        {filteredWorkLogs.length > 0 && (
+                          <span className="ml-4">
+                            • Total time: {formatDuration(filteredWorkLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0))}
+                          </span>
+                        )}
+                      </span>
+                      <span className="sm:hidden">
+                        {filteredWorkLogs.length} of {totalCount} logs
+                        {filteredWorkLogs.length > 0 && (
+                          <span className="ml-2">
+                            • {formatDuration(filteredWorkLogs.reduce((sum, log) => sum + (log.logged_duration_seconds || 0), 0))}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  )}
                 </td>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
+              {filteredWorkLogs.length > 0 ? (
+                filteredWorkLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                        <div className="truncate max-w-32 sm:max-w-40" title={log.project?.name || 'N/A'}>
+                          {log.project?.name || 'N/A'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-neutral-500 dark:text-neutral-400">
+                        <div className="truncate max-w-28 sm:max-w-none" title={formatDateTime(log.start_time)}>
+                          {formatDateTime(log.start_time)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8">
+                          <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-primary-100 flex items-center justify-center">
+                            <UserIcon className="h-3 w-3 sm:h-4 sm:w-4 text-primary-600" />
+                          </div>
+                        </div>
+                        <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                          <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                            <div className="truncate max-w-32 sm:max-w-none" title={log.user_email}>
+                              {log.user_email}
+                            </div>
+                          </div>
+                          <div className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+                            Employee
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-neutral-900 dark:text-white">
+                        <div className="truncate max-w-20 sm:max-w-none">
+                          {formatDuration(log.logged_duration_seconds)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleView(log)}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-600"
+                        title="View Details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-3 sm:px-6 py-12 text-center">
+                    <div className="text-neutral-500 dark:text-neutral-400">
+                      {loading ? (
+                        <div className="flex items-center justify-center">
+                          <div className="loading-spinner h-8 w-8"></div>
+                          <span className="ml-2">Loading work logs...</span>
+                        </div>
+                      ) : searchTerm ? (
+                        <div>
+                          <p className="text-lg font-medium">No work logs found</p>
+                          <p className="text-sm">Try adjusting your search terms or filters</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-lg font-medium">No work logs available</p>
+                          <p className="text-sm">Work logs will appear here once team members start logging their time</p>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-6">
-          <div className="text-sm text-neutral-700 dark:text-neutral-300">
-            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} results
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 space-y-3 sm:space-y-0">
+          <div className="text-sm text-neutral-700 dark:text-neutral-300 text-center sm:text-left">
+            <span className="hidden sm:inline">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} results
+            </span>
+            <span className="sm:hidden">
+              {totalCount} results
+            </span>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -600,11 +629,12 @@ export default function TeamWorkReportsPage() {
               disabled={currentPage === 1}
               className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Previous
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </button>
             
-            {/* Page Numbers */}
-            <div className="flex space-x-1">
+            {/* Page Numbers - Hide on mobile for space */}
+            <div className="hidden sm:flex space-x-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum;
                 if (totalPages <= 5) {
@@ -633,12 +663,18 @@ export default function TeamWorkReportsPage() {
               })}
             </div>
             
+            {/* Mobile page indicator */}
+            <div className="sm:hidden px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              {currentPage} / {totalPages}
+            </div>
+            
             <button
               onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
+              <span className="sm:hidden">Next</span>
             </button>
           </div>
         </div>

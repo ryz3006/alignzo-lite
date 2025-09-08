@@ -351,17 +351,17 @@ export default function MyJiraTicketsPage() {
         </div>
 
         {/* Project Selection */}
-        <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
             <div>
               <h2 className="text-lg font-medium text-neutral-900 dark:text-white">Select JIRA Project</h2>
               <p className="text-sm text-neutral-500 dark:text-neutral-400">Choose a project to view your assigned tickets</p>
             </div>
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <select
                 value={selectedProject}
                 onChange={(e) => handleProjectChange(e.target.value)}
-                className="input-modern"
+                className="input-modern w-full"
               >
                 <option value="">Select a project...</option>
                 {projectMappings.map((mapping) => (
@@ -376,12 +376,10 @@ export default function MyJiraTicketsPage() {
 
         {/* Search Bar */}
         {selectedProject && (
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-medium text-neutral-900 dark:text-white">Search Tickets</h2>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400">Search for any tickets in the selected project</p>
-              </div>
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-4 sm:p-6 mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-medium text-neutral-900 dark:text-white">Search Tickets</h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Search for any tickets in the selected project</p>
             </div>
             
             <div className="relative">
@@ -390,7 +388,7 @@ export default function MyJiraTicketsPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search tickets by ID, title, or description..."
-                className="input-modern pr-10"
+                className="input-modern pr-10 w-full"
                 onKeyPress={(e) => e.key === 'Enter' && searchJiraTickets()}
               />
               <button
@@ -416,27 +414,27 @@ export default function MyJiraTicketsPage() {
                       <div
                         key={ticket.key}
                         onClick={() => selectSearchTicket(ticket)}
-                        className="px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-600 cursor-pointer border-b border-neutral-100 dark:border-neutral-600 last:border-b-0"
+                        className="px-3 sm:px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-600 cursor-pointer border-b border-neutral-100 dark:border-neutral-600 last:border-b-0"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-1 sm:space-y-0">
+                              <span className="text-sm font-medium text-primary-600 dark:text-primary-400 truncate">
                                 {ticket.key || 'N/A'}
                               </span>
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)} w-fit`}>
                                 {ticket.status || 'Unknown'}
                               </span>
                             </div>
-                            <p className="text-sm text-neutral-900 dark:text-white mt-1 line-clamp-2">
+                            <p className="text-sm text-neutral-900 dark:text-white mt-1 line-clamp-2 break-words">
                               {ticket.summary || 'No summary available'}
                             </p>
-                            <div className="flex items-center space-x-4 mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                              <span>Priority: {ticket.priority || 'N/A'}</span>
-                              <span>Reporter: {ticket.reporter || 'N/A'}</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 text-xs text-neutral-500 dark:text-neutral-400 space-y-1 sm:space-y-0">
+                              <span className="truncate">Priority: {ticket.priority || 'N/A'}</span>
+                              <span className="truncate">Reporter: {ticket.reporter || 'N/A'}</span>
                             </div>
                           </div>
-                          <ExternalLink className="h-4 w-4 text-neutral-400" />
+                          <ExternalLink className="h-4 w-4 text-neutral-400 flex-shrink-0 ml-2" />
                         </div>
                       </div>
                     ))}
@@ -454,8 +452,8 @@ export default function MyJiraTicketsPage() {
         {/* Tickets Table */}
         {selectedProject && (
           <div className="table-modern">
-            <div className="bg-neutral-50 dark:bg-neutral-700 px-6 py-3 border-b border-neutral-200 dark:border-neutral-600">
-              <div className="flex items-center justify-between">
+            <div className="bg-neutral-50 dark:bg-neutral-700 px-3 sm:px-6 py-3 border-b border-neutral-200 dark:border-neutral-600">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                 <div className="text-sm text-neutral-600 dark:text-neutral-400">
                   <span className="font-medium">Assigned Tickets</span>
                   {pagination.totalItems > 0 && (
@@ -467,17 +465,19 @@ export default function MyJiraTicketsPage() {
                 <button
                   onClick={loadTickets}
                   disabled={loadingTickets}
-                  className="btn-ghost text-sm"
+                  className="btn-ghost text-sm self-start sm:self-auto"
                 >
                   {loadingTickets ? (
                     <>
                       <div className="loading-spinner h-4 w-4 mr-2"></div>
-                      Loading...
+                      <span className="hidden sm:inline">Loading...</span>
+                      <span className="sm:hidden">Loading</span>
                     </>
                   ) : (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Refresh
+                      <span className="hidden sm:inline">Refresh</span>
+                      <span className="sm:hidden">Refresh</span>
                     </>
                   )}
                 </button>
@@ -500,92 +500,106 @@ export default function MyJiraTicketsPage() {
               </div>
             ) : (
               <>
-                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-                  <thead className="bg-neutral-50 dark:bg-neutral-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Ticket ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Title
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Priority
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Reporter
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Updated
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
-                      {tickets.map((ticket) => (
-                        <tr key={ticket.key} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                              <a
-                                href={ticket.jiraUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline inline-flex items-center"
+                {/* Horizontal scrollable table container */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                    <thead className="bg-neutral-50 dark:bg-neutral-700">
+                      <tr>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-32 sm:w-auto">
+                          Ticket ID
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-48 sm:min-w-64">
+                          Title
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-24 sm:w-auto">
+                          Status
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-20 sm:w-auto">
+                          Priority
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-32 sm:min-w-40">
+                          Reporter
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-24 sm:w-auto">
+                          Updated
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-16 sm:w-auto">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
+                        {tickets.map((ticket) => (
+                          <tr key={ticket.key} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                                <a
+                                  href={ticket.jiraUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline inline-flex items-center"
+                                >
+                                  <span className="truncate max-w-24 sm:max-w-none">{ticket.key}</span>
+                                  <ExternalLink className="ml-1 h-3 w-3 flex-shrink-0" />
+                                </a>
+                              </div>
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                                {ticket.issueType}
+                              </div>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4">
+                              <div className="text-sm text-neutral-900 dark:text-white">
+                                <div className="truncate max-w-48 sm:max-w-64" title={ticket.summary}>
+                                  {ticket.summary}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
+                                <span className="truncate max-w-16 sm:max-w-none">{ticket.status}</span>
+                              </span>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(ticket.priority)}`}>
+                                <span className="truncate max-w-12 sm:max-w-none">{ticket.priority}</span>
+                              </span>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-white">
+                              <div className="truncate max-w-32 sm:max-w-40" title={ticket.reporter}>
+                                {ticket.reporter}
+                              </div>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">
+                              <div className="truncate max-w-20 sm:max-w-none">
+                                {new Date(ticket.updated).toLocaleDateString()}
+                              </div>
+                            </td>
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <button
+                                onClick={() => handleEditStatus(ticket)}
+                                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-600"
+                                title="Edit Status"
                               >
-                                {ticket.key}
-                                <ExternalLink className="ml-1 h-3 w-3" />
-                              </a>
-                            </div>
-                            <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                              {ticket.issueType}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-neutral-900 dark:text-white max-w-xs truncate">
-                              {ticket.summary}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
-                              {ticket.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(ticket.priority)}`}>
-                              {ticket.priority}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-white">
-                            {ticket.reporter}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">
-                            {new Date(ticket.updated).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => handleEditStatus(ticket)}
-                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                              title="Edit Status"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
+                </div>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between mt-6 px-6 py-4">
-                  <div className="text-sm text-neutral-700 dark:text-neutral-300">
+                <div className="flex flex-col sm:flex-row items-center justify-between mt-6 px-3 sm:px-6 py-4 space-y-3 sm:space-y-0">
+                  <div className="text-sm text-neutral-700 dark:text-neutral-300 text-center sm:text-left">
                     {pagination.totalItems > 0 ? (
                       <>
-                        Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} results
+                        <span className="hidden sm:inline">
+                          Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} results
+                        </span>
+                        <span className="sm:hidden">
+                          {pagination.totalItems} tickets
+                        </span>
                       </>
                     ) : (
                       <>No tickets found</>
@@ -597,11 +611,13 @@ export default function MyJiraTicketsPage() {
                       disabled={pagination.currentPage === 1}
                       className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Previous
+                      <span className="hidden sm:inline">Previous</span>
+                      <span className="sm:hidden">Prev</span>
                     </button>
                     
                     <span className="px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                      Page {pagination.currentPage}
+                      <span className="hidden sm:inline">Page {pagination.currentPage}</span>
+                      <span className="sm:hidden">{pagination.currentPage}</span>
                     </span>
                     
                     <button
@@ -609,7 +625,8 @@ export default function MyJiraTicketsPage() {
                       disabled={loadingTickets}
                       className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Next
+                      <span className="hidden sm:inline">Next</span>
+                      <span className="sm:hidden">Next</span>
                     </button>
                   </div>
                 </div>

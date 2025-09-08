@@ -402,33 +402,35 @@ export default function UserWorkReportsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">My Work Logs</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-white">My Work Logs</h1>
           <p className="text-neutral-600 dark:text-neutral-400">View and manage your work logs</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
           <button
             onClick={handleAddNew}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-primary flex items-center justify-center space-x-2"
           >
             <Plus className="h-4 w-4" />
             <span>Add Work Log</span>
           </button>
-          <button
-            onClick={handleRefresh}
-            className="btn-secondary flex items-center space-x-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span>Refresh</span>
-          </button>
-          <button
-            onClick={handleExport}
-            className="btn-secondary flex items-center space-x-2"
-          >
-            <Download className="h-4 w-4" />
-            <span>Export</span>
-          </button>
+          <div className="flex space-x-2 sm:space-x-3">
+            <button
+              onClick={handleRefresh}
+              className="btn-secondary flex items-center justify-center space-x-2 flex-1 sm:flex-none"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={handleExport}
+              className="btn-secondary flex items-center justify-center space-x-2 flex-1 sm:flex-none"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -441,7 +443,7 @@ export default function UserWorkReportsPage() {
             placeholder="Search work logs..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-modern pl-10"
+            className="input-modern pl-10 w-full"
           />
         </div>
       </div>
@@ -464,106 +466,128 @@ export default function UserWorkReportsPage() {
       )}
 
       {/* Work Logs Table */}
-      <div className="table-modern overflow-hidden">
-        <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-          <thead className="bg-neutral-50 dark:bg-neutral-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                <input
-                  type="checkbox"
-                  checked={selectAll}
-                  onChange={handleSelectAll}
-                  className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-neutral-800"
-                />
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Project
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Ticket ID
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Task Detail
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Date
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Duration
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
-            {currentLogs.map((log) => (
-              <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                <td className="px-6 py-4 whitespace-nowrap">
+      <div className="table-modern">
+        {/* Horizontal scrollable table container */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+            <thead className="bg-neutral-50 dark:bg-neutral-700">
+              <tr>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-12 sm:w-auto">
                   <input
                     type="checkbox"
-                    checked={selectedLogs.has(log.id)}
-                    onChange={() => handleSelectLog(log.id)}
+                    checked={selectAll}
+                    onChange={handleSelectAll}
                     className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-neutral-800"
                   />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-neutral-900 dark:text-white">
-                    {log.project?.name || 'N/A'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-neutral-900 dark:text-white">{log.ticket_id}</div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="text-sm text-neutral-900 dark:text-white max-w-xs truncate" title={log.task_detail}>
-                    {log.task_detail}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {formatDateTime(log.start_time)}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-neutral-900 dark:text-white">
-                    {formatDuration(log.logged_duration_seconds)}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => handleView(log)}
-                    className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
-                    title="View Details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleEdit(log)}
-                    className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
-                    title="Edit"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(log.id)}
-                    className="text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-32 sm:min-w-40">
+                  Project
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-24 sm:w-auto">
+                  Ticket ID
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider min-w-48 sm:min-w-64">
+                  Task Detail
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-28 sm:w-auto">
+                  Date
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-20 sm:w-auto">
+                  Duration
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider w-24 sm:w-auto">
+                  Actions
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white dark:bg-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-700">
+              {currentLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedLogs.has(log.id)}
+                      onChange={() => handleSelectLog(log.id)}
+                      className="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-neutral-800"
+                    />
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                      <div className="truncate max-w-32 sm:max-w-40" title={log.project?.name || 'N/A'}>
+                        {log.project?.name || 'N/A'}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-neutral-900 dark:text-white">
+                      <div className="truncate max-w-24 sm:max-w-none" title={log.ticket_id}>
+                        {log.ticket_id}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4">
+                    <div className="text-sm text-neutral-900 dark:text-white">
+                      <div className="truncate max-w-48 sm:max-w-64" title={log.task_detail}>
+                        {log.task_detail}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400">
+                      <div className="truncate max-w-28 sm:max-w-none" title={formatDateTime(log.start_time)}>
+                        {formatDateTime(log.start_time)}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-neutral-900 dark:text-white">
+                      <div className="truncate max-w-20 sm:max-w-none">
+                        {formatDuration(log.logged_duration_seconds)}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex items-center justify-end space-x-1 sm:space-x-3">
+                      <button
+                        onClick={() => handleView(log)}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-600"
+                        title="View Details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(log)}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-600"
+                        title="Edit"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(log.id)}
+                        className="text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300 p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-600"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-6">
-          <div className="text-sm text-neutral-700 dark:text-neutral-300">
-            Showing {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} results
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 space-y-3 sm:space-y-0">
+          <div className="text-sm text-neutral-700 dark:text-neutral-300 text-center sm:text-left">
+            <span className="hidden sm:inline">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} results
+            </span>
+            <span className="sm:hidden">
+              {filteredLogs.length} results
+            </span>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -571,11 +595,12 @@ export default function UserWorkReportsPage() {
               disabled={currentPage === 1}
               className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Previous
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </button>
             
-            {/* Page Numbers */}
-            <div className="flex space-x-1">
+            {/* Page Numbers - Hide on mobile for space */}
+            <div className="hidden sm:flex space-x-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum;
                 if (totalPages <= 5) {
@@ -604,12 +629,18 @@ export default function UserWorkReportsPage() {
               })}
             </div>
             
+            {/* Mobile page indicator */}
+            <div className="sm:hidden px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              {currentPage} / {totalPages}
+            </div>
+            
             <button
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
+              <span className="sm:hidden">Next</span>
             </button>
           </div>
         </div>
