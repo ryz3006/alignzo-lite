@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // First, get the total count by making a GET call with maxResults=0
-    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=0`, {
+    // First, get the total count by making a GET call with maxResults=0 to the jql endpoint
+    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=0`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
@@ -146,8 +146,8 @@ export async function POST(request: NextRequest) {
       console.log(`📊 Total count from JIRA: ${totalItems}`);
     }
 
-    // Now fetch the actual tickets with pagination via GET
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
+    // Now fetch the actual tickets with pagination via GET to the jql endpoint
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
