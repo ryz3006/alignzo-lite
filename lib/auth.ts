@@ -97,6 +97,7 @@ export async function getUserAccessControls(userEmail: string) {
     const response = await supabaseClient.get('users', {
       select: `
         access_dashboard,
+        access_my_jira_tickets,
         access_work_report,
         access_team_work_reports,
         access_analytics,
@@ -119,6 +120,7 @@ export async function getUserAccessControls(userEmail: string) {
       // Return default access controls if user not found or error occurs
       return {
         access_dashboard: true,
+        access_my_jira_tickets: false,
         access_work_report: false,
         access_team_work_reports: false,
         access_analytics: false,
@@ -142,6 +144,7 @@ export async function getUserAccessControls(userEmail: string) {
       // Return default access controls if user not found
       return {
         access_dashboard: true,
+        access_my_jira_tickets: false,
         access_work_report: false,
         access_team_work_reports: false,
         access_analytics: false,
@@ -161,6 +164,7 @@ export async function getUserAccessControls(userEmail: string) {
     // Ensure all boolean values are properly set
     const accessControls = {
       access_dashboard: userData?.access_dashboard ?? true,
+      access_my_jira_tickets: userData?.access_my_jira_tickets ?? false,
       access_work_report: userData?.access_work_report ?? false,
       access_team_work_reports: userData?.access_team_work_reports ?? false,
       access_analytics: userData?.access_analytics ?? false,

@@ -6,6 +6,7 @@ export const userSchema = z.object({
   email: z.string().email('Invalid email address'),
   phone_number: z.string().optional(),
   access_dashboard: z.boolean().default(true),
+  access_my_jira_tickets: z.boolean().default(false),
   access_work_report: z.boolean().default(false),
   access_analytics: z.boolean().default(false),
   access_analytics_workload: z.boolean().default(false),

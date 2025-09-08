@@ -17,6 +17,7 @@ export default function UsersPage() {
     email: '',
     phone_number: '',
     access_dashboard: true,
+    access_my_jira_tickets: false,
     access_work_report: false,
     access_team_work_reports: false,
     access_analytics: false,
@@ -102,6 +103,7 @@ export default function UsersPage() {
       email: user.email,
       phone_number: user.phone_number || '',
       access_dashboard: user.access_dashboard ?? true,
+      access_my_jira_tickets: user.access_my_jira_tickets ?? false,
       access_work_report: user.access_work_report ?? false,
       access_team_work_reports: user.access_team_work_reports ?? false,
       access_analytics: user.access_analytics ?? false,
@@ -305,6 +307,18 @@ export default function UsersPage() {
                       />
                       <label htmlFor="access_dashboard" className="ml-2 text-sm text-gray-700">
                         Dashboard (Always enabled)
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="access_my_jira_tickets"
+                        checked={formData.access_my_jira_tickets}
+                        onChange={(e) => setFormData({ ...formData, access_my_jira_tickets: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="access_my_jira_tickets" className="ml-2 text-sm text-gray-700">
+                        My JIRA Tickets
                       </label>
                     </div>
                     <div className="flex items-center">

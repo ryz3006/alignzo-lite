@@ -76,6 +76,7 @@ export interface User {
   email: string;
   phone_number?: string;
   access_dashboard?: boolean;
+  access_my_jira_tickets?: boolean;
   access_work_report?: boolean;
   access_team_work_reports?: boolean;
   access_analytics?: boolean;
