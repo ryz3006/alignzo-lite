@@ -515,8 +515,14 @@ export async function updateKanbanTask(taskId: string, updates: UpdateTaskForm, 
 
     if (currentError) throw new Error(currentError.message);
 
-    // Clean up the updates object - handle empty strings for date fields
+    // Clean up the updates object - handle empty strings for date fields and remove invalid fields
     const cleanedUpdates = { ...updates };
+    
+    // Remove fields that don't exist in the kanban_tasks table
+    delete (cleanedUpdates as any).team_id;
+    delete (cleanedUpdates as any).user_email;
+    delete (cleanedUpdates as any).project_id;
+    delete (cleanedUpdates as any).categories;
     
     // Convert empty strings to null for date fields
     if (cleanedUpdates.due_date === '') {
