@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/lib/auth';
 import { toast } from 'react-hot-toast';
-import { RefreshCw, Edit3, ExternalLink } from 'lucide-react';
+import { RefreshCw, Edit3, ExternalLink, Search, X } from 'lucide-react';
 import TicketStatusModal from './components/TicketStatusModal';
+import TicketDetailsModal from './components/TicketDetailsModal';
 
 interface JiraTicket {
   key: string;
@@ -59,6 +60,14 @@ export default function MyJiraTicketsPage() {
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  
+  // Search functionality
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<JiraTicket[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedSearchTicket, setSelectedSearchTicket] = useState<JiraTicket | null>(null);
+  const [showTicketDetailsModal, setShowTicketDetailsModal] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -153,13 +162,104 @@ export default function MyJiraTicketsPage() {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
-  const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, currentPage: newPage }));
+  const handlePageChange = async (newPage: number) => {
+    if (newPage >= 1) {
+      setPagination(prev => ({ ...prev, currentPage: newPage }));
+      
+      // Load tickets for the new page
+      try {
+        const response = await fetch('/api/jira/my-tickets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userEmail: user?.email,
+            projectKey: selectedProject,
+            page: newPage,
+            pageSize: pagination.pageSize
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          if (data.tickets.length === 0 && newPage > 1) {
+            toast.error('No more tickets available');
+            // Revert to previous page
+            setPagination(prev => ({ ...prev, currentPage: newPage - 1 }));
+          } else {
+            setTickets(data.tickets);
+            setPagination(data.pagination);
+          }
+        } else {
+          toast.error(data.error || 'Failed to load tickets');
+          // Revert to previous page
+          setPagination(prev => ({ ...prev, currentPage: newPage - 1 }));
+        }
+      } catch (error) {
+        console.error('Error loading tickets:', error);
+        toast.error('Failed to load tickets');
+        // Revert to previous page
+        setPagination(prev => ({ ...prev, currentPage: newPage - 1 }));
+      }
+    }
   };
 
   const handleEditStatus = (ticket: JiraTicket) => {
     setSelectedTicket(ticket);
     setShowStatusModal(true);
+  };
+
+  const searchJiraTickets = async () => {
+    if (!searchTerm.trim() || !selectedProject) return;
+
+    setIsSearching(true);
+    setShowSearchResults(false);
+    setSearchResults([]);
+    
+    try {
+      const response = await fetch('/api/jira/search-tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail: user?.email,
+          projectKey: selectedProject,
+          searchTerm: searchTerm.trim(),
+          maxResults: 20
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSearchResults(data.tickets || []);
+        setShowSearchResults(true);
+        
+        if (data.tickets.length === 0) {
+          toast.error('No tickets found matching your search');
+        } else {
+          toast.success(`Found ${data.tickets.length} tickets`);
+        }
+      } else {
+        const errorMessage = data.error || 'Failed to search tickets';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error searching JIRA tickets:', error);
+      toast.error('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectSearchTicket = (ticket: JiraTicket) => {
+    setSelectedSearchTicket(ticket);
+    setShowTicketDetailsModal(true);
+    setShowSearchResults(false);
+    setSearchTerm('');
   };
 
   const handleStatusUpdate = () => {
@@ -251,6 +351,83 @@ export default function MyJiraTicketsPage() {
             </div>
           </div>
         </div>
+
+        {/* Search Bar */}
+        {selectedProject && (
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-soft border border-neutral-100 dark:border-neutral-700 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-medium text-neutral-900 dark:text-white">Search Tickets</h2>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">Search for any tickets in the selected project</p>
+              </div>
+            </div>
+            
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search tickets by ID, title, or description..."
+                className="input-modern pr-10"
+                onKeyPress={(e) => e.key === 'Enter' && searchJiraTickets()}
+              />
+              <button
+                type="button"
+                onClick={searchJiraTickets}
+                disabled={isSearching || !searchTerm.trim()}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:text-neutral-400 dark:hover:text-neutral-300 disabled:opacity-50"
+              >
+                {isSearching ? (
+                  <div className="loading-spinner h-4 w-4"></div>
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+
+            {/* Search Results */}
+            {showSearchResults && (
+              <div className="mt-4">
+                {searchResults.length > 0 ? (
+                  <div className="max-h-60 overflow-y-auto border border-neutral-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700">
+                    {searchResults.map((ticket) => (
+                      <div
+                        key={ticket.key}
+                        onClick={() => selectSearchTicket(ticket)}
+                        className="px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-600 cursor-pointer border-b border-neutral-100 dark:border-neutral-600 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
+                                {ticket.key}
+                              </span>
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
+                                {ticket.status}
+                              </span>
+                            </div>
+                            <p className="text-sm text-neutral-900 dark:text-white mt-1 line-clamp-2">
+                              {ticket.summary}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                              <span>Priority: {ticket.priority}</span>
+                              <span>Reporter: {ticket.reporter}</span>
+                            </div>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-neutral-400" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-neutral-500 dark:text-neutral-400">
+                    No tickets found matching your search
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tickets Table */}
         {selectedProject && (
@@ -382,60 +559,38 @@ export default function MyJiraTicketsPage() {
                   </table>
 
                 {/* Pagination */}
-                {pagination.totalPages && pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 px-6 py-4">
-                    <div className="text-sm text-neutral-700 dark:text-neutral-300">
-                      Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} results
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handlePageChange(Math.max(1, pagination.currentPage - 1))}
-                        disabled={pagination.currentPage === 1}
-                        className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Previous
-                      </button>
-                      
-                      {/* Page Numbers */}
-                      <div className="flex space-x-1">
-                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (pagination.totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (pagination.currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                            pageNum = pagination.totalPages - 4 + i;
-                          } else {
-                            pageNum = pagination.currentPage - 2 + i;
-                          }
-                          
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => handlePageChange(pageNum)}
-                              className={`px-3 py-2 text-sm font-medium rounded-md ${
-                                pagination.currentPage === pageNum
-                                  ? 'bg-primary-600 text-white'
-                                  : 'text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700'
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      
-                      <button
-                        onClick={() => handlePageChange(Math.min(pagination.totalPages, pagination.currentPage + 1))}
-                        disabled={pagination.currentPage === pagination.totalPages}
-                        className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Next
-                      </button>
-                    </div>
+                <div className="flex items-center justify-between mt-6 px-6 py-4">
+                  <div className="text-sm text-neutral-700 dark:text-neutral-300">
+                    {pagination.totalItems > 0 ? (
+                      <>
+                        Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} results
+                      </>
+                    ) : (
+                      <>No tickets found</>
+                    )}
                   </div>
-                )}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handlePageChange(Math.max(1, pagination.currentPage - 1))}
+                      disabled={pagination.currentPage === 1}
+                      className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    
+                    <span className="px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      Page {pagination.currentPage}
+                    </span>
+                    
+                    <button
+                      onClick={() => handlePageChange(pagination.currentPage + 1)}
+                      disabled={loadingTickets}
+                      className="px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -451,6 +606,13 @@ export default function MyJiraTicketsPage() {
             onStatusUpdate={handleStatusUpdate}
           />
         )}
+
+        {/* Ticket Details Modal */}
+        <TicketDetailsModal
+          isOpen={showTicketDetailsModal}
+          onClose={() => setShowTicketDetailsModal(false)}
+          ticket={selectedSearchTicket}
+        />
       </div>
     </div>
   );

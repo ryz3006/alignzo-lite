@@ -140,13 +140,16 @@ Updates a ticket's status using a specific transition.
 - **Loading States**: Shows loading indicators during API calls
 - **Empty States**: Displays helpful messages when no tickets are found
 - **Color-coded Status**: Different colors for different ticket statuses and priorities
-- **Pagination**: Full pagination controls with page numbers and navigation
+- **Always-Visible Pagination**: Previous/Next buttons always shown with toast notifications for no more tickets
 - **Clickable Ticket IDs**: Ticket IDs are hyperlinked to open JIRA tickets in new tabs
 - **Enhanced Mobile Pagination**: Clear Previous/Next buttons with page indicators on mobile
 - **Dark/Light Mode Support**: Full theme support matching the application's design system
 - **Modern Table Design**: Uses the same table styling as "My Work Logs" page
 - **Icon-based Actions**: Edit status button uses an edit icon instead of text
 - **Consistent Theming**: Modal and all components follow the application's design patterns
+- **Ticket Search**: Search bar to find any tickets in the selected project (not just assigned ones)
+- **Ticket Details Modal**: Comprehensive ticket information display with all details
+- **Smart Search Results**: Real-time search with clickable results and external link indicators
 
 ## File Structure
 
@@ -154,12 +157,14 @@ Updates a ticket's status using a specific transition.
 app/
 ├── api/jira/
 │   ├── my-tickets/route.ts          # API endpoint for fetching user's tickets
+│   ├── search-tickets/route.ts      # API endpoint for searching tickets
 │   └── ticket-transitions/route.ts  # API endpoints for ticket transitions
 ├── alignzo/
 │   ├── my-jira-tickets/
 │   │   ├── page.tsx                 # Main page component
 │   │   └── components/
-│   │       └── TicketStatusModal.tsx # Status update modal
+│   │       ├── TicketStatusModal.tsx # Status update modal
+│   │       └── TicketDetailsModal.tsx # Ticket details modal
 │   └── layout.tsx                   # Updated with new navigation item
 ```
 
@@ -287,6 +292,17 @@ Users must have JIRA integration configured with:
     - Solution: Updated TicketStatusModal to use the same styling patterns
     - Applied consistent button styles, form inputs, and color schemes
     - Added proper dark mode support throughout the modal
+
+12. **Pagination buttons not always visible**
+    - Solution: Removed conditional rendering of pagination buttons
+    - Previous/Next buttons are now always visible regardless of ticket count
+    - Added toast notifications when no more tickets are available on next page
+
+13. **No search functionality for tickets**
+    - Solution: Added comprehensive search bar that searches all tickets in the selected project
+    - Search results show ticket details with clickable items
+    - Created TicketDetailsModal to display complete ticket information
+    - Search works for any tickets in the project, not just assigned ones
 
 ## Conclusion
 
