@@ -231,7 +231,30 @@ export async function createKanbanTaskWithRedis(
      // Create task in database using email-enabled function
      const dbResult = await createKanbanTask(taskData, userEmail);
      
-     if (dbResult.success) {
+     if (dbResult.success && dbResult.data) {
+       // Save category mappings if categories are provided
+       if (taskData.categories && taskData.categories.length > 0) {
+         try {
+           // Use the service role client to save category mappings
+           if (supabaseService) {
+             const { error: categoryError } = await supabaseService.rpc('update_task_categories', {
+               p_task_id: dbResult.data.id,
+               p_categories: taskData.categories,
+               p_user_email: userEmail || 'system'
+             });
+
+             if (categoryError) {
+               console.warn('Failed to save task categories:', categoryError);
+             }
+           } else {
+             console.warn('Supabase service client not available for saving task categories');
+           }
+         } catch (categoryError) {
+           console.warn('Error saving task categories:', categoryError);
+           // Don't fail the task creation if category saving fails
+         }
+       }
+       
        // Invalidate related caches
        await invalidateKanbanCaches(projectId, teamId);
      }

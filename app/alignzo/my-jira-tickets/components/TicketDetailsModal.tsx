@@ -223,6 +223,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                 </div>
               </div>
             </div>
+
           </div>
 
           {/* Modal footer */}

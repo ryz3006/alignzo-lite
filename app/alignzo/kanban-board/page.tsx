@@ -221,16 +221,19 @@ export default function KanbanBoardPageRedesigned() {
       setLoading(true);
       setIsRefreshing(true);
       
-      const response = await getKanbanBoardWithCache(selectedProject.id, selectedTeam);
+      const [boardResponse, categoriesResponse] = await Promise.all([
+        getKanbanBoardWithCache(selectedProject.id, selectedTeam),
+        loadProjectCategories(selectedProject.id)
+      ]);
       
-      if (response && response.length > 0) {
-        setKanbanBoard(response);
-        setCategories([]);
+      if (boardResponse && boardResponse.length > 0) {
+        setKanbanBoard(boardResponse);
+        setCategories(categoriesResponse || []);
         
         setSelectedProject({
           ...selectedProject,
-          categories: [],
-          columns: response
+          categories: categoriesResponse || [],
+          columns: boardResponse
         });
         
         setBoardLoaded(true);
@@ -241,6 +244,37 @@ export default function KanbanBoardPageRedesigned() {
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+    }
+  };
+
+  const loadProjectCategories = async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/categories/project-options?projectId=${projectId}`);
+      const data = await response.json();
+      
+      if (data.success && data.categories) {
+        return data.categories.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name,
+          description: cat.description,
+          project_id: projectId,
+          sort_order: cat.sort_order || 0,
+          is_active: cat.is_active !== false,
+          color: cat.color,
+          options: (cat.options || []).map((opt: any) => ({
+            id: opt.id,
+            category_id: cat.id,
+            option_name: opt.option_name,
+            option_value: opt.option_value,
+            sort_order: opt.sort_order || 0,
+            is_active: opt.is_active !== false
+          }))
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error loading project categories:', error);
+      return [];
     }
   };
 
@@ -582,10 +616,16 @@ export default function KanbanBoardPageRedesigned() {
                   </label>
                   <select
                     value={selectedProject?.id || ''}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const project = projects.find(p => p.id === e.target.value);
-                      setSelectedProject(project ? { ...project, categories: [], columns: [] } as ProjectWithCategories : null);
-                      setCategories([]);
+                      if (project) {
+                        const categories = await loadProjectCategories(project.id);
+                        setSelectedProject({ ...project, categories: categories, columns: [] } as ProjectWithCategories);
+                        setCategories(categories);
+                      } else {
+                        setSelectedProject(null);
+                        setCategories([]);
+                      }
                       setBoardLoaded(false);
                     }}
                     className="w-full px-4 py-3 bg-white/70 dark:bg-slate-700/70 backdrop-blur-sm border border-slate-200/60 dark:border-slate-600/60 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-sm"
@@ -950,7 +990,20 @@ export default function KanbanBoardPageRedesigned() {
           task={selectedTask}
           onAddComment={() => {}}
           userEmail={user?.email}
-          projectData={selectedProject}
+          projectData={selectedProject ? {
+            ...selectedProject,
+            categories: categories,
+            columns: kanbanBoard
+          } : {
+            id: '',
+            name: '',
+            product: '',
+            country: '',
+            created_at: '',
+            updated_at: '',
+            categories: [],
+            columns: []
+          }}
         />
       )}
 
