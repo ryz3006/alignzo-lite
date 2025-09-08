@@ -35,13 +35,15 @@ const testMyJiraTickets = async () => {
     if (data.success) {
       console.log(`✅ Success! Found ${data.tickets.length} tickets`);
       console.log(`📄 Pagination: Page ${data.pagination.currentPage} of ${data.pagination.totalPages}`);
+      console.log(`📊 Pagination details:`, data.pagination);
       
       if (data.tickets.length > 0) {
         console.log('🎫 Sample ticket:', {
           key: data.tickets[0].key,
           summary: data.tickets[0].summary,
           status: data.tickets[0].status,
-          assignee: data.tickets[0].assignee
+          assignee: data.tickets[0].assignee,
+          jiraUrl: data.tickets[0].jiraUrl
         });
       }
     } else {

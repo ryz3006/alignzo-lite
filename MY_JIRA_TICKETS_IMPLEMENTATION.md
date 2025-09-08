@@ -16,8 +16,9 @@ This document describes the implementation of the "My JIRA Tickets" page that al
 ### 2. **Ticket Status Management**
 - **Status Update Modal**: Click "Edit Status" to open the status update modal
 - **Workflow Transitions**: Shows available status transitions based on JIRA workflow
-- **Comment Support**: Users can add comments when updating ticket status
+- **Comment Support**: Users can add comments when updating ticket status (comments are added via separate API call)
 - **Real-time Updates**: Page refreshes automatically after status changes
+- **JIRA Link**: Ticket ID in modal is clickable to open the ticket in JIRA
 
 ### 3. **API Endpoints**
 
@@ -51,7 +52,8 @@ Fetches paginated JIRA tickets assigned to the user.
       "projectKey": "PROJ",
       "issueType": "Task",
       "created": "2024-01-01T00:00:00Z",
-      "updated": "2024-01-02T00:00:00Z"
+      "updated": "2024-01-02T00:00:00Z",
+      "jiraUrl": "https://your-jira-instance.com/browse/PROJ-123"
     }
   ],
   "pagination": {
@@ -139,6 +141,8 @@ Updates a ticket's status using a specific transition.
 - **Empty States**: Displays helpful messages when no tickets are found
 - **Color-coded Status**: Different colors for different ticket statuses and priorities
 - **Pagination**: Full pagination controls with page numbers and navigation
+- **Clickable Ticket IDs**: Ticket IDs are hyperlinked to open JIRA tickets in new tabs
+- **Enhanced Mobile Pagination**: Clear Previous/Next buttons with page indicators on mobile
 
 ## File Structure
 
@@ -261,6 +265,14 @@ Users must have JIRA integration configured with:
 7. **"No tickets found" despite having assigned tickets**
    - Solution: Check that the JIRA user mapping uses the correct assignee name format
    - The system tries both accountId and display name for maximum compatibility
+
+8. **Comments not appearing in JIRA after status update**
+   - Solution: Comments are now added via a separate API call after the transition
+   - This ensures comments are properly added to the ticket's activity log
+
+9. **Pagination buttons not visible**
+   - Solution: Pagination is now more visible with enhanced mobile controls
+   - Previous/Next buttons are clearly labeled and always visible when there are multiple pages
 
 ## Conclusion
 

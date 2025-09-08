@@ -152,7 +152,8 @@ export async function POST(request: NextRequest) {
       projectKey: issue.fields?.project?.key || '',
       issueType: issue.fields?.issuetype?.name || 'Task',
       created: issue.fields?.created || new Date().toISOString(),
-      updated: issue.fields?.updated || new Date().toISOString()
+      updated: issue.fields?.updated || new Date().toISOString(),
+      jiraUrl: `${credentials.base_url}/browse/${issue.key}`
     })) || [];
 
     console.log(`✅ Found ${tickets.length} tickets (page ${page} of ${Math.ceil(data.total / pageSize)})`);

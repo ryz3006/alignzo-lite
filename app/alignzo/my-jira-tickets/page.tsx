@@ -18,6 +18,7 @@ interface JiraTicket {
   issueType: string;
   created: string;
   updated: string;
+  jiraUrl: string;
 }
 
 interface JiraProjectMapping {
@@ -132,6 +133,7 @@ export default function MyJiraTicketsPage() {
       if (data.success) {
         setTickets(data.tickets);
         setPagination(data.pagination);
+        console.log('📊 Pagination data:', data.pagination);
       } else {
         toast.error(data.error || 'Failed to load JIRA tickets');
         setTickets([]);
@@ -332,8 +334,15 @@ export default function MyJiraTicketsPage() {
                       {tickets.map((ticket) => (
                         <tr key={ticket.key} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-blue-600">
-                              {ticket.key}
+                            <div className="text-sm font-medium">
+                              <a
+                                href={ticket.jiraUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {ticket.key}
+                              </a>
                             </div>
                             <div className="text-sm text-gray-500">
                               {ticket.issueType}
@@ -377,20 +386,24 @@ export default function MyJiraTicketsPage() {
                 {/* Pagination */}
                 {pagination.totalPages > 1 && (
                   <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                    {/* Mobile pagination - always visible on mobile */}
                     <div className="flex-1 flex justify-between sm:hidden">
                       <button
                         onClick={() => handlePageChange(pagination.currentPage - 1)}
                         disabled={!pagination.hasPreviousPage}
                         className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Previous
+                        ← Previous
                       </button>
+                      <span className="flex items-center px-4 py-2 text-sm text-gray-700">
+                        Page {pagination.currentPage} of {pagination.totalPages}
+                      </span>
                       <button
                         onClick={() => handlePageChange(pagination.currentPage + 1)}
                         disabled={!pagination.hasNextPage}
-                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Next
+                        Next →
                       </button>
                     </div>
                     <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">

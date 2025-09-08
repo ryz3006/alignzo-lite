@@ -16,6 +16,7 @@ interface JiraTicket {
   issueType: string;
   created: string;
   updated: string;
+  jiraUrl: string;
 }
 
 interface Transition {
@@ -155,7 +156,15 @@ export default function TicketStatusModal({
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Update the status of <span className="font-medium text-blue-600">{ticket.key}</span>
+                      Update the status of{' '}
+                      <a
+                        href={ticket.jiraUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {ticket.key}
+                      </a>
                     </p>
                     <p className="text-sm text-gray-700 mt-1">
                       {ticket.summary}

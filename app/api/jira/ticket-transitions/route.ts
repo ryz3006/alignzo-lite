@@ -103,41 +103,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare the transition payload
-    const transitionPayload: any = {
+    const transitionPayload = {
       transition: {
         id: transitionId
       }
     };
 
-    // Add comment if provided
-    if (comment && comment.trim()) {
-      transitionPayload.update = {
-        comment: [
-          {
-            add: {
-              body: {
-                version: 1,
-                type: "doc",
-                content: [
-                  {
-                    type: "paragraph",
-                    content: [
-                      {
-                        type: "text",
-                        text: comment.trim()
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        ]
-      };
-    }
-
-    // Execute the transition
-    const response = await fetch(`${credentials.base_url}/rest/api/3/issue/${ticketKey}/transitions`, {
+    // Execute the transition first
+    const transitionResponse = await fetch(`${credentials.base_url}/rest/api/3/issue/${ticketKey}/transitions`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
@@ -147,16 +120,60 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(transitionPayload)
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`JIRA API error ${response.status}:`, errorText);
+    if (!transitionResponse.ok) {
+      const errorText = await transitionResponse.text();
+      console.error(`JIRA transition API error ${transitionResponse.status}:`, errorText);
       return NextResponse.json(
-        { error: `JIRA API error: ${response.status}`, details: errorText },
-        { status: response.status }
+        { error: `JIRA transition API error: ${transitionResponse.status}`, details: errorText },
+        { status: transitionResponse.status }
       );
     }
 
     console.log(`✅ Successfully transitioned ticket ${ticketKey} to transition ${transitionId}`);
+
+    // Add comment if provided (separate API call)
+    if (comment && comment.trim()) {
+      try {
+        const commentPayload = {
+          body: {
+            version: 1,
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: comment.trim()
+                  }
+                ]
+              }
+            ]
+          }
+        };
+
+        const commentResponse = await fetch(`${credentials.base_url}/rest/api/3/issue/${ticketKey}/comment`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(commentPayload)
+        });
+
+        if (commentResponse.ok) {
+          console.log(`✅ Successfully added comment to ticket ${ticketKey}`);
+        } else {
+          const commentErrorText = await commentResponse.text();
+          console.error(`JIRA comment API error ${commentResponse.status}:`, commentErrorText);
+          // Don't fail the whole operation if comment fails
+        }
+      } catch (commentError) {
+        console.error('Error adding comment:', commentError);
+        // Don't fail the whole operation if comment fails
+      }
+    }
 
     return NextResponse.json({
       success: true,
