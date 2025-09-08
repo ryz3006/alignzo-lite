@@ -130,8 +130,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // First, get the total count by making a GET call with maxResults=0 to the jql endpoint
-    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=0`, {
+    // Try a different approach: fetch more results and handle pagination on our end
+    // First, get a larger set of results to determine the total count
+    const largeResponse = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
@@ -139,35 +140,38 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    let totalItems = 0;
-    if (countResponse.ok) {
-      const countData = await countResponse.json();
-      totalItems = countData.total || 0;
-      console.log(`📊 Total count from JIRA: ${totalItems}`);
-    }
-
-    // Now fetch the actual tickets with pagination via GET to the jql endpoint
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`JIRA API error ${response.status}:`, errorText);
+    if (!largeResponse.ok) {
+      const errorText = await largeResponse.text();
+      console.error(`JIRA API error ${largeResponse.status}:`, errorText);
       console.error(`JQL Query that failed: ${jql}`);
       return NextResponse.json(
-        { error: `JIRA API error: ${response.status}`, details: errorText, jql: jql },
-        { status: response.status }
+        { error: `JIRA API error: ${largeResponse.status}`, details: errorText, jql: jql },
+        { status: largeResponse.status }
       );
     }
 
-    const data = await response.json();
-    console.log(`📊 JIRA API Response - Total: ${data.total}, StartAt: ${data.startAt}, MaxResults: ${data.maxResults}, Issues: ${data.issues?.length || 0}`);
-    console.log(`📊 JIRA API Response Keys:`, Object.keys(data));
+    const largeData = await largeResponse.json();
+    const totalItems = largeData.total || largeData.issues?.length || 0;
+    
+    console.log(`📊 Large Response - Total: ${largeData.total}, Issues: ${largeData.issues?.length || 0}`);
+    
+    // Now slice the results for pagination
+    const allTickets = largeData.issues || [];
+    const startIndex = startAt;
+    const endIndex = startAt + maxResults;
+    const paginatedTickets = allTickets.slice(startIndex, endIndex);
+    
+    console.log(`📊 Pagination - StartIndex: ${startIndex}, EndIndex: ${endIndex}, PaginatedTickets: ${paginatedTickets.length}`);
+    
+    // Use the paginated tickets as if they came from the API
+    const data = {
+      total: totalItems,
+      startAt: startAt,
+      maxResults: maxResults,
+      issues: paginatedTickets
+    };
+
+    console.log(`📊 Final Data - Total: ${data.total}, StartAt: ${data.startAt}, MaxResults: ${data.maxResults}, Issues: ${data.issues?.length || 0}`);
     console.log(`📊 First few issues:`, data.issues?.slice(0, 3).map((issue: any) => ({ key: issue.key, summary: issue.fields?.summary })));
 
     // Transform the data to match our expected format
