@@ -39,6 +39,8 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
   };
 
   const getStatusColor = (status: string) => {
+    if (!status) return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
+    
     switch (status.toLowerCase()) {
       case 'done':
       case 'closed':
@@ -58,6 +60,8 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
   };
 
   const getPriorityColor = (priority: string) => {
+    if (!priority) return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
+    
     switch (priority.toLowerCase()) {
       case 'highest':
       case 'critical':
@@ -128,7 +132,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                 </a>
               </div>
               <p className="text-lg text-neutral-700 dark:text-neutral-300">
-                {ticket.summary}
+                {ticket.summary || 'No summary available'}
               </p>
             </div>
 
@@ -140,7 +144,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                   Status
                 </label>
                 <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
-                  {ticket.status}
+                  {ticket.status || 'Unknown'}
                 </span>
               </div>
 
@@ -150,7 +154,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                   Priority
                 </label>
                 <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getPriorityColor(ticket.priority)}`}>
-                  {ticket.priority}
+                  {ticket.priority || 'N/A'}
                 </span>
               </div>
 
@@ -171,7 +175,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                   Project
                 </label>
                 <div className="text-sm text-neutral-900 dark:text-white">
-                  {ticket.project} ({ticket.projectKey})
+                  {ticket.project || 'N/A'} ({ticket.projectKey || 'N/A'})
                 </div>
               </div>
 
@@ -193,7 +197,7 @@ export default function TicketDetailsModal({ isOpen, onClose, ticket }: TicketDe
                 </label>
                 <div className="flex items-center text-sm text-neutral-900 dark:text-white">
                   <User className="h-4 w-4 mr-2 text-neutral-500" />
-                  {ticket.reporter}
+                  {ticket.reporter || 'N/A'}
                 </div>
               </div>
 

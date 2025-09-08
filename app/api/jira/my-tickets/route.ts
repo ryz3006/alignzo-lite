@@ -114,18 +114,50 @@ export async function POST(request: NextRequest) {
     
     jql += ' ORDER BY updated DESC';
 
-    console.log(`🔍 JQL Query: ${jql}`);
-
     // Calculate pagination
     const startAt = (page - 1) * pageSize;
     const maxResults = pageSize;
 
-    // Fetch tickets from JIRA using the correct JQL endpoint
-    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,status,priority,assignee,reporter,project,issuetype,created,updated`, {
+    console.log(`🔍 JQL Query: ${jql}`);
+    console.log(`📄 Pagination - Page: ${page}, PageSize: ${pageSize}, StartAt: ${startAt}, MaxResults: ${maxResults}`);
+
+    // First, get the total count by making a POST call with maxResults=0 to the jql endpoint
+    const countResponse = await fetch(`${credentials.base_url}/rest/api/3/search/jql`, {
+      method: 'POST',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        jql: jql,
+        startAt: 0,
+        maxResults: 0,
+        fields: ['id']
+      })
+    });
+
+    let totalItems = 0;
+    if (countResponse.ok) {
+      const countData = await countResponse.json();
+      totalItems = countData.total || 0;
+      console.log(`📊 Total count from JIRA: ${totalItems}`);
+    }
+
+    // Now fetch the actual tickets with pagination via POST to /search/jql
+    const response = await fetch(`${credentials.base_url}/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${credentials.user_email_integration}:${credentials.api_token}`).toString('base64')}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        jql: jql,
+        startAt: startAt,
+        maxResults: maxResults,
+        fields: ['key', 'summary', 'status', 'priority', 'assignee', 'reporter', 'project', 'issuetype', 'created', 'updated']
+      })
     });
 
     if (!response.ok) {
@@ -138,7 +170,10 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    
+    console.log(`📊 JIRA API Response - Total: ${data.total}, StartAt: ${data.startAt}, MaxResults: ${data.maxResults}, Issues: ${data.issues?.length || 0}`);
+    console.log(`📊 JIRA API Response Keys:`, Object.keys(data));
+    console.log(`📊 First few issues:`, data.issues?.slice(0, 3).map(issue => ({ key: issue.key, summary: issue.fields?.summary })));
+
     // Transform the data to match our expected format
     const tickets = data.issues?.map((issue: any) => ({
       key: issue.key,
@@ -156,11 +191,12 @@ export async function POST(request: NextRequest) {
       jiraUrl: `${credentials.base_url}/browse/${issue.key}`
     })) || [];
 
-    const totalItems = data.total || 0;
+    // Use the totalItems we got from the count call
     const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
 
+    console.log(`📊 Pagination Calculation - Total: ${totalItems}, Issues Length: ${data.issues?.length}, TotalPages: ${totalPages}`);
     console.log(`✅ Found ${tickets.length} tickets (page ${page} of ${totalPages})`);
-    
+
     return NextResponse.json({
       success: true,
       tickets: tickets,
@@ -169,8 +205,8 @@ export async function POST(request: NextRequest) {
         pageSize: pageSize,
         totalItems: totalItems,
         totalPages: totalPages,
-        hasNextPage: data.startAt + data.maxResults < totalItems,
-        hasPreviousPage: data.startAt > 0
+        hasNextPage: (startAt + tickets.length) < totalItems,
+        hasPreviousPage: startAt > 0
       }
     });
 

@@ -235,13 +235,31 @@ export default function MyJiraTicketsPage() {
       const data = await response.json();
       
       if (data.success) {
-        setSearchResults(data.tickets || []);
+        const tickets = data.tickets || [];
+        // Ensure all tickets have required properties with fallbacks
+        const safeTickets = tickets.map((ticket: any) => ({
+          key: ticket.key || 'N/A',
+          id: ticket.id || 'N/A',
+          summary: ticket.summary || 'No summary available',
+          status: ticket.status || 'Unknown',
+          priority: ticket.priority || 'N/A',
+          assignee: ticket.assignee || 'Unassigned',
+          reporter: ticket.reporter || 'N/A',
+          project: ticket.project || 'N/A',
+          projectKey: ticket.projectKey || 'N/A',
+          issueType: ticket.issueType || 'Task',
+          created: ticket.created || new Date().toISOString(),
+          updated: ticket.updated || new Date().toISOString(),
+          jiraUrl: ticket.jiraUrl || '#'
+        }));
+        
+        setSearchResults(safeTickets);
         setShowSearchResults(true);
         
-        if (data.tickets.length === 0) {
+        if (safeTickets.length === 0) {
           toast.error('No tickets found matching your search');
         } else {
-          toast.success(`Found ${data.tickets.length} tickets`);
+          toast.success(`Found ${safeTickets.length} tickets`);
         }
       } else {
         const errorMessage = data.error || 'Failed to search tickets';
@@ -270,6 +288,8 @@ export default function MyJiraTicketsPage() {
   };
 
   const getPriorityColor = (priority: string) => {
+    if (!priority) return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
+    
     switch (priority.toLowerCase()) {
       case 'highest':
       case 'critical':
@@ -288,6 +308,8 @@ export default function MyJiraTicketsPage() {
   };
 
   const getStatusColor = (status: string) => {
+    if (!status) return 'text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-700';
+    
     switch (status.toLowerCase()) {
       case 'done':
       case 'closed':
@@ -400,18 +422,18 @@ export default function MyJiraTicketsPage() {
                           <div className="flex-1">
                             <div className="flex items-center space-x-2">
                               <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
-                                {ticket.key}
+                                {ticket.key || 'N/A'}
                               </span>
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
-                                {ticket.status}
+                                {ticket.status || 'Unknown'}
                               </span>
                             </div>
                             <p className="text-sm text-neutral-900 dark:text-white mt-1 line-clamp-2">
-                              {ticket.summary}
+                              {ticket.summary || 'No summary available'}
                             </p>
                             <div className="flex items-center space-x-4 mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                              <span>Priority: {ticket.priority}</span>
-                              <span>Reporter: {ticket.reporter}</span>
+                              <span>Priority: {ticket.priority || 'N/A'}</span>
+                              <span>Reporter: {ticket.reporter || 'N/A'}</span>
                             </div>
                           </div>
                           <ExternalLink className="h-4 w-4 text-neutral-400" />
