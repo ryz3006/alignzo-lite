@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     console.log(`📊 JIRA API Response - Total: ${data.total}, StartAt: ${data.startAt}, MaxResults: ${data.maxResults}, Issues: ${data.issues?.length || 0}`);
     console.log(`📊 JIRA API Response Keys:`, Object.keys(data));
-    console.log(`📊 First few issues:`, data.issues?.slice(0, 3).map(issue => ({ key: issue.key, summary: issue.fields?.summary })));
+    console.log(`📊 First few issues:`, data.issues?.slice(0, 3).map((issue: any) => ({ key: issue.key, summary: issue.fields?.summary })));
 
     // Transform the data to match our expected format
     const tickets = data.issues?.map((issue: any) => ({
